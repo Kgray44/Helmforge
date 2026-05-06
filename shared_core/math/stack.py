@@ -11,6 +11,7 @@ from shared_core.models.filtering import AxisFiltering
 from shared_core.models.modes import ModeConfig, StackMode
 from shared_core.models.rules import ConditionalRule
 from shared_core.models.tuning import AxisTuning
+from shared_core.rules.evaluator import RuleEvaluationResult, RuleStatus
 
 
 EXPECTED_STAGE_NAMES = (
@@ -120,6 +121,7 @@ def process_axis_stack(
     mode_config: ModeConfig,
     mode_state: ModeState,
     rules: tuple[ConditionalRule, ...] = (),
+    rule_results: tuple[RuleEvaluationResult, ...] = (),
     previous_filter_state: FilterState | None = None,
 ) -> AxisStackResult:
     stages: list[StageResult] = []
@@ -167,15 +169,21 @@ def process_axis_stack(
         )
     )
 
-    limited = apply_output_limits(curved, output_scale=tuning.output_scale, max_output=tuning.max_output)
+    output_scale, applied_limit_rules = _apply_base_output_limit_rules(tuning.output_scale, rule_results)
+    limited = apply_output_limits(curved, output_scale=output_scale, max_output=tuning.max_output)
     stages.append(
         _stage(
             "Base Output Limits",
             curved,
             limited,
-            active=tuning.output_scale != 1.0 or tuning.max_output < 1.0,
+            active=tuning.output_scale != 1.0 or tuning.max_output < 1.0 or bool(applied_limit_rules),
             explanation="Applies output scale and max output clamp.",
-            metadata={"output_scale": tuning.output_scale, "max_output": tuning.max_output},
+            metadata={
+                "output_scale": output_scale,
+                "configured_output_scale": tuning.output_scale,
+                "max_output": tuning.max_output,
+                "injected_rules": applied_limit_rules,
+            },
         )
     )
 
@@ -214,17 +222,34 @@ def process_axis_stack(
         )
     )
 
-    enabled_rules = tuple(rule.title for rule in rules if rule.enabled)
-    disabled_rules = tuple(rule.title for rule in rules if not rule.enabled)
+    if rule_results:
+        active_rules = tuple(result.rule_title for result in rule_results if result.status is RuleStatus.ACTIVE)
+        inactive_rules = tuple(result.rule_title for result in rule_results if result.status is RuleStatus.INACTIVE)
+        blocked_rules = tuple(result.rule_title for result in rule_results if result.status is RuleStatus.BLOCKED)
+        disabled_rules = tuple(result.rule_title for result in rule_results if result.status is RuleStatus.DISABLED)
+        metadata = {
+            "active_rules": active_rules,
+            "inactive_rules": inactive_rules,
+            "blocked_rules": blocked_rules,
+            "disabled_rules": disabled_rules,
+            "evaluations": tuple(_rule_result_metadata(result) for result in rule_results),
+        }
+        explanation = "Evaluates conditional rule state and reports any inline injections for this axis."
+    else:
+        active_rules = ()
+        disabled_rules = tuple(rule.title for rule in rules if not rule.enabled)
+        enabled_rules = tuple(rule.title for rule in rules if rule.enabled)
+        metadata = {"disabled_rules": disabled_rules, "enabled_rules_deferred": enabled_rules}
+        explanation = "Rule evaluation is deferred; disabled rules are reported and do not affect output."
     stages.append(
         _stage(
             "Rule Injections",
             mode_output,
             mode_output,
-            active=bool(enabled_rules),
-            explanation="Rule evaluation is deferred; disabled rules are reported and do not affect output.",
-            metadata={"disabled_rules": disabled_rules, "enabled_rules_deferred": enabled_rules},
-            injected_rules=enabled_rules,
+            active=bool(active_rules),
+            explanation=explanation,
+            metadata=metadata,
+            injected_rules=active_rules,
         )
     )
 
@@ -244,3 +269,44 @@ def process_axis_stack(
         filter_state=filter_result.state,
         stages=tuple(stages),
     )
+
+
+def _apply_base_output_limit_rules(
+    configured_output_scale: float,
+    rule_results: tuple[RuleEvaluationResult, ...],
+) -> tuple[float, tuple[str, ...]]:
+    output_scale = configured_output_scale
+    applied_rules: list[str] = []
+    for result in rule_results:
+        if result.status is not RuleStatus.ACTIVE:
+            continue
+        if result.injection_stage != "Base Output Limits":
+            continue
+        if result.parameter != "Output Scale":
+            continue
+        if result.operation == "Set":
+            output_scale = result.value
+        elif result.operation == "Add":
+            output_scale += result.value
+        elif result.operation == "Multiply":
+            output_scale *= result.value
+        else:
+            continue
+        applied_rules.append(result.rule_title)
+    return output_scale, tuple(applied_rules)
+
+
+def _rule_result_metadata(result: RuleEvaluationResult) -> dict[str, Any]:
+    return {
+        "rule_title": result.rule_title,
+        "status": result.status.value,
+        "applies": result.applies,
+        "blocked_reason": result.blocked_reason,
+        "target_axis": result.target_axis,
+        "parameter": result.parameter,
+        "operation": result.operation,
+        "value": result.value,
+        "injection_stage": result.injection_stage,
+        "summary": result.summary,
+        "metadata": dict(result.metadata),
+    }

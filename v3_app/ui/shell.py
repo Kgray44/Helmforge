@@ -11,6 +11,7 @@ from shared_core.persistence.workspace_store import WorkspaceJsonError, load_wor
 from shared_core.runtime.device_discovery import build_runtime_preflight_status
 from v3_app.pages.base_tuning_page import BaseTuningPage
 from v3_app.pages.combat_profile_page import CombatProfilePage
+from v3_app.pages.conditional_rules_page import ConditionalRulesPage
 from v3_app.pages.filtering_page import FilteringPage
 from v3_app.pages.mapping_page import MappingPage
 from v3_app.pages.modes_page import ModesPage
@@ -125,6 +126,13 @@ class HelmForgeShell(QWidget):
             return CombatProfilePage(**common, on_dirty=self.mark_workspace_dirty)
         if page_id == "profiles":
             return ProfilesPage(**common, on_status=self.set_status_message)
+        if page_id == "conditional_rules":
+            return ConditionalRulesPage(
+                **common,
+                on_dirty=self.mark_workspace_dirty,
+                on_status=self.set_status_message,
+                on_workspace_changed=self.update_workspace_draft,
+            )
         return create_placeholder_page(page, runtime_label=self.state.runtime.runtime_card_label)
 
     def mark_workspace_dirty(self, message: str) -> None:

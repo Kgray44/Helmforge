@@ -25,3 +25,11 @@
 - Deadzone remaps the remaining range after the threshold so full travel can still reach full output.
 - Filtering uses center/edge alpha plus same-direction and reverse-direction slew limits.
 - Simulation final outputs now pass through the shared-core stack while runtime truth remains simulated unless live hardware/output is genuinely verified.
+
+## Phase 7 Conditional Rules
+
+- Conditional Rules evaluation lives in `shared_core/rules/` so the future Bridge can use it without importing PySide6.
+- Disabled rules report `Disabled` and do not affect output.
+- Invalid rules report `Blocked` with a validation reason instead of crashing evaluation.
+- The recovered example rule can set Yaw `Output Scale` to `0.75` at `Base Output Limits` when absolute Roll final output is greater than `0.35`.
+- Phase 7 only verifies simulated/shared-core rule behavior. It does not add real HOTAS polling, vJoy writes, or output verification.

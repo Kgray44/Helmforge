@@ -8,6 +8,7 @@ from shared_core.math.filtering import FilterState
 from shared_core.math.stack import AxisStackResult, ModeState, process_axis_stack
 from shared_core.models.axes import all_axis_definitions
 from shared_core.models.workspace import WorkspaceConfig
+from shared_core.rules.evaluator import RuleEvaluationContext, RuleEvaluationResult, evaluate_rules
 
 
 @dataclass(frozen=True)
@@ -27,6 +28,7 @@ class WorkspaceSignalPipelineResult:
     final_output_values: Mapping[str, float]
     axis_results: Mapping[str, AxisStackResult]
     state: SignalPipelineState
+    rule_evaluations: tuple[RuleEvaluationResult, ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "raw_axis_values", MappingProxyType(dict(self.raw_axis_values)))
@@ -54,6 +56,46 @@ class WorkspaceSignalPipeline:
     ) -> WorkspaceSignalPipelineResult:
         active_mode_state = mode_state or ModeState()
         current_state = state or self.initial_state()
+        rule_evaluations: tuple[RuleEvaluationResult, ...] = ()
+
+        if self._workspace.rules.rules:
+            baseline_results = self._process_axes(
+                raw_axis_values,
+                mode_state=active_mode_state,
+                state=current_state,
+                rule_evaluations=(),
+                include_rules=False,
+            )[2]
+            rule_evaluations = evaluate_rules(
+                self._workspace.rules.rules,
+                _rule_context_from_axis_results(baseline_results),
+            )
+
+        ordered_raw_values, final_output_values, axis_results, next_filter_states = self._process_axes(
+            raw_axis_values,
+            mode_state=active_mode_state,
+            state=current_state,
+            rule_evaluations=rule_evaluations,
+            include_rules=True,
+        )
+
+        return WorkspaceSignalPipelineResult(
+            raw_axis_values=ordered_raw_values,
+            final_output_values=final_output_values,
+            axis_results=axis_results,
+            state=SignalPipelineState(next_filter_states),
+            rule_evaluations=rule_evaluations,
+        )
+
+    def _process_axes(
+        self,
+        raw_axis_values: Mapping[str, float],
+        *,
+        mode_state: ModeState,
+        state: SignalPipelineState,
+        rule_evaluations: tuple[RuleEvaluationResult, ...],
+        include_rules: bool,
+    ) -> tuple[dict[str, float], dict[str, float], dict[str, AxisStackResult], dict[str, FilterState]]:
         ordered_raw_values: dict[str, float] = {}
         final_output_values: dict[str, float] = {}
         axis_results: dict[str, AxisStackResult] = {}
@@ -69,18 +111,23 @@ class WorkspaceSignalPipeline:
                 filtering=self._workspace.filtering.axes[axis_id],
                 combat=self._workspace.combat.axes[axis_id],
                 mode_config=self._workspace.modes,
-                mode_state=active_mode_state,
-                rules=self._workspace.rules.rules,
-                previous_filter_state=current_state.filter_state_for(axis_name),
+                mode_state=mode_state,
+                rules=self._workspace.rules.rules if include_rules else (),
+                rule_results=tuple(result for result in rule_evaluations if result.target_axis == axis_name),
+                previous_filter_state=state.filter_state_for(axis_name),
             )
             ordered_raw_values[axis_name] = raw_value
             final_output_values[axis_name] = stack_result.final_output
             axis_results[axis_name] = stack_result
             next_filter_states[axis_name] = stack_result.filter_state
 
-        return WorkspaceSignalPipelineResult(
-            raw_axis_values=ordered_raw_values,
-            final_output_values=final_output_values,
-            axis_results=axis_results,
-            state=SignalPipelineState(next_filter_states),
-        )
+        return ordered_raw_values, final_output_values, axis_results, next_filter_states
+
+
+def _rule_context_from_axis_results(axis_results: Mapping[str, AxisStackResult]) -> RuleEvaluationContext:
+    values_by_stage: dict[str, dict[str, float]] = {}
+    for axis_name, result in axis_results.items():
+        for stage in result.stages:
+            values_by_stage.setdefault(stage.stage_name, {})[axis_name] = stage.output_value
+        values_by_stage.setdefault("Final Output", {})[axis_name] = result.final_output
+    return RuleEvaluationContext(values_by_stage=values_by_stage)

@@ -27,7 +27,7 @@ PAGE_DEFINITIONS = (
     PageDefinition("filtering", "Filtering", "Tune smoothing, edge response, and same/reverse-direction slew limits.", "Step response and filtering controls will be added without moving processing into the UI."),
     PageDefinition("combat_profile", "Combat Profile", "Adjust combat-focused curve, scale, filtering, and slew behavior.", "Combat profile controls will remain configuration-only for the future Bridge."),
     PageDefinition("profiles", "Profiles", "Manage built-in and personal workspaces for different flight styles.", "Profile library and detail cards will be reconstructed in a later phase."),
-    PageDefinition("conditional_rules", "Conditional Rules", "Represent conditional tuning rules that can react to mode gates and signals.", "Rule list, editor, and simulator surfaces are reserved for the rules phase."),
+    PageDefinition("conditional_rules", "Conditional Rules", "Build responsive modifier rules, track their live state, and see exactly where they inject into the response stack.", "Rule list, detail, editor, and live status are rebuilt in the rules phase."),
     PageDefinition("effective_response_stack", "Effective Response Stack", "Inspect every stage from raw input through final output.", "Stage cards will be powered by the shared-core stack results."),
     PageDefinition("live_monitor", "Live Monitor", "Watch runtime truth, simulated telemetry, and future Bridge snapshots.", "Live graphs and button grids come later; output remains unverified for now."),
     PageDefinition("flight_recorder", "Flight Recorder", "Prepare capture, clip review, and telemetry overlay workflows.", "Recorder controls are placeholders until capture/compositor work begins."),
