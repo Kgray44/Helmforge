@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -25,10 +27,17 @@ from v3_app.pages.live_monitor_data import (
     BoundedTelemetryHistory,
     OUTPUT_BUTTON_NAMES,
     bridge_telemetry_from_runtime_snapshot,
+    telemetry_sample_from_bridge_payload,
     telemetry_sample_from_runtime_snapshot,
 )
 from v3_app.pages.page_helpers import card, card_header, card_layout, page_intro, signed
 from v3_app.services.app_state import AppState
+from v3_app.services.bridge_client import (
+    DEFAULT_BRIDGE_TELEMETRY_PATH,
+    BridgeTelemetryClient,
+    BridgeTelemetryReadResult,
+    BridgeTelemetryStatus,
+)
 from v3_app.ui.status_chips import status_chip
 
 
@@ -39,6 +48,8 @@ class LiveMonitorPage(QWidget):
         state: AppState,
         workspace: WorkspaceConfig | None = None,
         runtime_status: RuntimePreflightStatus | None = None,
+        telemetry_path: str | Path | None = None,
+        bridge_stale_after_seconds: float = 5.0,
     ) -> None:
         super().__init__()
         self.setObjectName("liveMonitorPage")
@@ -46,11 +57,17 @@ class LiveMonitorPage(QWidget):
         self._workspace = workspace or create_default_workspace()
         self._runtime_status = runtime_status or build_runtime_preflight_status()
         self._simulation = SimulatedRuntime(deterministic=False, workspace=self._workspace)
+        self._bridge_client = BridgeTelemetryClient(
+            telemetry_path=telemetry_path or DEFAULT_BRIDGE_TELEMETRY_PATH,
+            stale_after_seconds=bridge_stale_after_seconds,
+        )
         self._pipeline = WorkspaceSignalPipeline(self._workspace)
         self._pipeline_state = self._pipeline.initial_state()
         self.selected_axis = state.selected_axis if state.selected_axis in AXIS_DISPLAY_NAMES else "Roll"
         self.show_raw_and_output_together = True
         self.overlay_series_count = 0
+        self.telemetry_source_label = "Simulation Fallback"
+        self.telemetry_source_status = "Missing"
         self._sample_index = 0
         self.history = BoundedTelemetryHistory(capacity=240)
         self.axis_level_widgets: dict[str, QWidget] = {}
@@ -123,6 +140,11 @@ class LiveMonitorPage(QWidget):
             tone=self._state.runtime.tone,
             object_name="liveMonitorRuntimeTruthChip",
         )
+        self.source_chip = status_chip(
+            "Simulation Fallback",
+            tone="warning",
+            object_name="liveMonitorTelemetrySourceChip",
+        )
         output_chip = status_chip(
             f"Output writes verified: {str(self._runtime_status.live_output_writes_verified).lower()}",
             tone="success" if self._runtime_status.live_output_writes_verified else "warning",
@@ -132,6 +154,7 @@ class LiveMonitorPage(QWidget):
         row.addWidget(self.axis_selector)
         row.addWidget(self.overlay_checkbox)
         row.addStretch(1)
+        row.addWidget(self.source_chip)
         row.addWidget(self.runtime_chip)
         row.addWidget(output_chip)
         layout.addLayout(row)
@@ -275,15 +298,20 @@ class LiveMonitorPage(QWidget):
 
     def refresh_snapshot(self, *, force_new: bool = False) -> None:
         self._sample_index += 1
-        snapshot = self._simulation.snapshot(self._runtime_status)
-        sample = telemetry_sample_from_runtime_snapshot(snapshot, index=self._sample_index)
-        telemetry = bridge_telemetry_from_runtime_snapshot(
-            snapshot,
-            active_profile=self._state.active_profile,
-            rule_summary=self._rule_summary(snapshot.raw_axis_values),
-        )
+        bridge_result = self._bridge_client.read()
+        if bridge_result.status is BridgeTelemetryStatus.CONNECTED and bridge_result.telemetry is not None:
+            sample = telemetry_sample_from_bridge_payload(bridge_result.telemetry, index=self._sample_index)
+            telemetry = bridge_result.telemetry
+        else:
+            snapshot = self._simulation.snapshot(self._runtime_status)
+            sample = telemetry_sample_from_runtime_snapshot(snapshot, index=self._sample_index)
+            telemetry = bridge_telemetry_from_runtime_snapshot(
+                snapshot,
+                active_profile=self._state.active_profile,
+                rule_summary=self._rule_summary(snapshot.raw_axis_values),
+            )
         self.history.append(sample)
-        self._update_from_sample(sample, telemetry)
+        self._update_from_sample(sample, telemetry, bridge_result)
         self._update_graphs()
 
     def _rule_summary(self, raw_axes) -> object:
@@ -298,7 +326,7 @@ class LiveMonitorPage(QWidget):
             disabled_count=counts["disabled"],
         )
 
-    def _update_from_sample(self, sample, telemetry) -> None:
+    def _update_from_sample(self, sample, telemetry, bridge_result: BridgeTelemetryReadResult) -> None:
         for axis_name in AXIS_NAMES:
             raw_value = sample.raw_axes.get(axis_name, 0.0)
             final_value = sample.final_axes.get(axis_name, 0.0)
@@ -317,20 +345,58 @@ class LiveMonitorPage(QWidget):
         self.hotas_hat_chip.setText(f"HOTAS Hat: {sample.hat_state}")
         self.output_hat_chip.setText(f"Output Hat: {sample.output_hat_state}")
 
+        self._update_source_status(bridge_result)
         rule_summary = telemetry.rule_summary
+        if isinstance(rule_summary, dict):
+            active_count = int(rule_summary.get("active_count", 0))
+            blocked_count = int(rule_summary.get("blocked_count", 0))
+            disabled_count = int(rule_summary.get("disabled_count", 0))
+        else:
+            active_count = rule_summary.active_count
+            blocked_count = rule_summary.blocked_count
+            disabled_count = rule_summary.disabled_count
+        output_verified = bool(telemetry.output_verified)
+        runtime_truth = telemetry.runtime_truth.value if hasattr(telemetry.runtime_truth, "value") else str(telemetry.runtime_truth)
+        lifecycle_state = (
+            telemetry.lifecycle_state.value
+            if hasattr(telemetry.lifecycle_state, "value")
+            else str(telemetry.lifecycle_state)
+        )
         self.live_state_label.setText(
             "Precision Off | Combat Off | Trigger Off | Zoom Off | Extra Off\n"
             f"Stack mode: {self._workspace.modes.precision_combat_stack_mode.value}. "
-            f"Active rules: {rule_summary.active_count}; blocked: {rule_summary.blocked_count}; "
-            f"disabled: {rule_summary.disabled_count}.\n"
-            f"Runtime truth: {telemetry.runtime_truth.value}. Output writes verified: "
-            f"{str(telemetry.output_verified).lower()}."
+            f"Active rules: {active_count}; blocked: {blocked_count}; "
+            f"disabled: {disabled_count}.\n"
+            f"Telemetry source: {self.telemetry_source_label}. Bridge lifecycle: {lifecycle_state}. "
+            f"Runtime truth: {runtime_truth}. "
+            f"Output writes verified: {str(output_verified).lower()}."
         )
         self.buttons_hats_label.setText(
             "In Simulation Mode, HOTAS buttons and hats are generated by the simulation runtime while mapped outputs "
             "reflect the current workspace pipeline. No real vJoy button writes are verified in this phase."
         )
         self.runtime_chip.setText(self._state.runtime.header_truth_label)
+
+    def _update_source_status(self, bridge_result: BridgeTelemetryReadResult) -> None:
+        self.telemetry_source_status = bridge_result.status.value
+        if bridge_result.status is BridgeTelemetryStatus.CONNECTED:
+            self.telemetry_source_label = "Bridge Telemetry"
+            chip_text = "Bridge Telemetry"
+            tone = "success"
+        else:
+            self.telemetry_source_label = "Simulation Fallback"
+            reason = {
+                BridgeTelemetryStatus.MISSING: "Bridge Missing",
+                BridgeTelemetryStatus.STALE: "Bridge Stale",
+                BridgeTelemetryStatus.INVALID: "Bridge Invalid",
+                BridgeTelemetryStatus.ERROR: "Bridge Error",
+            }.get(bridge_result.status, "Bridge Missing")
+            chip_text = reason
+            tone = "warning" if bridge_result.status is not BridgeTelemetryStatus.ERROR else "danger"
+        self.source_chip.setText(chip_text)
+        self.source_chip.setProperty("chipTone", tone)
+        self.source_chip.style().unpolish(self.source_chip)
+        self.source_chip.style().polish(self.source_chip)
 
     def _update_graphs(self) -> None:
         raw_points = self.history.raw_points(self.selected_axis)

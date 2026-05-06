@@ -1,6 +1,6 @@
 # Bridge/UI Architecture
 
-Status: Phase 9B boundary skeleton implemented. Shared contracts exist and `bridge_app` can run as a separate simulation-only Python process, but real HOTAS polling, vJoy writes, output verification, Windows Service install, and login auto-start are not implemented yet.
+Status: Phase 9C UI telemetry connection implemented. Shared contracts exist, `bridge_app` can run as a separate simulation-only Python process, and the PySide6 Live Monitor can consume fresh Bridge telemetry JSON with safe simulation fallback. Real HOTAS polling, vJoy writes, output verification, Windows Service install, and login auto-start are not implemented yet.
 
 ## Core Rule
 
@@ -48,7 +48,7 @@ The UI may run Bridge-like adapters in-process during early development, but rea
 
 ## Communication Boundary
 
-The final IPC mechanism is still intentionally undecided. Phase 9B uses a simple local JSON telemetry file and JSON command file as the first development IPC seam. Candidate later mechanisms include:
+The final IPC mechanism is still intentionally undecided. Phase 9B uses a simple local JSON telemetry file and JSON command file as the first development IPC seam. Phase 9C reads the telemetry JSON from the UI and falls back when it is missing, stale, or invalid. Candidate later mechanisms include:
 
 - local process IPC;
 - named pipe;
@@ -82,7 +82,7 @@ The Bridge should never rely on the settings window staying open to keep process
 3. Bridge publishes raw axes, final axes, buttons, hats, active modes, rule counts, output verification state, warnings, and errors.
 4. UI reads and renders telemetry in monitor, graph, diagnostics, overlay, recorder, and assistant surfaces.
 
-Phase 2B telemetry contracts are defined in `shared_core/runtime/telemetry.py`. Phase 9B Bridge telemetry is written as JSON shaped from those contracts.
+Phase 2B telemetry contracts are defined in `shared_core/runtime/telemetry.py`. Phase 9B Bridge telemetry is written as JSON shaped from those contracts. Phase 9C validates the JSON in `v3_app/services/bridge_client.py`; telemetry older than 5 seconds is treated as stale and not live.
 
 ## Runtime Truth Rules
 
@@ -124,14 +124,17 @@ Implemented:
 - `python -m bridge_app.main --status`;
 - local telemetry JSON output;
 - local command JSON parsing for initial Bridge commands.
+- Phase 9C UI telemetry client;
+- Live Monitor consumption of fresh Bridge telemetry;
+- simulation fallback for missing, stale, corrupt, or invalid Bridge telemetry.
 
-Current local precheck for the Phase 9B pass:
+Current local precheck for the Phase 9C pass:
 
 - Thrustmaster driver/software detected: yes.
 - vJoy detected: yes.
-- HOTAS device detected: yes, at precheck time.
+- HOTAS device detected: no, at precheck time.
 - Runtime mode: `simulated`.
-- Runtime truth: `detected_unverified`.
+- Runtime truth: `blocked_missing_device`.
 - Full Live Runtime Ready: false.
 - Live output writes verified: false.
 
@@ -143,5 +146,5 @@ Deferred:
 - real HOTAS polling;
 - real vJoy writes;
 - socket/named-pipe/streaming IPC;
-- UI connection to Bridge telemetry;
+- UI command writer actions;
 - UI pages for Bridge control.

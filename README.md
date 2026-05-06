@@ -4,7 +4,7 @@
 
 HelmForge is a safe rebuild of the lost HOTAS Control Panel project. The recovered HOTAS Control Panel V2 forensic notes, raw recovery chats, and PNG screenshot evidence are the governing reconstruction references for this repository.
 
-The current rebuild state includes the Phase 9B Bridge background process skeleton, Phase 9 Live Monitor page, Phase 8 Effective Response Stack page, Phase 7 Conditional Rules page/evaluator, Phase 6B Mapping editor polish, Phase 6 core tuning pages, Phase 5 Mapping page, Phase 4 PySide6 visual shell, Phase 2B Bridge/UI architecture boundary contracts, Phase 2A local runtime setup tooling, and the Phase 3 tuning math and signal pipeline. Phase 9B adds a separate `bridge_app` Python entry point that runs simulation-only ticks, loads the V3 workspace safely, writes Bridge-shaped telemetry JSON, and accepts basic command JSON. The current app still does not implement real HOTAS input polling, vJoy output writes, flight recorder, live overlay, or installer packaging.
+The current rebuild state includes the Phase 9C UI Bridge telemetry connection, Phase 9B Bridge background process skeleton, Phase 9 Live Monitor page, Phase 8 Effective Response Stack page, Phase 7 Conditional Rules page/evaluator, Phase 6B Mapping editor polish, Phase 6 core tuning pages, Phase 5 Mapping page, Phase 4 PySide6 visual shell, Phase 2B Bridge/UI architecture boundary contracts, Phase 2A local runtime setup tooling, and the Phase 3 tuning math and signal pipeline. Phase 9C lets the UI read Bridge telemetry JSON when fresh and fall back to simulation when telemetry is missing, stale, or invalid. The current app still does not implement real HOTAS input polling, vJoy output writes, flight recorder, live overlay, or installer packaging.
 
 ## Recovery Sources
 
@@ -23,7 +23,7 @@ HelmForge is developed simulation-first so the UI, shared core, and tests can pr
 
 Known physical HOTAS target: **Thrustmaster T-Flight HOTAS One**.
 
-Phase 9B does **not** provide real support for that hardware. It does **not** implement real HOTAS polling or real vJoy output writes. No live runtime support should be claimed until a later phase implements and verifies it.
+Phase 9C does **not** provide real support for that hardware. It does **not** implement real HOTAS polling or real vJoy output writes. No live runtime support should be claimed until a later phase implements and verifies it.
 
 The V3 workspace/config filename is `hotas_bridge_config_v3.json`. The recovered V2 notes referenced `hotas_bridge_config_v2.json`; that legacy name is preserved in schema documentation for provenance.
 
@@ -36,7 +36,7 @@ HelmForge has two main parts:
 - Bridge: owns real-time HOTAS input, workspace processing, virtual output, and telemetry.
 - UI App: owns configuration, visualization, diagnostics, help/docs, recorder/overlay surfaces, and user interaction.
 
-The Phase 9B Bridge process runs separately from the PySide6 UI and writes simulation-backed telemetry snapshots for future UI consumption. Early phases may still use in-process simulation adapters for development views, but the final architecture should allow the Bridge to run without the PySide6 UI open. The Bridge/UI boundary is documented in `docs/HelmForge/bridge-ui-architecture.md`, and the process skeleton is documented in `docs/HelmForge/bridge-service-design.md`.
+The Phase 9B Bridge process runs separately from the PySide6 UI and writes simulation-backed telemetry snapshots. Phase 9C adds a UI Bridge telemetry client and wires Live Monitor to use fresh Bridge telemetry, with simulation fallback for missing, stale, or invalid telemetry. Early phases may still use in-process simulation adapters for development views, but the final architecture should allow the Bridge to run without the PySide6 UI open. The Bridge/UI boundary is documented in `docs/HelmForge/bridge-ui-architecture.md`, and the process skeleton is documented in `docs/HelmForge/bridge-service-design.md`.
 
 ## Project Layout
 

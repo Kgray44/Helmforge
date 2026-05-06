@@ -82,6 +82,22 @@ def telemetry_sample_from_runtime_snapshot(snapshot: RuntimeSnapshot, *, index: 
     )
 
 
+def telemetry_sample_from_bridge_payload(payload, *, index: int) -> TelemetrySample:
+    output_buttons = {
+        f"Out{number}": bool(payload.buttons.get(f"B{number}", False)) if number <= 15 else False
+        for number in range(1, 21)
+    }
+    return TelemetrySample(
+        index=index,
+        raw_axes={axis: payload.raw_axes.get(axis, 0.0) for axis in AXIS_NAMES},
+        final_axes={axis: payload.final_axes.get(axis, 0.0) for axis in AXIS_NAMES},
+        buttons={name: bool(payload.buttons.get(name, False)) for name in BUTTON_NAMES},
+        output_buttons=output_buttons,
+        hat_state=payload.hats.get("HOTAS Hat", HAT_CENTERED),
+        output_hat_state=payload.hats.get("Output Hat", HAT_CENTERED),
+    )
+
+
 def bridge_telemetry_from_runtime_snapshot(
     snapshot: RuntimeSnapshot,
     *,

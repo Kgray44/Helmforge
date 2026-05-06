@@ -2,13 +2,13 @@
 
 Product: HelmForge  
 Technical subtitle: HOTAS Control Panel V3  
-Status: Phase 9B simulation-only process skeleton
+Status: Phase 9C UI telemetry connection over Phase 9B simulation-only file IPC
 
 ## Purpose
 
 The Bridge is the background/runtime side of HelmForge. It is intended to own real-time HOTAS input, workspace processing, virtual output, and telemetry. The PySide6 UI owns configuration, visualization, diagnostics, and user interaction.
 
-Phase 9B creates the separate process skeleton so future real HOTAS and vJoy work lands outside `v3_app`.
+Phase 9B created the separate process skeleton so future real HOTAS and vJoy work lands outside `v3_app`. Phase 9C adds UI-side telemetry reading without moving Bridge processing into the UI.
 
 ## Current Entry Points
 
@@ -49,7 +49,7 @@ Default paths are under the local temp directory:
 - `helmforge_bridge_telemetry.json`
 - `helmforge_bridge_command.json`
 
-This file IPC is a development seam, not the final transport. Future phases may replace it with a named pipe, socket, local API, or service/tray channel.
+This file IPC is a development seam, not the final transport. Phase 9C reads the telemetry file from `v3_app/services/bridge_client.py` and treats files older than 5 seconds as stale. Future phases may replace the file with a named pipe, socket, local API, or service/tray channel.
 
 ## Telemetry Shape
 
@@ -79,7 +79,7 @@ Telemetry JSON includes:
 - `config_status`
 - `tick_count`
 
-The payload is shaped from `shared_core/runtime/telemetry.py` so Phase 9C can connect the UI without inventing a second telemetry contract.
+The payload is shaped from `shared_core/runtime/telemetry.py`, and the Phase 9C UI client validates required fields before Live Monitor consumes the data.
 
 ## Commands
 
@@ -142,5 +142,6 @@ The shared lifecycle model also preserves future states:
 - Real HOTAS polling.
 - Real vJoy writes.
 - Output verification.
-- UI telemetry connection, planned for Phase 9C.
+- command writer UI actions;
+- automatic Bridge process launch from UI;
 - Final IPC transport.
