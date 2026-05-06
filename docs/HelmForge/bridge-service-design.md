@@ -2,13 +2,13 @@
 
 Product: HelmForge  
 Technical subtitle: HOTAS Control Panel V3  
-Status: Phase 9F Bridge lifecycle presence and health refinement over Phase 9B simulation-only file IPC
+Status: Phase 9G lifecycle ownership design recorded; no lifecycle implementation added
 
 ## Purpose
 
 The Bridge is the background/runtime side of HelmForge. It is intended to own real-time HOTAS input, workspace processing, virtual output, and telemetry. The PySide6 UI owns configuration, visualization, diagnostics, and user interaction.
 
-Phase 9B created the separate process skeleton so future real HOTAS and vJoy work lands outside `v3_app`. Phase 9C added UI-side telemetry reading without moving Bridge processing into the UI. Phase 9D added a safe UI command writer for status/config/preflight requests only. Phase 9E added per-command acknowledgement/status telemetry while keeping telemetry as the truth source. Phase 9F refines telemetry health and timing details for UI-visible lifecycle presence.
+Phase 9B created the separate process skeleton so future real HOTAS and vJoy work lands outside `v3_app`. Phase 9C added UI-side telemetry reading without moving Bridge processing into the UI. Phase 9D added a safe UI command writer for status/config/preflight requests only. Phase 9E added per-command acknowledgement/status telemetry while keeping telemetry as the truth source. Phase 9F refined telemetry health and timing details for UI-visible lifecycle presence. Phase 9G records lifecycle ownership options, wording rules, and safety gates; it adds no lifecycle implementation.
 
 ## Current Entry Points
 
@@ -174,6 +174,23 @@ The shared lifecycle model also preserves future states:
 
 `LiveVerified` must not be used until a later phase actually verifies output writes.
 
+## Phase 9G Lifecycle Ownership Decision
+
+Phase 9G is documented in `docs/HelmForge/phase-9g-bridge-lifecycle-ownership-design.md`.
+
+Decision summary:
+
+- keep manual Bridge launch during current development;
+- do not let the UI start, stop, or restart the Bridge yet;
+- do not add process spawning from the UI;
+- later consider read-only process presence hints;
+- later prefer a tray/background manager over premature service behavior;
+- defer Windows Service unless there is a strong reason;
+- defer login auto-start until Bridge behavior is stable, user-controlled, and opt-in;
+- never imply runtime readiness without fresh telemetry and output verification.
+
+This is design-only. No lifecycle implementation, tray manager, service install, login startup task, automatic Bridge launch, or real runtime activation is added by Phase 9G.
+
 ## Deferred
 
 - Windows Service installation.
@@ -184,4 +201,5 @@ The shared lifecycle model also preserves future states:
 - Real vJoy writes.
 - Output verification.
 - automatic Bridge process launch from UI.
+- process spawning from UI.
 - Final IPC transport.

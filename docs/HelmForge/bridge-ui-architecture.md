@@ -1,6 +1,6 @@
 # Bridge/UI Architecture
 
-Status: Phase 9F Bridge lifecycle presence and health refinement implemented. Shared contracts exist, `bridge_app` can run as a separate simulation-only Python process, the PySide6 Live Monitor can consume fresh Bridge telemetry JSON with safe simulation fallback, and the UI can request safe Bridge commands through a JSON command file. The Bridge echoes the most recently consumed command request in telemetry, and the UI now shows compact Bridge health/timing details. Real HOTAS polling, vJoy writes, output verification, Windows Service install, and login auto-start are not implemented yet.
+Status: Phase 9G lifecycle ownership design recorded. Shared contracts exist, `bridge_app` can run as a separate simulation-only Python process, the PySide6 Live Monitor can consume fresh Bridge telemetry JSON with safe simulation fallback, and the UI can request safe Bridge commands through a JSON command file. The Bridge echoes the most recently consumed command request in telemetry, and the UI shows compact Bridge health/timing details. Real HOTAS polling, vJoy writes, output verification, automatic Bridge launch, process spawning from the UI, Windows Service install, tray manager work, and login auto-start are not implemented yet.
 
 ## Core Rule
 
@@ -149,6 +149,22 @@ Runtime error -> Bridge enters error/safe-idle and reports the reason.
 
 Phase 2B lifecycle contracts are defined in `shared_core/runtime/bridge_lifecycle.py`. Phase 9B exercises `Starting`, `Simulated`, and `Stopping` in tests, with `WaitingForHotas`, `WaitingForOutput`, and `LiveUnverified` preserved for the future real runtime.
 
+## Phase 9G Lifecycle Ownership Decision
+
+Phase 9G records the lifecycle ownership decision in `docs/HelmForge/phase-9g-bridge-lifecycle-ownership-design.md`.
+
+Conservative staged path:
+
+1. Keep manual Bridge launch for now.
+2. Add read-only process presence hints later if needed.
+3. Prefer a tray/background Bridge manager later for user-session ownership.
+4. Defer UI-launched child process until crash/log/stale-state behavior is safe.
+5. Defer Windows Service until there is a strong reason.
+6. Defer login auto-start until Bridge behavior is stable, user-controlled, and opt-in.
+7. Never imply runtime readiness without fresh telemetry and output verification.
+
+Phase 9G is design-only. No lifecycle implementation, process spawning, automatic Bridge launch, tray manager, Windows Service, login auto-start, or real runtime activation was added.
+
 ## Current Early-Phase Status
 
 Implemented:
@@ -177,8 +193,10 @@ Implemented:
 - Phase 9F telemetry health/timing details;
 - compact Live Monitor Bridge health display;
 - explicit missing/stale/invalid/error explanation text.
+- Phase 9G lifecycle ownership decision record;
+- lifecycle wording and safety gates before launch/service/tray work.
 
-Current local precheck for the Phase 9F pass:
+Current local precheck for the Phase 9G pass:
 
 - Thrustmaster driver/software detected: yes.
 - vJoy detected: yes.
