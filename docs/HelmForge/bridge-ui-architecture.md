@@ -1,6 +1,6 @@
 # Bridge/UI Architecture
 
-Status: Phase 9E command acknowledgement/status refinement implemented. Shared contracts exist, `bridge_app` can run as a separate simulation-only Python process, the PySide6 Live Monitor can consume fresh Bridge telemetry JSON with safe simulation fallback, and the UI can request safe Bridge commands through a JSON command file. The Bridge now echoes the most recently consumed command request in telemetry. Real HOTAS polling, vJoy writes, output verification, Windows Service install, and login auto-start are not implemented yet.
+Status: Phase 9F Bridge lifecycle presence and health refinement implemented. Shared contracts exist, `bridge_app` can run as a separate simulation-only Python process, the PySide6 Live Monitor can consume fresh Bridge telemetry JSON with safe simulation fallback, and the UI can request safe Bridge commands through a JSON command file. The Bridge echoes the most recently consumed command request in telemetry, and the UI now shows compact Bridge health/timing details. Real HOTAS polling, vJoy writes, output verification, Windows Service install, and login auto-start are not implemented yet.
 
 ## Core Rule
 
@@ -84,6 +84,17 @@ The Bridge should never rely on the settings window staying open to keep process
 
 Phase 2B telemetry contracts are defined in `shared_core/runtime/telemetry.py`. Phase 9B Bridge telemetry is written as JSON shaped from those contracts. Phase 9C validates the JSON in `v3_app/services/bridge_client.py`; telemetry older than 5 seconds is treated as stale and not live.
 
+Phase 9F exposes explicit UI health fields from the Bridge telemetry client:
+
+- telemetry path;
+- last read time;
+- telemetry generated time;
+- age in seconds;
+- stale threshold;
+- status and reason.
+
+The Live Monitor shows these compactly in the Live State card. Missing, stale, invalid, and error telemetry all remain simulation fallback states; stale telemetry is not treated as live Bridge truth.
+
 ## Command Flow
 
 Phase 9D added `v3_app/services/bridge_commands.py`, which writes safe command requests to `%TEMP%\helmforge_bridge_command.json` using atomic JSON writes. Phase 9E adds request IDs, schema versioning, Bridge `last_command` telemetry, stale-command protection, and in-memory duplicate request protection.
@@ -163,8 +174,11 @@ Implemented:
 - Phase 9E Bridge `last_command` telemetry;
 - UI command status matching by request ID;
 - stale-command and duplicate-request protection.
+- Phase 9F telemetry health/timing details;
+- compact Live Monitor Bridge health display;
+- explicit missing/stale/invalid/error explanation text.
 
-Current local precheck for the Phase 9E pass:
+Current local precheck for the Phase 9F pass:
 
 - Thrustmaster driver/software detected: yes.
 - vJoy detected: yes.

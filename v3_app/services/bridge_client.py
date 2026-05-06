@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 
 DEFAULT_BRIDGE_TELEMETRY_PATH = Path(tempfile.gettempdir()) / "helmforge_bridge_telemetry.json"
@@ -67,6 +67,10 @@ class BridgeTelemetryReadResult:
     telemetry: BridgeTelemetryPayload | None = None
     message: str = ""
     age_seconds: float | None = None
+    last_read_at: datetime | None = None
+    telemetry_generated_at: datetime | None = None
+    stale_threshold_seconds: float = DEFAULT_STALE_AFTER_SECONDS
+    reason: str = ""
     source_label: str = "Simulation Fallback"
     warnings: tuple[str, ...] = field(default_factory=tuple)
     errors: tuple[str, ...] = field(default_factory=tuple)
@@ -75,6 +79,10 @@ class BridgeTelemetryReadResult:
     def should_use_fallback(self) -> bool:
         return self.status is not BridgeTelemetryStatus.CONNECTED
 
+    @property
+    def telemetry_path(self) -> Path:
+        return self.path
+
 
 class BridgeTelemetryClient:
     def __init__(
@@ -82,17 +90,23 @@ class BridgeTelemetryClient:
         *,
         telemetry_path: str | Path = DEFAULT_BRIDGE_TELEMETRY_PATH,
         stale_after_seconds: float = DEFAULT_STALE_AFTER_SECONDS,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.telemetry_path = Path(telemetry_path)
         self.stale_after_seconds = max(0.1, float(stale_after_seconds))
+        self._clock = clock or (lambda: datetime.now(timezone.utc))
 
     def read(self) -> BridgeTelemetryReadResult:
         path = self.telemetry_path
+        read_at = self._now()
         if not path.exists():
             return BridgeTelemetryReadResult(
                 status=BridgeTelemetryStatus.MISSING,
                 path=path,
                 message=f"Bridge telemetry file is missing: {path}",
+                last_read_at=read_at,
+                stale_threshold_seconds=self.stale_after_seconds,
+                reason=f"Bridge telemetry file not found: {path}",
             )
 
         try:
@@ -102,6 +116,9 @@ class BridgeTelemetryClient:
                 status=BridgeTelemetryStatus.ERROR,
                 path=path,
                 message=f"Bridge telemetry file could not be read: {exc}",
+                last_read_at=read_at,
+                stale_threshold_seconds=self.stale_after_seconds,
+                reason=f"Bridge telemetry read error: {exc}",
                 errors=(str(exc),),
             )
 
@@ -110,6 +127,9 @@ class BridgeTelemetryClient:
                 status=BridgeTelemetryStatus.INVALID,
                 path=path,
                 message="Bridge telemetry file is empty.",
+                last_read_at=read_at,
+                stale_threshold_seconds=self.stale_after_seconds,
+                reason="Bridge telemetry could not be parsed: file is empty.",
             )
 
         try:
@@ -119,6 +139,9 @@ class BridgeTelemetryClient:
                 status=BridgeTelemetryStatus.INVALID,
                 path=path,
                 message=f"Invalid Bridge telemetry JSON: {exc}",
+                last_read_at=read_at,
+                stale_threshold_seconds=self.stale_after_seconds,
+                reason=f"Bridge telemetry could not be parsed: {exc}",
                 errors=(str(exc),),
             )
 
@@ -127,6 +150,9 @@ class BridgeTelemetryClient:
                 status=BridgeTelemetryStatus.INVALID,
                 path=path,
                 message="Bridge telemetry root must be a JSON object.",
+                last_read_at=read_at,
+                stale_threshold_seconds=self.stale_after_seconds,
+                reason="Bridge telemetry could not be parsed: root must be an object.",
             )
 
         missing = tuple(field for field in REQUIRED_TELEMETRY_FIELDS if field not in payload)
@@ -135,6 +161,9 @@ class BridgeTelemetryClient:
                 status=BridgeTelemetryStatus.INVALID,
                 path=path,
                 message=f"Bridge telemetry is missing required fields: {', '.join(missing)}",
+                last_read_at=read_at,
+                stale_threshold_seconds=self.stale_after_seconds,
+                reason=f"Bridge telemetry could not be parsed: missing {', '.join(missing)}.",
             )
 
         try:
@@ -144,10 +173,13 @@ class BridgeTelemetryClient:
                 status=BridgeTelemetryStatus.INVALID,
                 path=path,
                 message=f"Bridge telemetry schema is invalid: {exc}",
+                last_read_at=read_at,
+                stale_threshold_seconds=self.stale_after_seconds,
+                reason=f"Bridge telemetry could not be parsed: {exc}",
                 errors=(str(exc),),
             )
 
-        age_seconds = max(0.0, (datetime.now(timezone.utc) - telemetry.timestamp).total_seconds())
+        age_seconds = max(0.0, (read_at - telemetry.timestamp).total_seconds())
         if age_seconds > self.stale_after_seconds:
             return BridgeTelemetryReadResult(
                 status=BridgeTelemetryStatus.STALE,
@@ -158,6 +190,13 @@ class BridgeTelemetryClient:
                     f"threshold {self.stale_after_seconds:.2f}s."
                 ),
                 age_seconds=age_seconds,
+                last_read_at=read_at,
+                telemetry_generated_at=telemetry.timestamp,
+                stale_threshold_seconds=self.stale_after_seconds,
+                reason=(
+                    f"Bridge telemetry is stale ({age_seconds:.1f}s old); "
+                    "simulation fallback is active."
+                ),
                 warnings=("Bridge telemetry is stale; UI is using simulation fallback.",),
             )
 
@@ -167,8 +206,18 @@ class BridgeTelemetryClient:
             telemetry=telemetry,
             message="Bridge telemetry connected.",
             age_seconds=age_seconds,
+            last_read_at=read_at,
+            telemetry_generated_at=telemetry.timestamp,
+            stale_threshold_seconds=self.stale_after_seconds,
+            reason="Bridge telemetry connected.",
             source_label="Bridge Telemetry",
         )
+
+    def _now(self) -> datetime:
+        value = self._clock()
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
 
 
 def _parse_payload(path: Path, payload: Mapping[str, Any]) -> BridgeTelemetryPayload:

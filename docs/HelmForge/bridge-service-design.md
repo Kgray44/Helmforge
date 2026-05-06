@@ -2,13 +2,13 @@
 
 Product: HelmForge  
 Technical subtitle: HOTAS Control Panel V3  
-Status: Phase 9E Bridge command acknowledgement/status refinement over Phase 9B simulation-only file IPC
+Status: Phase 9F Bridge lifecycle presence and health refinement over Phase 9B simulation-only file IPC
 
 ## Purpose
 
 The Bridge is the background/runtime side of HelmForge. It is intended to own real-time HOTAS input, workspace processing, virtual output, and telemetry. The PySide6 UI owns configuration, visualization, diagnostics, and user interaction.
 
-Phase 9B created the separate process skeleton so future real HOTAS and vJoy work lands outside `v3_app`. Phase 9C added UI-side telemetry reading without moving Bridge processing into the UI. Phase 9D added a safe UI command writer for status/config/preflight requests only. Phase 9E adds per-command acknowledgement/status telemetry while keeping telemetry as the truth source.
+Phase 9B created the separate process skeleton so future real HOTAS and vJoy work lands outside `v3_app`. Phase 9C added UI-side telemetry reading without moving Bridge processing into the UI. Phase 9D added a safe UI command writer for status/config/preflight requests only. Phase 9E added per-command acknowledgement/status telemetry while keeping telemetry as the truth source. Phase 9F refines telemetry health and timing details for UI-visible lifecycle presence.
 
 ## Current Entry Points
 
@@ -49,7 +49,7 @@ Default paths are under the local temp directory:
 - `helmforge_bridge_telemetry.json`
 - `helmforge_bridge_command.json`
 
-This file IPC is a development seam, not the final transport. Phase 9C reads the telemetry file from `v3_app/services/bridge_client.py` and treats files older than 5 seconds as stale. Phase 9D writes safe command requests from `v3_app/services/bridge_commands.py`. Phase 9E has the Bridge echo the most recently consumed command request in telemetry. Future phases may replace the file with a named pipe, socket, local API, or service/tray channel.
+This file IPC is a development seam, not the final transport. Phase 9C reads the telemetry file from `v3_app/services/bridge_client.py` and treats files older than 5 seconds as stale. Phase 9D writes safe command requests from `v3_app/services/bridge_commands.py`. Phase 9E has the Bridge echo the most recently consumed command request in telemetry. Phase 9F exposes telemetry read time, generated time, age, stale threshold, status, and reason to the UI. Future phases may replace the file with a named pipe, socket, local API, or service/tray channel.
 
 ## Telemetry Shape
 
@@ -81,6 +81,16 @@ Telemetry JSON includes:
 - `last_command`
 
 The payload is shaped from `shared_core/runtime/telemetry.py`, and the Phase 9C/9E UI client validates required fields before Live Monitor consumes the data.
+
+The UI-side health read result distinguishes:
+
+- `Connected`: telemetry is fresh and usable.
+- `Missing`: telemetry file was not found.
+- `Stale`: telemetry exists but is older than the stale threshold and must not be treated as live truth.
+- `Invalid`: telemetry could not be parsed or failed schema validation.
+- `Error`: telemetry file could not be read.
+
+The read result exposes the telemetry path, read time, generated time when available, telemetry age, stale threshold, and a human-readable reason. Stale, missing, invalid, and error states use simulation fallback.
 
 `last_command` is `null` until the Bridge consumes or ignores a command. When present it includes:
 
@@ -124,7 +134,7 @@ Phase 9E command request payloads include:
 
 The Bridge ignores command requests older than 30 seconds and reports them as `ignored_stale` in `last_command`. The Bridge also remembers the last consumed `request_id` in memory and does not execute the same request on every tick while the command file remains present.
 
-No command triggers hardware polling, vJoy writes, output verification, driver installation, installer launch, Windows Service installation, or login auto-start in Phase 9E.
+No command triggers hardware polling, vJoy writes, output verification, driver installation, installer launch, Windows Service installation, or login auto-start in Phase 9F.
 
 ## Config Loading
 
