@@ -91,6 +91,12 @@ def app_qss() -> str:
         font-weight: 800;
     }
 
+    QLabel[metricValue="true"] {
+        color: #ffffff;
+        font-size: 20px;
+        font-weight: 800;
+    }
+
     QLabel#formLabel {
         color: #f5f9ff;
     }
@@ -110,6 +116,17 @@ def app_qss() -> str:
         background: #09131e;
         border: 1px solid #28496a;
         border-radius: 12px;
+    }
+
+    QFrame#stackStageCard {
+        background: #132538;
+        border: 1px solid #315577;
+        border-radius: 14px;
+    }
+
+    QFrame#stackStageCard[selected="true"] {
+        background: #163b56;
+        border-color: #53b7ff;
     }
 
     QLabel#sectionLabel,
@@ -210,6 +227,19 @@ def app_qss() -> str:
     QCheckBox::indicator:checked {
         background: #53b7ff;
         border-color: #96ffc5;
+    }
+
+    QProgressBar {
+        background: #07111d;
+        border: 1px solid #10263b;
+        border-radius: 6px;
+        min-height: 9px;
+        max-height: 9px;
+    }
+
+    QProgressBar::chunk {
+        background: #53b7ff;
+        border-radius: 5px;
     }
 
     QLineEdit,

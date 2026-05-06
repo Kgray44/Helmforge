@@ -28,3 +28,22 @@ class GraphPreview(QWidget):
             y_values = [point[1] for point in points]
             pen = pg.mkPen(color=color, width=2)
             self.plot.plot(x_values, y_values, pen=pen, name=name)
+
+    def plot_series_with_marker(
+        self,
+        series: tuple[tuple[str, tuple[tuple[float, float], ...], str], ...],
+        *,
+        marker: tuple[float, float] | None = None,
+    ) -> None:
+        self.plot_series(series)
+        if marker is None:
+            return
+        self.plot.plot(
+            [marker[0]],
+            [marker[1]],
+            pen=None,
+            symbol="o",
+            symbolBrush="#b9ecff",
+            symbolPen="#ffffff",
+            symbolSize=11,
+        )

@@ -121,6 +121,12 @@ def evaluate_rule(rule: ConditionalRule, context: RuleEvaluationContext) -> Rule
     metadata = {
         "reference_value": reference_value,
         "measured_value": measured,
+        "reference_axis": rule.reference_axis,
+        "reference_stage": rule.stage,
+        "measure": rule.measure,
+        "comparator": rule.comparator,
+        "threshold": float(rule.threshold),
+        "threshold_high": None if rule.threshold_high is None else float(rule.threshold_high),
         "effective_change": {
             "target_axis": rule.target_axis,
             "parameter": rule.parameter,

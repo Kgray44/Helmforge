@@ -5,9 +5,13 @@ from dataclasses import dataclass
 from shared_core.math.curves import apply_output_limits, linear_reference_points, s_curve_centered
 from shared_core.math.deadzone import apply_center_deadzone
 from shared_core.math.filtering import FilterState, step_filter
+from shared_core.math.pipeline import WorkspaceSignalPipeline
+from shared_core.math.stack import ModeState
 from shared_core.models.combat import AxisCombatProfile
 from shared_core.models.filtering import AxisFiltering
+from shared_core.models.runtime import AXIS_NAMES
 from shared_core.models.tuning import AxisTuning
+from shared_core.models.workspace import WorkspaceConfig
 
 
 PointSeries = tuple[tuple[float, float], ...]
@@ -30,6 +34,13 @@ class CombatPreviewData:
     linear: PointSeries
     baseline: PointSeries
     combat: PointSeries
+
+
+@dataclass(frozen=True)
+class EffectiveResponseStackGraphData:
+    linear: PointSeries
+    effective: PointSeries
+    live_marker: tuple[float, float]
 
 
 def _sample_values(sample_count: int = 101) -> tuple[float, ...]:
@@ -92,3 +103,43 @@ def combat_response_preview_data(
         combat_points.append((raw, apply_output_limits(combat_y, output_scale=1.0, max_output=tuning.max_output)))
         baseline.append((raw, base_y))
     return CombatPreviewData(linear=linear, baseline=tuple(baseline), combat=tuple(combat_points))
+
+
+def effective_response_stack_graph_data(
+    workspace: WorkspaceConfig,
+    selected_axis: str,
+    *,
+    raw_axis_values: dict[str, float] | None = None,
+    sample_count: int = 101,
+) -> EffectiveResponseStackGraphData:
+    base_raw_values = {axis: 0.0 for axis in AXIS_NAMES}
+    if raw_axis_values:
+        base_raw_values.update({axis: float(value) for axis, value in raw_axis_values.items()})
+
+    linear = linear_reference_points(sample_count=sample_count)
+    effective: list[tuple[float, float]] = []
+    for raw in _sample_values(sample_count):
+        sample_values = dict(base_raw_values)
+        sample_values[selected_axis] = raw
+        pipeline = WorkspaceSignalPipeline(workspace)
+        result = pipeline.process(
+            sample_values,
+            mode_state=ModeState(),
+            state=pipeline.initial_state(),
+        )
+        effective.append((raw, result.final_output_values[selected_axis]))
+
+    live_x = float(base_raw_values.get(selected_axis, 0.0))
+    live_pipeline = WorkspaceSignalPipeline(workspace)
+    live_result = live_pipeline.process(
+        base_raw_values,
+        mode_state=ModeState(),
+        state=live_pipeline.initial_state(),
+    )
+    live_marker = (live_x, live_result.final_output_values[selected_axis])
+
+    return EffectiveResponseStackGraphData(
+        linear=linear,
+        effective=tuple(effective),
+        live_marker=live_marker,
+    )

@@ -12,6 +12,7 @@ from shared_core.runtime.device_discovery import build_runtime_preflight_status
 from v3_app.pages.base_tuning_page import BaseTuningPage
 from v3_app.pages.combat_profile_page import CombatProfilePage
 from v3_app.pages.conditional_rules_page import ConditionalRulesPage
+from v3_app.pages.effective_response_stack_page import EffectiveResponseStackPage
 from v3_app.pages.filtering_page import FilteringPage
 from v3_app.pages.mapping_page import MappingPage
 from v3_app.pages.modes_page import ModesPage
@@ -133,6 +134,8 @@ class HelmForgeShell(QWidget):
                 on_status=self.set_status_message,
                 on_workspace_changed=self.update_workspace_draft,
             )
+        if page_id == "effective_response_stack":
+            return EffectiveResponseStackPage(**common)
         return create_placeholder_page(page, runtime_label=self.state.runtime.runtime_card_label)
 
     def mark_workspace_dirty(self, message: str) -> None:

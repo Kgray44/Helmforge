@@ -33,3 +33,11 @@
 - Invalid rules report `Blocked` with a validation reason instead of crashing evaluation.
 - The recovered example rule can set Yaw `Output Scale` to `0.75` at `Base Output Limits` when absolute Roll final output is greater than `0.35`.
 - Phase 7 only verifies simulated/shared-core rule behavior. It does not add real HOTAS polling, vJoy writes, or output verification.
+
+## Phase 8 Effective Response Stack
+
+- The Effective Response Stack page visualizes the existing shared-core pipeline instead of owning real-time processing.
+- Stage widgets are created once and updated in place to avoid the recovered twitch/layout-churn bug.
+- Raw vs Final graph data keeps the linear reference as independently generated true `y=x`.
+- Freeze captures the displayed raw values and pipeline result; Resume returns to simulated/runtime refresh.
+- Rule text is drawn from Phase 7 stack/evaluator metadata inline at the rule injection stage.
