@@ -1,6 +1,6 @@
 # Bridge/UI Architecture
 
-Status: Phase 9C UI telemetry connection implemented. Shared contracts exist, `bridge_app` can run as a separate simulation-only Python process, and the PySide6 Live Monitor can consume fresh Bridge telemetry JSON with safe simulation fallback. Real HOTAS polling, vJoy writes, output verification, Windows Service install, and login auto-start are not implemented yet.
+Status: Phase 9D safe UI command-file seam implemented. Shared contracts exist, `bridge_app` can run as a separate simulation-only Python process, the PySide6 Live Monitor can consume fresh Bridge telemetry JSON with safe simulation fallback, and the UI can request safe Bridge commands through a JSON command file. Real HOTAS polling, vJoy writes, output verification, Windows Service install, and login auto-start are not implemented yet.
 
 ## Core Rule
 
@@ -48,7 +48,7 @@ The UI may run Bridge-like adapters in-process during early development, but rea
 
 ## Communication Boundary
 
-The final IPC mechanism is still intentionally undecided. Phase 9B uses a simple local JSON telemetry file and JSON command file as the first development IPC seam. Phase 9C reads the telemetry JSON from the UI and falls back when it is missing, stale, or invalid. Candidate later mechanisms include:
+The final IPC mechanism is still intentionally undecided. Phase 9B uses a simple local JSON telemetry file and JSON command file as the first development IPC seam. Phase 9C reads the telemetry JSON from the UI and falls back when it is missing, stale, or invalid. Phase 9D writes safe UI command requests to the command file. Candidate later mechanisms include:
 
 - local process IPC;
 - named pipe;
@@ -83,6 +83,28 @@ The Bridge should never rely on the settings window staying open to keep process
 4. UI reads and renders telemetry in monitor, graph, diagnostics, overlay, recorder, and assistant surfaces.
 
 Phase 2B telemetry contracts are defined in `shared_core/runtime/telemetry.py`. Phase 9B Bridge telemetry is written as JSON shaped from those contracts. Phase 9C validates the JSON in `v3_app/services/bridge_client.py`; telemetry older than 5 seconds is treated as stale and not live.
+
+## Command Flow
+
+Phase 9D adds `v3_app/services/bridge_commands.py`, which writes safe command requests to `%TEMP%\helmforge_bridge_command.json` using atomic JSON writes.
+
+Allowed UI commands in Phase 9D:
+
+- `Status`
+- `RunPreflight`
+- `ReloadConfig`
+- `SwitchToSimulation`
+- `ClearError`
+
+Disallowed UI commands in Phase 9D:
+
+- `StartBridge`
+- `StopBridge`
+- `RestartBridge`
+- `SuspendBridge`
+- `VerifyOutput`
+
+Writing a command file is a request, not a success response. UI labels must use wording such as "command requested" and "awaiting Bridge telemetry" until a later fresh telemetry snapshot provides the actual state.
 
 ## Runtime Truth Rules
 
@@ -127,8 +149,11 @@ Implemented:
 - Phase 9C UI telemetry client;
 - Live Monitor consumption of fresh Bridge telemetry;
 - simulation fallback for missing, stale, corrupt, or invalid Bridge telemetry.
+- Phase 9D UI command writer for safe commands;
+- compact Live Monitor command request controls;
+- UI rejection of unsafe commands such as `VerifyOutput` and `StartBridge`.
 
-Current local precheck for the Phase 9C pass:
+Current local precheck for the Phase 9D pass:
 
 - Thrustmaster driver/software detected: yes.
 - vJoy detected: yes.
@@ -146,5 +171,4 @@ Deferred:
 - real HOTAS polling;
 - real vJoy writes;
 - socket/named-pipe/streaming IPC;
-- UI command writer actions;
 - UI pages for Bridge control.

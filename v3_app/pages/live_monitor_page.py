@@ -20,6 +20,7 @@ from shared_core.models.axes import AXIS_DISPLAY_NAMES
 from shared_core.models.runtime import AXIS_NAMES, BUTTON_NAMES, RuntimePreflightStatus
 from shared_core.models.workspace import WorkspaceConfig, create_default_workspace
 from shared_core.rules.evaluator import RuleStatus, status_counts
+from shared_core.runtime.bridge_contracts import BridgeCommandType
 from shared_core.runtime.device_discovery import build_runtime_preflight_status
 from shared_core.runtime.simulated_runtime import SimulatedRuntime
 from v3_app.pages.graph_widgets import GraphPreview
@@ -38,7 +39,12 @@ from v3_app.services.bridge_client import (
     BridgeTelemetryReadResult,
     BridgeTelemetryStatus,
 )
-from v3_app.ui.status_chips import status_chip
+from v3_app.services.bridge_commands import (
+    DEFAULT_BRIDGE_COMMAND_PATH,
+    BridgeCommandClient,
+    BridgeCommandWriteResult,
+)
+from v3_app.ui.status_chips import action_button, status_chip
 
 
 class LiveMonitorPage(QWidget):
@@ -49,6 +55,7 @@ class LiveMonitorPage(QWidget):
         workspace: WorkspaceConfig | None = None,
         runtime_status: RuntimePreflightStatus | None = None,
         telemetry_path: str | Path | None = None,
+        command_path: str | Path | None = None,
         bridge_stale_after_seconds: float = 5.0,
     ) -> None:
         super().__init__()
@@ -61,6 +68,7 @@ class LiveMonitorPage(QWidget):
             telemetry_path=telemetry_path or DEFAULT_BRIDGE_TELEMETRY_PATH,
             stale_after_seconds=bridge_stale_after_seconds,
         )
+        self._command_client = BridgeCommandClient(command_path=command_path or DEFAULT_BRIDGE_COMMAND_PATH)
         self._pipeline = WorkspaceSignalPipeline(self._workspace)
         self._pipeline_state = self._pipeline.initial_state()
         self.selected_axis = state.selected_axis if state.selected_axis in AXIS_DISPLAY_NAMES else "Roll"
@@ -68,6 +76,7 @@ class LiveMonitorPage(QWidget):
         self.overlay_series_count = 0
         self.telemetry_source_label = "Simulation Fallback"
         self.telemetry_source_status = "Missing"
+        self.last_command_result: BridgeCommandWriteResult | None = None
         self._sample_index = 0
         self.history = BoundedTelemetryHistory(capacity=240)
         self.axis_level_widgets: dict[str, QWidget] = {}
@@ -194,6 +203,26 @@ class LiveMonitorPage(QWidget):
         self.live_state_label.setObjectName("liveStateText")
         self.live_state_label.setWordWrap(True)
         layout.addWidget(self.live_state_label)
+        self.command_status_label = QLabel("Bridge commands are requests; fresh telemetry confirms later.")
+        self.command_status_label.setObjectName("bridgeCommandStatusText")
+        self.command_status_label.setWordWrap(True)
+        layout.addWidget(self.command_status_label)
+
+        command_grid = QGridLayout()
+        command_grid.setHorizontalSpacing(10)
+        command_grid.setVerticalSpacing(10)
+        commands = (
+            ("Refresh Bridge Status", "bridgeCommandStatusButton", BridgeCommandType.STATUS),
+            ("Run Bridge Preflight", "bridgeCommandPreflightButton", BridgeCommandType.RUN_PREFLIGHT),
+            ("Reload Bridge Config", "bridgeCommandReloadButton", BridgeCommandType.RELOAD_CONFIG),
+            ("Switch to Simulation", "bridgeCommandSimulationButton", BridgeCommandType.SWITCH_TO_SIMULATION),
+            ("Clear Bridge Error", "bridgeCommandClearErrorButton", BridgeCommandType.CLEAR_ERROR),
+        )
+        for index, (label, object_name, command) in enumerate(commands):
+            button = action_button(label, object_name=object_name)
+            button.clicked.connect(lambda _checked=False, cmd=command, title=label: self.request_bridge_command(cmd, title))
+            command_grid.addWidget(button, index // 2, index % 2)
+        layout.addLayout(command_grid)
         return frame
 
     def _build_buttons_hats_card(self) -> QWidget:
@@ -295,6 +324,16 @@ class LiveMonitorPage(QWidget):
     def set_overlay_visible(self, checked: bool) -> None:
         self.show_raw_and_output_together = bool(checked)
         self._update_graphs()
+
+    def request_bridge_command(self, command: BridgeCommandType, label: str | None = None) -> BridgeCommandWriteResult:
+        result = self._command_client.write_command(command)
+        self.last_command_result = result
+        if result.success:
+            command_label = label or result.command or command.value
+            self.command_status_label.setText(f"{command_label} command requested. Awaiting Bridge telemetry.")
+        else:
+            self.command_status_label.setText(result.message)
+        return result
 
     def refresh_snapshot(self, *, force_new: bool = False) -> None:
         self._sample_index += 1

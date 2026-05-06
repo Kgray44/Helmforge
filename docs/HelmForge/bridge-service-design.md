@@ -2,13 +2,13 @@
 
 Product: HelmForge  
 Technical subtitle: HOTAS Control Panel V3  
-Status: Phase 9C UI telemetry connection over Phase 9B simulation-only file IPC
+Status: Phase 9D safe UI command-file seam over Phase 9B simulation-only file IPC
 
 ## Purpose
 
 The Bridge is the background/runtime side of HelmForge. It is intended to own real-time HOTAS input, workspace processing, virtual output, and telemetry. The PySide6 UI owns configuration, visualization, diagnostics, and user interaction.
 
-Phase 9B created the separate process skeleton so future real HOTAS and vJoy work lands outside `v3_app`. Phase 9C adds UI-side telemetry reading without moving Bridge processing into the UI.
+Phase 9B created the separate process skeleton so future real HOTAS and vJoy work lands outside `v3_app`. Phase 9C added UI-side telemetry reading without moving Bridge processing into the UI. Phase 9D adds a safe UI command writer for status/config/preflight requests only.
 
 ## Current Entry Points
 
@@ -49,7 +49,7 @@ Default paths are under the local temp directory:
 - `helmforge_bridge_telemetry.json`
 - `helmforge_bridge_command.json`
 
-This file IPC is a development seam, not the final transport. Phase 9C reads the telemetry file from `v3_app/services/bridge_client.py` and treats files older than 5 seconds as stale. Future phases may replace the file with a named pipe, socket, local API, or service/tray channel.
+This file IPC is a development seam, not the final transport. Phase 9C reads the telemetry file from `v3_app/services/bridge_client.py` and treats files older than 5 seconds as stale. Phase 9D writes safe command requests from `v3_app/services/bridge_commands.py`. Future phases may replace the file with a named pipe, socket, local API, or service/tray channel.
 
 ## Telemetry Shape
 
@@ -83,17 +83,25 @@ The payload is shaped from `shared_core/runtime/telemetry.py`, and the Phase 9C 
 
 ## Commands
 
-The Phase 9B command parser accepts:
+The Phase 9B command parser accepts the shared command model. Phase 9D intentionally allows only this safe subset from the UI:
 
-- `StartBridge`
-- `StopBridge`
 - `ReloadConfig`
 - `RunPreflight`
 - `SwitchToSimulation`
 - `ClearError`
 - `Status`
 
-Only safe skeleton behavior is implemented. For example, `StopBridge` stops the bounded loop, `ReloadConfig` reloads the workspace/default fallback, and `RunPreflight` refreshes detection truth. No command triggers hardware polling or vJoy writes in Phase 9B.
+The UI rejects these commands in Phase 9D:
+
+- `StartBridge`
+- `StopBridge`
+- `RestartBridge`
+- `SuspendBridge`
+- `VerifyOutput`
+
+Writing the command file means only "command requested." A later fresh telemetry snapshot is the truth source for whether the Bridge noticed or reflected the request. The UI must not say a command completed just because the JSON file was written.
+
+No command triggers hardware polling, vJoy writes, output verification, driver installation, installer launch, Windows Service installation, or login auto-start in Phase 9D.
 
 ## Config Loading
 
@@ -142,6 +150,5 @@ The shared lifecycle model also preserves future states:
 - Real HOTAS polling.
 - Real vJoy writes.
 - Output verification.
-- command writer UI actions;
-- automatic Bridge process launch from UI;
+- automatic Bridge process launch from UI.
 - Final IPC transport.
