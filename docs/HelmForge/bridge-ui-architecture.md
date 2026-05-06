@@ -1,6 +1,6 @@
 # Bridge/UI Architecture
 
-Status: Phase 2B boundary documented. Shared contracts exist, but the real background Bridge process is not implemented yet.
+Status: Phase 9B boundary skeleton implemented. Shared contracts exist and `bridge_app` can run as a separate simulation-only Python process, but real HOTAS polling, vJoy writes, output verification, Windows Service install, and login auto-start are not implemented yet.
 
 ## Core Rule
 
@@ -48,7 +48,7 @@ The UI may run Bridge-like adapters in-process during early development, but rea
 
 ## Communication Boundary
 
-The final IPC mechanism is intentionally undecided. Candidate mechanisms include:
+The final IPC mechanism is still intentionally undecided. Phase 9B uses a simple local JSON telemetry file and JSON command file as the first development IPC seam. Candidate later mechanisms include:
 
 - local process IPC;
 - named pipe;
@@ -82,7 +82,7 @@ The Bridge should never rely on the settings window staying open to keep process
 3. Bridge publishes raw axes, final axes, buttons, hats, active modes, rule counts, output verification state, warnings, and errors.
 4. UI reads and renders telemetry in monitor, graph, diagnostics, overlay, recorder, and assistant surfaces.
 
-Phase 2B telemetry contracts are defined in `shared_core/runtime/telemetry.py`.
+Phase 2B telemetry contracts are defined in `shared_core/runtime/telemetry.py`. Phase 9B Bridge telemetry is written as JSON shaped from those contracts.
 
 ## Runtime Truth Rules
 
@@ -106,7 +106,7 @@ Config saved -> Bridge reloads config or receives a reload command.
 Runtime error -> Bridge enters error/safe-idle and reports the reason.
 ```
 
-Phase 2B lifecycle contracts are defined in `shared_core/runtime/bridge_lifecycle.py`.
+Phase 2B lifecycle contracts are defined in `shared_core/runtime/bridge_lifecycle.py`. Phase 9B exercises `Starting`, `Simulated`, and `Stopping` in tests, with `WaitingForHotas`, `WaitingForOutput`, and `LiveUnverified` preserved for the future real runtime.
 
 ## Current Early-Phase Status
 
@@ -118,24 +118,30 @@ Implemented:
 - workspace/config schema;
 - Phase 3 shared-core math pipeline from earlier work;
 - Phase 2B Bridge lifecycle, command, health, and telemetry contracts.
+- Phase 9B separate `bridge_app` package;
+- `python -m bridge_app.main --once`;
+- `python -m bridge_app.main --run-for-ms <milliseconds>`;
+- `python -m bridge_app.main --status`;
+- local telemetry JSON output;
+- local command JSON parsing for initial Bridge commands.
 
-Current local precheck for this Phase 2B pass:
+Current local precheck for the Phase 9B pass:
 
 - Thrustmaster driver/software detected: yes.
 - vJoy detected: yes.
-- HOTAS device detected: no, at precheck time.
+- HOTAS device detected: yes, at precheck time.
 - Runtime mode: `simulated`.
-- Runtime truth: `blocked_missing_device`.
+- Runtime truth: `detected_unverified`.
 - Full Live Runtime Ready: false.
 - Live output writes verified: false.
 
 Deferred:
 
-- real background Bridge process;
+- real Bridge input/output implementation;
 - Windows service/tray behavior;
 - device-event auto-start/auto-stop;
 - real HOTAS polling;
 - real vJoy writes;
-- IPC transport;
-- telemetry streaming implementation;
-- UI pages for Bridge control and telemetry display.
+- socket/named-pipe/streaming IPC;
+- UI connection to Bridge telemetry;
+- UI pages for Bridge control.

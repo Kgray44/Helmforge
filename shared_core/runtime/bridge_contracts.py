@@ -20,6 +20,7 @@ class BridgeCommandType(str, Enum):
     SWITCH_TO_SIMULATION = "SwitchToSimulation"
     VERIFY_OUTPUT = "VerifyOutput"
     CLEAR_ERROR = "ClearError"
+    STATUS = "Status"
 
 
 @dataclass(frozen=True)
