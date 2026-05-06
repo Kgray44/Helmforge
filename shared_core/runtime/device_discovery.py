@@ -17,6 +17,7 @@ from shared_core.models.runtime import (
 
 
 _NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
+_KNOWN_TFLIGHT_HOTAS_ONE_USB_IDS = (("vid044f", "pidb68d"),)
 
 
 def _compact(value: str) -> str:
@@ -26,6 +27,13 @@ def _compact(value: str) -> str:
 def is_likely_target_hotas_name(device_name: str) -> bool:
     raw = device_name.lower()
     compact = _compact(device_name)
+    has_known_usb_signature = any(
+        vendor_id in compact and product_id in compact
+        for vendor_id, product_id in _KNOWN_TFLIGHT_HOTAS_ONE_USB_IDS
+    )
+    if has_known_usb_signature:
+        return True
+
     has_vendor = "thrustmaster" in compact
     has_tflight = (
         "t.flight" in raw
@@ -46,7 +54,11 @@ def enumerate_input_device_names() -> tuple[str, ...]:
         "powershell",
         "-NoProfile",
         "-Command",
-        "Get-PnpDevice -PresentOnly | Where-Object { $_.FriendlyName } | Select-Object -ExpandProperty FriendlyName",
+        (
+            "Get-PnpDevice -PresentOnly | "
+            "Where-Object { $_.FriendlyName } | "
+            "ForEach-Object { \"$($_.FriendlyName) $($_.InstanceId)\" }"
+        ),
     ]
     try:
         completed = subprocess.run(
@@ -179,4 +191,3 @@ def build_runtime_preflight_status(
         warnings=tuple(warnings),
         errors=tuple(errors),
     )
-

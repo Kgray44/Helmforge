@@ -21,6 +21,7 @@ def build_main_window():
     from PySide6.QtGui import QDesktopServices
     from PySide6.QtWidgets import QLabel, QPushButton, QMainWindow, QVBoxLayout, QWidget
     from shared_core.runtime.device_discovery import build_runtime_preflight_status
+    from shared_core.runtime.driver_setup import VJOY_SETUP_SOURCE_URL, detect_thrustmaster_driver_software
     from shared_core.runtime.setup_guidance import (
         OFFICIAL_THRUSTMASTER_SUPPORT_PAGE,
         build_setup_status_labels,
@@ -30,7 +31,11 @@ def build_main_window():
     window.setWindowTitle(WINDOW_TITLE)
     window.resize(820, 420)
     runtime_status = build_runtime_preflight_status()
-    setup_labels = build_setup_status_labels(runtime_status)
+    driver_detection = detect_thrustmaster_driver_software()
+    setup_labels = build_setup_status_labels(
+        runtime_status,
+        thrustmaster_driver_detected=driver_detection.detected,
+    )
 
     central = QWidget()
     layout = QVBoxLayout(central)
@@ -76,6 +81,10 @@ def build_main_window():
         lambda: QDesktopServices.openUrl(QUrl(OFFICIAL_THRUSTMASTER_SUPPORT_PAGE))
     )
 
+    vjoy_button = QPushButton("Open vJoy Setup Source")
+    vjoy_button.setObjectName("vjoyButton")
+    vjoy_button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(VJOY_SETUP_SOURCE_URL)))
+
     layout.addWidget(title)
     layout.addWidget(subtitle)
     layout.addSpacing(10)
@@ -85,6 +94,7 @@ def build_main_window():
     layout.addWidget(runtime_detail)
     layout.addWidget(setup_status)
     layout.addWidget(support_button)
+    layout.addWidget(vjoy_button)
     layout.addStretch(1)
 
     window.setCentralWidget(central)
@@ -120,7 +130,8 @@ def build_main_window():
         QLabel#runtimeStatus {
             color: #ffd28a;
         }
-        QPushButton#supportButton {
+        QPushButton#supportButton,
+        QPushButton#vjoyButton {
             background: #1f6f8b;
             color: #f7fbff;
             border: 1px solid #3990b2;
@@ -128,7 +139,8 @@ def build_main_window():
             padding: 8px 12px;
             text-align: left;
         }
-        QPushButton#supportButton:hover {
+        QPushButton#supportButton:hover,
+        QPushButton#vjoyButton:hover {
             background: #267f9f;
         }
         """

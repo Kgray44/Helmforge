@@ -12,11 +12,13 @@ CURRENT_THRUSTMASTER_SYSTEM_REQUIREMENT_NOTE = "Windows 10 / Windows 11"
 
 class SetupStatusLabel(Enum):
     THRUSTMASTER_DRIVER_UNKNOWN = "Thrustmaster Driver Unknown"
+    THRUSTMASTER_DRIVER_DETECTED = "Thrustmaster Driver Detected"
     THRUSTMASTER_DRIVER_MISSING = "Thrustmaster Driver Missing"
     HOTAS_NOT_CONNECTED = "HOTAS Not Connected"
     T_FLIGHT_HOTAS_ONE_DETECTED = "T-Flight HOTAS One Detected"
     INPUT_READY = "Input Ready"
     VJOY_MISSING = "vJoy Missing"
+    VJOY_DETECTED = "vJoy Detected"
     SIMULATION_MODE_ACTIVE = "Simulation Mode Active"
     FULL_LIVE_RUNTIME_READY = "Full Live Runtime Ready"
 
@@ -29,7 +31,7 @@ def build_setup_status_labels(
     labels: list[SetupStatusLabel] = []
 
     if thrustmaster_driver_detected is True:
-        pass
+        labels.append(SetupStatusLabel.THRUSTMASTER_DRIVER_DETECTED)
     elif thrustmaster_driver_detected is False:
         labels.append(SetupStatusLabel.THRUSTMASTER_DRIVER_MISSING)
     else:
@@ -43,6 +45,8 @@ def build_setup_status_labels(
 
     if runtime_status.output.status is OutputStatus.VJOY_MISSING:
         labels.append(SetupStatusLabel.VJOY_MISSING)
+    elif runtime_status.output.status in {OutputStatus.VJOY_DETECTED, OutputStatus.OUTPUT_VERIFIED}:
+        labels.append(SetupStatusLabel.VJOY_DETECTED)
 
     if runtime_status.mode is RuntimeMode.SIMULATED:
         labels.append(SetupStatusLabel.SIMULATION_MODE_ACTIVE)
