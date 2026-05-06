@@ -4,7 +4,7 @@
 
 HelmForge is a safe rebuild of the lost HOTAS Control Panel project. The recovered HOTAS Control Panel V2 forensic notes, raw recovery chats, and PNG screenshot evidence are the governing reconstruction references for this repository.
 
-The current rebuild state includes Phase 2A local runtime setup tooling plus the previously implemented Phase 3 tuning math and signal pipeline. Phase 0 created the package structure, dependency metadata, documentation anchors, and a minimal PySide6 window titled `HelmForge — HOTAS Control Panel V3`. Phase 1 added typed runtime status, safe missing-device detection, simulation snapshots, and a runtime bridge contract. Phase 1A added official-source-only Thrustmaster T-Flight HOTAS One setup guidance and setup status labels. Phase 2 added UI-independent axes, mapping, modes, tuning, filtering, combat, rules, profiles, workspace state, and JSON persistence models. Phase 2A adds non-silent driver/vJoy setup checks, official/verified setup links, and a dry-run Windows checklist script. Phase 3 adds shared-core curve, deadzone, filtering, mode-modifier, rule-placeholder, and stage-by-stage stack math. It does not implement real HOTAS input polling, vJoy output writes, UI pages, overlays, or installer packaging.
+The current rebuild state includes Phase 2B Bridge/UI architecture boundary contracts plus Phase 2A local runtime setup tooling and the previously implemented Phase 3 tuning math and signal pipeline. Phase 0 created the package structure, dependency metadata, documentation anchors, and a minimal PySide6 window titled `HelmForge — HOTAS Control Panel V3`. Phase 1 added typed runtime status, safe missing-device detection, simulation snapshots, and a runtime bridge contract. Phase 1A added official-source-only Thrustmaster T-Flight HOTAS One setup guidance and setup status labels. Phase 2 added UI-independent axes, mapping, modes, tuning, filtering, combat, rules, profiles, workspace state, and JSON persistence models. Phase 2A adds non-silent driver/vJoy setup checks, official/verified setup links, and a dry-run Windows checklist script. Phase 2B documents and hardens the Bridge/UI split with UI-independent shared contracts for lifecycle, commands, health, and telemetry. Phase 3 adds shared-core curve, deadzone, filtering, mode-modifier, rule-placeholder, and stage-by-stage stack math. The current app still does not implement real HOTAS input polling, vJoy output writes, UI pages, overlays, or installer packaging.
 
 ## Recovery Sources
 
@@ -23,20 +23,29 @@ HelmForge will be developed simulation-first so the UI, shared core, and tests c
 
 Known physical HOTAS target: **Thrustmaster T-Flight HOTAS One**.
 
-Phase 2A does **not** provide real support for that hardware. It does **not** implement real HOTAS polling or real vJoy output writes. No live runtime support should be claimed until a later phase implements and verifies it.
+Phase 2B does **not** provide real support for that hardware. It does **not** implement real HOTAS polling or real vJoy output writes. No live runtime support should be claimed until a later phase implements and verifies it.
 
 The V3 workspace/config filename is `hotas_bridge_config_v3.json`. The recovered V2 notes referenced `hotas_bridge_config_v2.json`; that legacy name is preserved in schema documentation for provenance.
 
 Official Thrustmaster setup guidance is documented in `docs/HelmForge/help/runtime-setup-hotas-driver.md`. Phase 2A local setup guidance is documented in `docs/HelmForge/phase-2a-local-driver-installation-and-runtime-verification.md`. The app links to the official Thrustmaster support page and a verified vJoy setup source; it does not silently download or run driver installers.
 
+## Bridge/UI Split
+
+HelmForge has two main parts:
+
+- Bridge: owns real-time HOTAS input, workspace processing, virtual output, and telemetry.
+- UI App: owns configuration, visualization, diagnostics, help/docs, recorder/overlay surfaces, and user interaction.
+
+Early phases may run Bridge-like behavior in-process for development, but the final architecture should allow the Bridge to run without the PySide6 UI open. The Bridge/UI boundary is documented in `docs/HelmForge/bridge-ui-architecture.md`.
+
 ## Project Layout
 
 ```text
-shared_core/          Shared models and non-UI core code for future phases.
+shared_core/          Shared models, runtime contracts, and non-UI core code.
 v3_app/               PySide6 application package and Phase 0 entry point.
 docs/HelmForge/       Implementation notes, decisions, and phase reports.
 docs/recovery/        Recovery-source preservation notes and evidence inventory.
-tests/                Phase smoke tests.
+tests/                Phase smoke and contract tests.
 ```
 
 ## Development
