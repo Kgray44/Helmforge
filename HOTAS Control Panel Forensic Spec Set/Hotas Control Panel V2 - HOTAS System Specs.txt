@@ -1,0 +1,27 @@
+## Known Physical HOTAS Target
+
+The known physical controller for this rebuild is:
+
+**Thrustmaster T-Flight HOTAS One**  
+also written by Thrustmaster as: **Thrustmaster T.Flight Hotas One**
+
+Codex must treat this as the primary hardware target for:
+
+- device detection,
+- setup guidance,
+- mapping defaults,
+- runtime testing,
+- Help / Docs setup articles,
+- Live Monitor validation,
+- HOTAS input integration.
+
+Known/recovered mapping context:
+
+- Right stick left/right = Roll
+- Right stick forward/back = Pitch
+- Stick twist/pivot = Yaw
+- Left throttle forward/back = Throttle
+- Trigger = weapon/fire
+- Other buttons are used for zoom/view, flares, repair/equipment, exit aircraft, and weapon switching.
+
+The app should still be written generically enough to support other joystick/throttle devices later, but the first real hardware target is the Thrustmaster T-Flight HOTAS One.

@@ -1,0 +1,128 @@
+# Phase 1A — Thrustmaster T-Flight HOTAS One Driver and Device Setup Guidance
+
+## Goal
+
+Add explicit setup guidance for the known physical controller: **Thrustmaster T-Flight HOTAS One** / **Thrustmaster T.Flight Hotas One**.
+
+This phase should not blindly install drivers. Instead, it should make the app and documentation smart enough to guide the user through installing the official Thrustmaster driver/software safely, then verify whether the controller is visible to Windows.
+
+The driver goblin rule is simple: official source only. No shady “totally-real-driver-download-trust-me-bro.exe” nonsense.
+
+## Official Driver Source Policy
+
+Codex must use the official Thrustmaster support site as the source for the HOTAS driver/software.
+
+Current official source notes:
+
+- Product support page: `T.Flight Hotas One`
+- Driver package currently resembles: `Drivers - Package 2025_TFHT_5 + Firmware`
+- System requirement currently listed: Windows 10 / Windows 11
+
+Because driver packages change over time, Codex should re-check the official Thrustmaster support page at implementation time.
+
+## Important Driver Distinction
+
+Thrustmaster software and vJoy are separate things:
+
+- **Thrustmaster driver/software** is for recognizing and configuring the physical T-Flight HOTAS One on Windows.
+- **vJoy or another virtual output backend** creates the virtual joystick output device that HOTAS Control Panel writes to.
+
+Both may be needed for full live runtime.
+
+## What Codex May Do
+
+Codex may:
+
+- add a Runtime Setup article explaining how to install the official Thrustmaster driver;
+- add an `Open Official Thrustmaster Support Page` button;
+- add a `Run HOTAS Detection` / `Run Preflight Check` button;
+- detect whether a Thrustmaster/T.Flight/HOTAS One device appears in Windows device enumeration;
+- detect whether the Thrustmaster Control Panel/app appears installed if there is a safe way to check;
+- show setup status such as:
+  - `Thrustmaster Driver Unknown`
+  - `Thrustmaster Driver Missing`
+  - `HOTAS Not Connected`
+  - `T-Flight HOTAS One Detected`
+  - `Input Ready`
+  - `vJoy Missing`
+  - `Simulation Mode Active`
+  - `Full Live Runtime Ready`
+
+Codex must not:
+
+- silently install Thrustmaster drivers;
+- silently install vJoy;
+- download drivers from non-official mirrors;
+- bundle driver installers without permission/licensing review;
+- claim the HOTAS is working unless Windows/device enumeration actually sees it;
+- claim vJoy output is working unless the virtual output backend is detected and verified.
+
+## Codex Prompt
+
+```text
+Add Thrustmaster T-Flight HOTAS One setup guidance and detection support to HOTAS Control Panel V2.
+
+Context:
+The user's physical HOTAS is the Thrustmaster T-Flight HOTAS One / T.Flight Hotas One. The app should treat this as the primary target hardware. The user may not have the Thrustmaster driver/software installed yet, and currently does not have vJoy installed either.
+
+Requirements:
+
+1. Update runtime preflight models to include known hardware target metadata:
+   - primary_device_name: Thrustmaster T-Flight HOTAS One
+   - alternate_name: Thrustmaster T.Flight Hotas One
+   - vendor_hint: Thrustmaster
+   - device_role: physical HOTAS input
+
+2. Update device discovery to specifically recognize likely Thrustmaster/T.Flight/HOTAS One device names from Windows joystick/HID enumeration when available.
+
+Support fuzzy/contains matching for:
+   - Thrustmaster
+   - T.Flight
+   - T-Flight
+   - HOTAS One
+
+3. Add a Runtime Setup / HOTAS Driver Setup article to Help / Docs.
+
+It must explain:
+   - the target controller is Thrustmaster T-Flight HOTAS One;
+   - use the official Thrustmaster support site only;
+   - select Joysticks -> T.Flight Hotas One -> Drivers;
+   - download/install the official Windows 10/11 driver package;
+   - current package name may resemble `Drivers - Package 2025_TFHT_5 + Firmware`, but the official support page should be checked for the newest package;
+   - after installing, connect/reconnect the HOTAS by USB;
+   - open the Thrustmaster Control Panel if installed to verify axes/buttons;
+   - then return to HOTAS Control Panel V2 and run Preflight Check.
+
+4. Add a button or link action in the Runtime Setup / Preflight card:
+   - `Open Official Thrustmaster Support Page`
+
+5. Add setup status labels:
+   - `Thrustmaster Driver Unknown`
+   - `Thrustmaster Driver Missing`
+   - `HOTAS Not Connected`
+   - `T-Flight HOTAS One Detected`
+   - `Input Ready`
+   - `vJoy Missing`
+   - `Simulation Mode Active`
+   - `Full Live Runtime Ready`
+
+6. Add docs explaining that Thrustmaster driver/software and vJoy are separate:
+   - Thrustmaster driver/software handles the physical HOTAS input/control panel.
+   - vJoy/virtual output backend creates the virtual joystick output that the app writes to.
+
+7. Do not automatically run driver installers unless the user explicitly authorizes it in a clearly confirmed admin flow.
+
+8. Add tests:
+   - fuzzy detection matches sample names containing Thrustmaster/T.Flight/HOTAS One;
+   - no match returns HOTAS missing;
+   - setup status does not claim live input without detection;
+   - vJoy missing keeps runtime in simulation/input-only state;
+   - Help / Docs contains T-Flight HOTAS One setup article.
+
+Acceptance criteria:
+- The prompt book/app docs explicitly name Thrustmaster T-Flight HOTAS One.
+- Runtime preflight recognizes it as the primary target device.
+- The app guides the user to official Thrustmaster drivers only.
+- No silent driver installation.
+- No third-party driver sites.
+- Simulation mode remains available when drivers/devices are missing.

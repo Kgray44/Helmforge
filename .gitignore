@@ -1,0 +1,63 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Build, distribution, and packaging output
+build/
+dist/
+*.egg-info/
+*.spec
+installer/
+installers/
+packages/
+packaging/output/
+packaging/build/
+packaging/dist/
+
+# Logs and diagnostics
+*.log
+logs/
+diagnostics/
+
+# Local user/runtime data
+.local/
+local/
+user-data/
+profiles/local/
+*.local.json
+*.local.yaml
+
+# Recordings and generated media
+recordings/
+captures/
+flight-recordings/
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.wav
+
+# Temporary artifacts
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+~$*
+
+# IDE/editor folders
+.idea/
+.vscode/
+

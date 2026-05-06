@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "helmforge"
+version = "0.0.0"
+description = "HelmForge - HOTAS Control Panel V3 safe simulation-first rebuild foundation."
+requires-python = ">=3.10"
+dependencies = [
+    "PySide6",
+    "pyqtgraph",
+    "pytest",
+]
+
+[project.scripts]
+helmforge = "v3_app.main:main"
+
+[tool.setuptools.packages.find]
+include = ["shared_core*", "v3_app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
