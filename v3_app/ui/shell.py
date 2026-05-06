@@ -5,6 +5,8 @@ import time
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QScrollArea, QStackedWidget, QVBoxLayout, QWidget
 
+from shared_core.runtime.device_discovery import build_runtime_preflight_status
+from v3_app.pages.mapping_page import MappingPage
 from v3_app.pages.placeholders import PAGE_DEFINITIONS, create_placeholder_page, page_definition_by_id
 from v3_app.services.app_state import AppState, build_initial_app_state
 from v3_app.ui.footer import Footer
@@ -52,10 +54,28 @@ class HelmForgeShell(QWidget):
             scroll.setWidgetResizable(True)
             scroll.setFrameShape(QScrollArea.Shape.NoFrame)
             scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-            content = create_placeholder_page(page, runtime_label=self.state.runtime.runtime_card_label)
+            if page.page_id == "mapping":
+                content = MappingPage(
+                    state=self.state,
+                    runtime_status=build_runtime_preflight_status(),
+                    on_dirty=self.mark_workspace_dirty,
+                    on_status=self.set_status_message,
+                )
+            else:
+                content = create_placeholder_page(page, runtime_label=self.state.runtime.runtime_card_label)
             scroll.setWidget(content)
             self.stack.addWidget(scroll)
             self.page_widgets[page.page_id] = scroll
+
+    def mark_workspace_dirty(self, message: str) -> None:
+        self.state.saved = False
+        self.state.status_message = message
+        self.header.update_state(self.state)
+        self.footer.update_state(self.state, page_definition_by_id(self.active_page_id))
+
+    def set_status_message(self, message: str) -> None:
+        self.state.status_message = message
+        self.footer.update_state(self.state, page_definition_by_id(self.active_page_id))
 
     def switch_page(self, page_id: str, *, record_timing: bool = True) -> None:
         if page_id not in self.page_widgets:

@@ -14,7 +14,13 @@ def app_qss() -> str:
     QWidget#appHeader,
     QWidget#appFooter,
     QWidget#runtimeCard,
-    QWidget#placeholderCard {
+    QWidget#placeholderCard,
+    QFrame#routingOverviewCard,
+    QFrame#liveRouteSummaryCard,
+    QFrame#runtimePreflightCard,
+    QFrame#axisRoutingCard,
+    QFrame#buttonRoutingCard,
+    QFrame#hatRoutingCard {
         background: #101d2a;
         border: 1px solid #28496a;
         border-radius: 18px;
@@ -64,10 +70,18 @@ def app_qss() -> str:
     QLabel#brandSubtitle,
     QLabel#headerSubtitle,
     QLabel#pageSubtitle,
+    QLabel#pageBody,
     QLabel#cardBody,
+    QLabel#routingOverviewNote,
+    QLabel#tableMutedText,
     QLabel#footerDetail,
     QLabel#footerPageDetail {
         color: #a8c3dc;
+    }
+
+    QLabel#routeSummaryValue {
+        color: #f5f9ff;
+        font-weight: 550;
     }
 
     QLabel#sectionLabel,
@@ -124,6 +138,50 @@ def app_qss() -> str:
         background: #102f4c;
         border-color: #3e8ec5;
         font-weight: 650;
+    }
+
+    QTableWidget {
+        background: #07111d;
+        alternate-background-color: #0a1521;
+        border: 1px solid #203a55;
+        border-radius: 10px;
+        color: #f5f9ff;
+        gridline-color: #10263b;
+        selection-background-color: #143d5f;
+        selection-color: #ffffff;
+    }
+
+    QTableWidget::item {
+        padding: 7px 8px;
+        border: none;
+    }
+
+    QHeaderView::section {
+        background: #0d1a27;
+        color: #a8c3dc;
+        border: none;
+        border-bottom: 1px solid #28496a;
+        padding: 8px;
+        font-weight: 600;
+    }
+
+    QCheckBox {
+        background: transparent;
+        color: #f5f9ff;
+        spacing: 6px;
+    }
+
+    QCheckBox::indicator {
+        width: 18px;
+        height: 18px;
+        border-radius: 5px;
+        border: 1px solid #3e6b91;
+        background: #07111d;
+    }
+
+    QCheckBox::indicator:checked {
+        background: #53b7ff;
+        border-color: #96ffc5;
     }
 
     QPushButton#saveWorkspaceButton,
