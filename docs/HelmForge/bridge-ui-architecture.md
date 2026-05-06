@@ -1,6 +1,6 @@
 # Bridge/UI Architecture
 
-Status: Phase 9G lifecycle ownership design recorded. Shared contracts exist, `bridge_app` can run as a separate simulation-only Python process, the PySide6 Live Monitor can consume fresh Bridge telemetry JSON with safe simulation fallback, and the UI can request safe Bridge commands through a JSON command file. The Bridge echoes the most recently consumed command request in telemetry, and the UI shows compact Bridge health/timing details. Real HOTAS polling, vJoy writes, output verification, automatic Bridge launch, process spawning from the UI, Windows Service install, tray manager work, and login auto-start are not implemented yet.
+Status: Phase 9H adds Bridge-owned, read-only HOTAS discovery dry-run telemetry. Shared contracts exist, `bridge_app` can run as a separate simulation-only Python process, the PySide6 Live Monitor can consume fresh Bridge telemetry JSON with safe simulation fallback, and the UI can request safe Bridge commands through a JSON command file. The Bridge echoes the most recently consumed command request in telemetry, and the UI shows compact Bridge health/timing details plus device discovery truth. Continuous real HOTAS polling, live physical input streaming, vJoy writes, output verification, automatic Bridge launch, process spawning from the UI, Windows Service install, tray manager work, and login auto-start are not implemented yet.
 
 ## Core Rule
 
@@ -30,6 +30,8 @@ The future Bridge owns the low-latency runtime path:
 - eventually suspend, stop, or safe-idle when the HOTAS is unplugged.
 
 The Bridge must not depend on PySide6, graph rendering, overlay rendering, Helm analysis, or expensive UI refresh work to maintain real-time output.
+
+Phase 9H adds a Bridge-owned read-only discovery boundary for the supported HOTAS. This boundary can identify whether a supported device is visible to the operating system, but it is not the live polling path and it does not activate vJoy output.
 
 ## UI App Responsibilities
 
@@ -79,7 +81,7 @@ The Bridge should never rely on the settings window staying open to keep process
 
 1. Bridge samples raw HOTAS input.
 2. Bridge applies the active workspace transformation pipeline.
-3. Bridge publishes raw axes, final axes, buttons, hats, active modes, rule counts, output verification state, warnings, and errors.
+3. Bridge publishes raw axes, final axes, buttons, hats, active modes, rule counts, output verification state, device discovery status, warnings, and errors.
 4. UI reads and renders telemetry in monitor, graph, diagnostics, overlay, recorder, and assistant surfaces.
 
 Phase 2B telemetry contracts are defined in `shared_core/runtime/telemetry.py`. Phase 9B Bridge telemetry is written as JSON shaped from those contracts. Phase 9C validates the JSON in `v3_app/services/bridge_client.py`; telemetry older than 5 seconds is treated as stale and not live.
@@ -94,6 +96,16 @@ Phase 9F exposes explicit UI health fields from the Bridge telemetry client:
 - status and reason.
 
 The Live Monitor shows these compactly in the Live State card. Missing, stale, invalid, and error telemetry all remain simulation fallback states; stale telemetry is not treated as live Bridge truth.
+
+Phase 9H adds `device_discovery` to telemetry. The UI may display:
+
+- HOTAS discovery not checked;
+- no supported device found;
+- supported HOTAS detected, polling not active;
+- discovery error;
+- discovery backend unavailable.
+
+The UI must not scan hardware directly and must not translate discovery into live runtime readiness. A supported-device discovery result only means the Bridge dry-run can see a matching device identity.
 
 ## Command Flow
 
@@ -130,6 +142,7 @@ Phase 9E acknowledgement rules:
 - `Full Live Runtime Ready` is allowed only when physical input and output writes are both detected and verified.
 - vJoy detected is not the same thing as output verified.
 - HOTAS detected is not the same thing as real polling implemented.
+- Supported-device discovery is not the same thing as a live HOTAS input stream.
 - Simulation mode remains valid for development, tests, graph previews, and no-hardware states.
 - Missing devices or drivers must be visible and non-fatal when simulation can continue.
 - The Bridge should fail safe and publish typed errors instead of pretending live output works.
@@ -195,8 +208,10 @@ Implemented:
 - explicit missing/stale/invalid/error explanation text.
 - Phase 9G lifecycle ownership decision record;
 - lifecycle wording and safety gates before launch/service/tray work.
+- Phase 9H Bridge-owned read-only HOTAS discovery dry-run;
+- Live Monitor discovery status wording that preserves output-unverified truth.
 
-Current local precheck for the Phase 9G pass:
+Current local precheck for the Phase 9H pass:
 
 - Thrustmaster driver/software detected: yes.
 - vJoy detected: yes.
@@ -212,6 +227,7 @@ Deferred:
 - Windows service/tray behavior;
 - device-event auto-start/auto-stop;
 - real HOTAS polling;
+- continuous physical input streaming;
 - real vJoy writes;
 - socket/named-pipe/streaming IPC;
 - UI pages for Bridge control.

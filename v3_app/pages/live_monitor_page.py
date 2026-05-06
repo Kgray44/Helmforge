@@ -483,14 +483,46 @@ class LiveMonitorPage(QWidget):
         if bridge_result.status is not BridgeTelemetryStatus.CONNECTED:
             detail = f"{detail} Simulation fallback active."
 
+        discovery_text = self._device_discovery_text(
+            getattr(telemetry, "device_discovery", None),
+            output_verified=output_verified,
+        )
+
         return (
             f"Bridge: {bridge_result.status.value} | "
             f"Telemetry age: {age_text} | "
             f"Runtime truth: {runtime_truth} | "
             f"Output verified: {str(output_verified).lower()} | "
             f"Last command: {last_command_text}.\n"
-            f"{detail}"
+            f"{detail}\n"
+            f"{discovery_text}"
         )
+
+    def _device_discovery_text(self, device_discovery: object, *, output_verified: bool) -> str:
+        if hasattr(device_discovery, "to_dict"):
+            device_discovery = device_discovery.to_dict()
+        if not isinstance(device_discovery, Mapping):
+            return "HOTAS discovery: not checked. Bridge-owned device discovery has not reported a result."
+
+        status = str(device_discovery.get("status") or "not_checked")
+        error = device_discovery.get("error")
+        if status == "supported_device_detected":
+            return (
+                "HOTAS discovery: supported device detected. "
+                "Supported HOTAS detected; polling not active. "
+                f"Device discovery only; output verification {str(output_verified).lower()}."
+            )
+        if status == "no_supported_device":
+            return (
+                "HOTAS discovery: no supported device found. "
+                "Read-only discovery did not find a supported HOTAS device."
+            )
+        if status == "discovery_error":
+            error_text = f": {error}" if error else ""
+            return f"HOTAS discovery: discovery error. Device discovery error{error_text}."
+        if status == "backend_unavailable":
+            return "HOTAS discovery: backend unavailable. Discovery backend is unavailable; the UI is not scanning hardware."
+        return "HOTAS discovery: not checked. Bridge-owned device discovery has not reported a result."
 
     def _update_command_status_from_telemetry(self, telemetry, bridge_result: BridgeTelemetryReadResult) -> None:
         if not self.latest_command_request_id:

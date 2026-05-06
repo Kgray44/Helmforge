@@ -54,6 +54,7 @@ class BridgeTelemetryPayload:
     active_modes: Mapping[str, Any]
     rule_summary: Mapping[str, int]
     last_command: Mapping[str, Any] | None = None
+    device_discovery: Mapping[str, Any] | None = None
     warnings: tuple[str, ...] = ()
     errors: tuple[str, ...] = ()
     bridge_name: str = "HelmForge Bridge"
@@ -238,6 +239,7 @@ def _parse_payload(path: Path, payload: Mapping[str, Any]) -> BridgeTelemetryPay
         active_modes=dict(_mapping(payload["active_modes"], "active_modes")),
         rule_summary=_int_mapping(payload["rule_summary"], field_name="rule_summary"),
         last_command=_optional_mapping(payload.get("last_command"), "last_command"),
+        device_discovery=_optional_mapping(payload.get("device_discovery"), "device_discovery"),
         warnings=tuple(str(item) for item in payload.get("warnings", ()) or ()),
         errors=tuple(str(item) for item in payload.get("errors", ()) or ()),
         bridge_name=str(payload.get("bridge_name") or "HelmForge Bridge"),

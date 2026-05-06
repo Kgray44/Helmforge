@@ -16,6 +16,11 @@ from shared_core.rules.evaluator import status_counts
 from shared_core.runtime.bridge_contracts import BridgeCommandRequest, BridgeCommandType
 from shared_core.runtime.bridge_lifecycle import BridgeLifecycleState
 from shared_core.runtime.device_discovery import build_runtime_preflight_status
+from shared_core.runtime.hotas_discovery import (
+    DeviceDiscoveryBackend,
+    HotasDiscoveryResult,
+    discover_supported_hotas,
+)
 from shared_core.runtime.simulated_runtime import SimulatedRuntime
 from shared_core.runtime.telemetry import (
     AxisTelemetrySnapshot,
@@ -36,13 +41,15 @@ class BridgeServiceOptions:
     simulate: bool = True
     tick_interval_ms: int = 50
     command_stale_after_seconds: int = 30
+    discovery_backend: DeviceDiscoveryBackend | None = None
 
 
 class BridgeService:
     def __init__(self, options: BridgeServiceOptions | None = None) -> None:
         self.options = options or BridgeServiceOptions()
         self.config = load_bridge_workspace(self.options.config_path)
-        self.runtime_status = build_runtime_preflight_status()
+        self.device_discovery: HotasDiscoveryResult | None = None
+        self.runtime_status = build_runtime_preflight_status(input_device_names=())
         self.state = BridgeProcessState.starting().with_messages(
             warnings=self.config.warnings,
             errors=self.config.errors,
@@ -54,6 +61,7 @@ class BridgeService:
         self._consumed_command_request_ids: set[str] = set()
         self._last_command: BridgeCommandStatusSnapshot | None = None
         self.command_execution_count = 0
+        self.refresh_device_discovery()
 
     def reload_config(self, config_path: str | Path | None = None) -> None:
         requested_path = Path(config_path) if config_path else self.options.config_path
@@ -65,6 +73,7 @@ class BridgeService:
 
     def run_once(self) -> BridgeTelemetrySnapshot:
         self._consume_pending_command()
+        self.refresh_device_discovery()
 
         lifecycle_state = BridgeLifecycleState.STOPPING if self._stop_requested else lifecycle_for_preflight(
             self.runtime_status,
@@ -104,7 +113,7 @@ class BridgeService:
             self.reload_config(command.config_path)
             return
         if command.command is BridgeCommandType.RUN_PREFLIGHT:
-            self.runtime_status = build_runtime_preflight_status()
+            self.refresh_device_discovery()
             return
         if command.command is BridgeCommandType.SWITCH_TO_SIMULATION:
             self._stop_requested = False
@@ -114,6 +123,12 @@ class BridgeService:
             return
         if command.command is BridgeCommandType.STATUS:
             return
+
+    def refresh_device_discovery(self) -> HotasDiscoveryResult:
+        self.device_discovery = discover_supported_hotas(backend=self.options.discovery_backend)
+        input_names = (self.device_discovery.device_name,) if self.device_discovery.matched and self.device_discovery.device_name else ()
+        self.runtime_status = build_runtime_preflight_status(input_device_names=input_names)
+        return self.device_discovery
 
     def _consume_pending_command(self) -> None:
         command = read_command(self.options.command_path)
@@ -204,6 +219,7 @@ class BridgeService:
                 message="Live output writes are not verified.",
             ),
             last_command=self._last_command,
+            device_discovery=self.device_discovery,
             warnings=(*self.runtime_status.warnings, *self.state.warnings),
             errors=(*self.runtime_status.errors, *self.state.errors),
         )

@@ -7,6 +7,7 @@ from typing import Mapping
 
 from shared_core.models.runtime import InputStatus, OutputStatus, RuntimeTruth
 from shared_core.runtime.bridge_lifecycle import BridgeLifecycleState
+from shared_core.runtime.hotas_discovery import HotasDiscoveryResult
 
 
 @dataclass(frozen=True)
@@ -144,6 +145,7 @@ class BridgeTelemetrySnapshot:
     rule_summary: RuleStateSummary = field(default_factory=RuleStateSummary)
     output_verification: OutputVerificationState = field(default_factory=OutputVerificationState)
     last_command: BridgeCommandStatusSnapshot | None = None
+    device_discovery: HotasDiscoveryResult | None = None
     warnings: tuple[str, ...] = ()
     errors: tuple[str, ...] = ()
 
@@ -169,6 +171,7 @@ class BridgeTelemetrySnapshot:
             "output_verification": self.output_verification.to_dict(),
             "output_verified": self.output_verified,
             "last_command": self.last_command.to_dict() if self.last_command else None,
+            "device_discovery": self.device_discovery.to_dict() if self.device_discovery else None,
             "warnings": list(self.warnings),
             "errors": list(self.errors),
         }

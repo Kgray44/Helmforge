@@ -2,13 +2,13 @@
 
 Product: HelmForge  
 Technical subtitle: HOTAS Control Panel V3  
-Status: Phase 9G lifecycle ownership design recorded; no lifecycle implementation added
+Status: Phase 9H read-only HOTAS discovery dry-run added; no polling, output, or lifecycle implementation added
 
 ## Purpose
 
 The Bridge is the background/runtime side of HelmForge. It is intended to own real-time HOTAS input, workspace processing, virtual output, and telemetry. The PySide6 UI owns configuration, visualization, diagnostics, and user interaction.
 
-Phase 9B created the separate process skeleton so future real HOTAS and vJoy work lands outside `v3_app`. Phase 9C added UI-side telemetry reading without moving Bridge processing into the UI. Phase 9D added a safe UI command writer for status/config/preflight requests only. Phase 9E added per-command acknowledgement/status telemetry while keeping telemetry as the truth source. Phase 9F refined telemetry health and timing details for UI-visible lifecycle presence. Phase 9G records lifecycle ownership options, wording rules, and safety gates; it adds no lifecycle implementation.
+Phase 9B created the separate process skeleton so future real HOTAS and vJoy work lands outside `v3_app`. Phase 9C added UI-side telemetry reading without moving Bridge processing into the UI. Phase 9D added a safe UI command writer for status/config/preflight requests only. Phase 9E added per-command acknowledgement/status telemetry while keeping telemetry as the truth source. Phase 9F refined telemetry health and timing details for UI-visible lifecycle presence. Phase 9G records lifecycle ownership options, wording rules, and safety gates; it adds no lifecycle implementation. Phase 9H adds a Bridge-owned, read-only HOTAS discovery dry-run and publishes discovery truth through telemetry.
 
 ## Current Entry Points
 
@@ -79,6 +79,7 @@ Telemetry JSON includes:
 - `config_status`
 - `tick_count`
 - `last_command`
+- `device_discovery`
 
 The payload is shaped from `shared_core/runtime/telemetry.py`, and the Phase 9C/9E UI client validates required fields before Live Monitor consumes the data.
 
@@ -103,6 +104,23 @@ The read result exposes the telemetry path, read time, generated time when avail
 - `updated_at`
 - `message`
 - `error`
+
+`device_discovery` reports the Phase 9H read-only discovery dry-run. It includes:
+
+- `status`
+- `available`
+- `matched`
+- `device_name`
+- `manufacturer`
+- `vendor_id`
+- `product_id`
+- `serial_number`
+- `backend`
+- `checked_at`
+- `error`
+- `warnings`
+
+Allowed discovery states are `not_checked`, `no_supported_device`, `supported_device_detected`, `discovery_error`, and `backend_unavailable`. A supported-device match means only that a supported HOTAS identity was visible to the Bridge discovery backend. It does not mean input polling is active, output writes are verified, or Full Live Runtime Ready is true.
 
 ## Commands
 
@@ -134,7 +152,7 @@ Phase 9E command request payloads include:
 
 The Bridge ignores command requests older than 30 seconds and reports them as `ignored_stale` in `last_command`. The Bridge also remembers the last consumed `request_id` in memory and does not execute the same request on every tick while the command file remains present.
 
-No command triggers hardware polling, vJoy writes, output verification, driver installation, installer launch, Windows Service installation, or login auto-start in Phase 9F.
+No command triggers continuous HOTAS polling, vJoy writes, output verification, driver installation, installer launch, Windows Service installation, automatic Bridge launch, tray manager work, or login auto-start in Phase 9H.
 
 ## Config Loading
 
@@ -174,6 +192,22 @@ The shared lifecycle model also preserves future states:
 
 `LiveVerified` must not be used until a later phase actually verifies output writes.
 
+## Phase 9H Device Discovery Dry-Run
+
+Phase 9H adds `shared_core/runtime/hotas_discovery.py` as the typed discovery model and backend boundary. The Bridge owns this boundary; the UI never scans hardware directly.
+
+Current discovery pieces:
+
+- `HotasDeviceInfo`: a read-only identity record for a discovered device.
+- `HotasDiscoveryResult`: a typed discovery status payload for telemetry.
+- `DeviceDiscoveryBackend`: the backend protocol.
+- `FakeDeviceDiscoveryBackend`: deterministic tests.
+- `WindowsPnpDeviceDiscoveryBackend`: guarded Windows PnP enumeration using the existing read-only preflight path.
+
+The initial supported-device matcher is centralized. It recognizes the recovered target by conservative name matching and the known Thrustmaster T-Flight HOTAS One USB pair `VID_044F` / `PID_B68D` when those IDs are visible.
+
+Discovery is run during Bridge ticks and preflight/status command handling. It may update input discovery truth, but it does not start a polling loop, stream live axes/buttons, write vJoy, or verify output. With no supported HOTAS found and vJoy present, runtime truth remains `blocked_missing_device`. If a supported HOTAS is only detected by dry-run discovery, output verification still remains false.
+
 ## Phase 9G Lifecycle Ownership Decision
 
 Phase 9G is documented in `docs/HelmForge/phase-9g-bridge-lifecycle-ownership-design.md`.
@@ -197,7 +231,8 @@ This is design-only. No lifecycle implementation, tray manager, service install,
 - Auto-start at user login.
 - Tray/background manager.
 - Device-event wake/suspend behavior.
-- Real HOTAS polling.
+- Continuous real HOTAS polling.
+- Live physical axis/button streaming.
 - Real vJoy writes.
 - Output verification.
 - automatic Bridge process launch from UI.
