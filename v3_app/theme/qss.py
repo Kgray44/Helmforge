@@ -15,6 +15,7 @@ def app_qss() -> str:
     QWidget#appFooter,
     QWidget#runtimeCard,
     QWidget#placeholderCard,
+    QFrame[cardRole="pageCard"],
     QFrame#routingOverviewCard,
     QFrame#liveRouteSummaryCard,
     QFrame#runtimePreflightCard,
@@ -82,6 +83,33 @@ def app_qss() -> str:
     QLabel#routeSummaryValue {
         color: #f5f9ff;
         font-weight: 550;
+    }
+
+    QLabel#snapshotValue {
+        color: #ffffff;
+        font-size: 22px;
+        font-weight: 800;
+    }
+
+    QLabel#formLabel {
+        color: #f5f9ff;
+    }
+
+    QLabel#axisListItem {
+        color: #f5f9ff;
+        padding: 10px 14px;
+        border-radius: 10px;
+    }
+
+    QLabel#axisListItem[active="true"] {
+        background: #153b5a;
+        color: #ffffff;
+    }
+
+    QFrame#axisListFrame {
+        background: #09131e;
+        border: 1px solid #28496a;
+        border-radius: 12px;
     }
 
     QLabel#sectionLabel,
@@ -182,6 +210,37 @@ def app_qss() -> str:
     QCheckBox::indicator:checked {
         background: #53b7ff;
         border-color: #96ffc5;
+    }
+
+    QLineEdit,
+    QComboBox {
+        background: #07111d;
+        border: 1px solid #28496a;
+        border-radius: 10px;
+        color: #f5f9ff;
+        padding: 8px 12px;
+        min-height: 24px;
+    }
+
+    QLineEdit:focus,
+    QComboBox:focus {
+        border-color: #53b7ff;
+    }
+
+    QTreeWidget {
+        background: #07111d;
+        border: 1px solid #28496a;
+        border-radius: 12px;
+        color: #f5f9ff;
+        padding: 8px;
+    }
+
+    QTreeWidget::item {
+        padding: 4px 6px;
+    }
+
+    QTreeWidget::item:selected {
+        background: #153b5a;
     }
 
     QPushButton#saveWorkspaceButton,
