@@ -10,11 +10,14 @@ from shared_core.math.curves import (
 )
 from shared_core.math.deadzone import apply_center_deadzone
 from shared_core.math.filtering import FilterState, step_filter
+from shared_core.math.pipeline import SignalPipelineState, WorkspaceSignalPipeline
 from shared_core.math.stack import (
     EXPECTED_STAGE_NAMES,
     ModeState,
     process_axis_stack,
 )
+from shared_core.models.runtime import AXIS_NAMES
+from shared_core.models.workspace import create_default_workspace
 from shared_core.models.combat import AxisCombatProfile
 from shared_core.models.filtering import AxisFiltering
 from shared_core.models.modes import StackMode, default_mode_config
@@ -197,3 +200,40 @@ def test_runtime_bridge_keeps_truth_and_processes_simulated_outputs_through_stac
     assert snapshot.simulated is True
     assert snapshot.raw_axis_values["Pitch"] == pytest.approx(0.25)
     assert snapshot.final_output_values["Pitch"] != pytest.approx(snapshot.raw_axis_values["Pitch"])
+
+
+def test_workspace_signal_pipeline_processes_all_axes_for_future_bridge_use():
+    workspace = create_default_workspace()
+    pipeline = WorkspaceSignalPipeline(workspace)
+    raw_values = {
+        "Roll": 0.0,
+        "Pitch": 0.25,
+        "Throttle": 0.5,
+        "Yaw": -0.25,
+        "Aux 1": 0.75,
+        "Aux 2": -0.75,
+    }
+
+    result = pipeline.process(raw_values, mode_state=ModeState())
+
+    assert tuple(result.raw_axis_values) == AXIS_NAMES
+    assert tuple(result.final_output_values) == AXIS_NAMES
+    assert tuple(result.axis_results) == AXIS_NAMES
+    assert result.final_output_values["Pitch"] != pytest.approx(raw_values["Pitch"])
+    assert result.axis_results["Pitch"].stage_by_name("Final Output").output_value == pytest.approx(
+        result.final_output_values["Pitch"]
+    )
+    assert isinstance(result.state, SignalPipelineState)
+
+
+def test_workspace_signal_pipeline_state_is_explicit_and_deterministic():
+    workspace = create_default_workspace()
+    pipeline = WorkspaceSignalPipeline(workspace)
+    raw_values = {axis: 0.2 for axis in AXIS_NAMES}
+    state = pipeline.initial_state()
+
+    first = pipeline.process(raw_values, state=state)
+    second = pipeline.process(raw_values, state=state)
+
+    assert first.final_output_values == second.final_output_values
+    assert first.state.filter_states.keys() == second.state.filter_states.keys()

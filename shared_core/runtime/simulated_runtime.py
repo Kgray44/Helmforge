@@ -12,8 +12,8 @@ from shared_core.models.runtime import (
     simulation_fallback_status,
 )
 from shared_core.models.workspace import WorkspaceConfig, create_default_workspace
-from shared_core.math.filtering import FilterState
-from shared_core.math.stack import ModeState, process_axis_stack
+from shared_core.math.pipeline import WorkspaceSignalPipeline
+from shared_core.math.stack import ModeState
 
 
 class SimulatedRuntime:
@@ -21,7 +21,8 @@ class SimulatedRuntime:
         self._deterministic = deterministic
         self._start_time = time.monotonic()
         self._workspace = workspace or create_default_workspace()
-        self._filter_states = {axis: FilterState() for axis in AXIS_NAMES}
+        self._pipeline = WorkspaceSignalPipeline(self._workspace)
+        self._pipeline_state = self._pipeline.initial_state()
 
     def _axis_values(self) -> dict[str, float]:
         if self._deterministic:
@@ -61,24 +62,15 @@ class SimulatedRuntime:
 
     def snapshot(self, runtime_status: RuntimePreflightStatus | None = None) -> RuntimeSnapshot:
         raw_axis_values = self._axis_values()
-        final_output_values: dict[str, float] = {}
-        for axis_id, tuning in self._workspace.tuning.axes.items():
-            axis_name = tuning.axis
-            result = process_axis_stack(
-                raw_axis_values[axis_name],
-                tuning=tuning,
-                filtering=self._workspace.filtering.axes[axis_id],
-                combat=self._workspace.combat.axes[axis_id],
-                mode_config=self._workspace.modes,
-                mode_state=ModeState(),
-                rules=self._workspace.rules.rules,
-                previous_filter_state=self._filter_states[axis_name],
-            )
-            self._filter_states[axis_name] = result.filter_state
-            final_output_values[axis_name] = result.final_output
+        pipeline_result = self._pipeline.process(
+            raw_axis_values,
+            mode_state=ModeState(),
+            state=self._pipeline_state,
+        )
+        self._pipeline_state = pipeline_result.state
         return RuntimeSnapshot(
             raw_axis_values=raw_axis_values,
-            final_output_values=final_output_values,
+            final_output_values=pipeline_result.final_output_values,
             button_states=self._button_states(),
             hat_state=self._hat_state(),
             runtime_status=runtime_status or simulation_fallback_status(),
