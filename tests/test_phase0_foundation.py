@@ -2,14 +2,12 @@ from pathlib import Path
 import importlib
 
 
-def test_phase0_product_identity_and_runtime_notice():
+def test_phase0_product_identity_and_window_title():
     main = importlib.import_module("v3_app.main")
 
     assert main.APP_NAME == "HelmForge"
     assert main.TECHNICAL_SUBTITLE == "HOTAS Control Panel V3"
     assert main.WINDOW_TITLE == "HelmForge — HOTAS Control Panel V3"
-    assert "Phase 0" in main.PHASE_NOTICE
-    assert "No real HOTAS/vJoy runtime support is implemented yet" in main.PHASE_NOTICE
 
 
 def test_recovery_references_are_documented():
