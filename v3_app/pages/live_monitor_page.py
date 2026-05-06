@@ -46,6 +46,11 @@ from v3_app.services.bridge_commands import (
     BridgeCommandClient,
     BridgeCommandWriteResult,
 )
+from v3_app.services.bridge_presence import (
+    BridgeProcessPresenceProvider,
+    UnavailableBridgeProcessPresenceProvider,
+    compose_bridge_lifecycle_diagnostics,
+)
 from v3_app.ui.status_chips import action_button, status_chip
 
 
@@ -62,6 +67,7 @@ class LiveMonitorPage(QWidget):
         command_clock: Callable[[], datetime] | None = None,
         bridge_clock: Callable[[], datetime] | None = None,
         bridge_stale_after_seconds: float = 5.0,
+        process_presence_provider: BridgeProcessPresenceProvider | None = None,
     ) -> None:
         super().__init__()
         self.setObjectName("liveMonitorPage")
@@ -79,6 +85,7 @@ class LiveMonitorPage(QWidget):
             request_id_factory=command_request_id_factory,
             clock=command_clock,
         )
+        self._process_presence_provider = process_presence_provider or UnavailableBridgeProcessPresenceProvider()
         self._pipeline = WorkspaceSignalPipeline(self._workspace)
         self._pipeline_state = self._pipeline.initial_state()
         self.selected_axis = state.selected_axis if state.selected_axis in AXIS_DISPLAY_NAMES else "Roll"
@@ -86,6 +93,7 @@ class LiveMonitorPage(QWidget):
         self.overlay_series_count = 0
         self.telemetry_source_label = "Simulation Fallback"
         self.telemetry_source_status = "Missing"
+        self.latest_bridge_diagnostics = None
         self.last_command_result: BridgeCommandWriteResult | None = None
         self.latest_command_request_id: str | None = None
         self.latest_command_name: str | None = None
@@ -434,6 +442,7 @@ class LiveMonitorPage(QWidget):
                 telemetry=telemetry,
                 runtime_truth=runtime_truth,
                 output_verified=output_verified,
+                process_hint=self._process_presence_provider.get_presence(),
             )
         )
         self._update_command_status_from_telemetry(telemetry, bridge_result)
@@ -464,7 +473,7 @@ class LiveMonitorPage(QWidget):
         self.source_chip.style().unpolish(self.source_chip)
         self.source_chip.style().polish(self.source_chip)
 
-    def _bridge_health_text(self, bridge_result: BridgeTelemetryReadResult, *, telemetry, runtime_truth: str, output_verified: bool) -> str:
+    def _bridge_health_text(self, bridge_result: BridgeTelemetryReadResult, *, telemetry, runtime_truth: str, output_verified: bool, process_hint) -> str:
         age_text = "n/a"
         if bridge_result.age_seconds is not None:
             age_text = f"{bridge_result.age_seconds:.1f}s"
@@ -487,6 +496,13 @@ class LiveMonitorPage(QWidget):
             getattr(telemetry, "device_discovery", None),
             output_verified=output_verified,
         )
+        diagnostics = compose_bridge_lifecycle_diagnostics(
+            bridge_result,
+            process_hint,
+            fallback_runtime_truth=runtime_truth,
+            fallback_output_verified=output_verified,
+        )
+        self.latest_bridge_diagnostics = diagnostics
 
         return (
             f"Bridge: {bridge_result.status.value} | "
@@ -495,7 +511,12 @@ class LiveMonitorPage(QWidget):
             f"Output verified: {str(output_verified).lower()} | "
             f"Last command: {last_command_text}.\n"
             f"{detail}\n"
-            f"{discovery_text}"
+            f"{discovery_text}\n"
+            f"Bridge telemetry: {diagnostics.telemetry_label} | "
+            f"Bridge lifecycle: {diagnostics.lifecycle_state} | "
+            f"Process hint: {diagnostics.process_hint_label}.\n"
+            f"Device discovery: {diagnostics.device_discovery_status}. "
+            f"Diagnosis: {diagnostics.diagnostic_text}"
         )
 
     def _device_discovery_text(self, device_discovery: object, *, output_verified: bool) -> str:

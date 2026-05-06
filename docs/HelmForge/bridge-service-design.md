@@ -2,13 +2,13 @@
 
 Product: HelmForge  
 Technical subtitle: HOTAS Control Panel V3  
-Status: Phase 9H read-only HOTAS discovery dry-run added; no polling, output, or lifecycle implementation added
+Status: Phase 9I process presence diagnostics added; no polling, output, process control, or lifecycle implementation added
 
 ## Purpose
 
 The Bridge is the background/runtime side of HelmForge. It is intended to own real-time HOTAS input, workspace processing, virtual output, and telemetry. The PySide6 UI owns configuration, visualization, diagnostics, and user interaction.
 
-Phase 9B created the separate process skeleton so future real HOTAS and vJoy work lands outside `v3_app`. Phase 9C added UI-side telemetry reading without moving Bridge processing into the UI. Phase 9D added a safe UI command writer for status/config/preflight requests only. Phase 9E added per-command acknowledgement/status telemetry while keeping telemetry as the truth source. Phase 9F refined telemetry health and timing details for UI-visible lifecycle presence. Phase 9G records lifecycle ownership options, wording rules, and safety gates; it adds no lifecycle implementation. Phase 9H adds a Bridge-owned, read-only HOTAS discovery dry-run and publishes discovery truth through telemetry.
+Phase 9B created the separate process skeleton so future real HOTAS and vJoy work lands outside `v3_app`. Phase 9C added UI-side telemetry reading without moving Bridge processing into the UI. Phase 9D added a safe UI command writer for status/config/preflight requests only. Phase 9E added per-command acknowledgement/status telemetry while keeping telemetry as the truth source. Phase 9F refined telemetry health and timing details for UI-visible lifecycle presence. Phase 9G records lifecycle ownership options, wording rules, and safety gates; it adds no lifecycle implementation. Phase 9H adds a Bridge-owned, read-only HOTAS discovery dry-run and publishes discovery truth through telemetry. Phase 9I adds UI-side process presence hints and diagnostic wording while keeping telemetry as the truth surface.
 
 ## Current Entry Points
 
@@ -152,7 +152,7 @@ Phase 9E command request payloads include:
 
 The Bridge ignores command requests older than 30 seconds and reports them as `ignored_stale` in `last_command`. The Bridge also remembers the last consumed `request_id` in memory and does not execute the same request on every tick while the command file remains present.
 
-No command triggers continuous HOTAS polling, vJoy writes, output verification, driver installation, installer launch, Windows Service installation, automatic Bridge launch, tray manager work, or login auto-start in Phase 9H.
+No command triggers continuous HOTAS polling, vJoy writes, output verification, driver installation, installer launch, Windows Service installation, automatic Bridge launch, child process launch, tray manager work, or login auto-start in Phase 9I.
 
 ## Config Loading
 
@@ -208,6 +208,32 @@ The initial supported-device matcher is centralized. It recognizes the recovered
 
 Discovery is run during Bridge ticks and preflight/status command handling. It may update input discovery truth, but it does not start a polling loop, stream live axes/buttons, write vJoy, or verify output. With no supported HOTAS found and vJoy present, runtime truth remains `blocked_missing_device`. If a supported HOTAS is only detected by dry-run discovery, output verification still remains false.
 
+## Phase 9I Process Presence Diagnostics
+
+Phase 9I adds `v3_app/services/bridge_presence.py` as a UI-side diagnostic seam. Process presence is only a hint. Fresh Bridge telemetry remains stronger than process presence, and runtime truth still comes from telemetry/preflight models.
+
+Presence states:
+
+- `unavailable`
+- `unknown`
+- `not_found`
+- `maybe_running`
+- `seen_but_telemetry_missing`
+- `seen_but_telemetry_stale`
+- `fresh_telemetry_confirmed`
+- `telemetry_invalid`
+- `telemetry_error`
+
+The Phase 9I provider defaults to an unavailable read-only provider and includes a fake provider for tests. It does not start, stop, restart, signal, kill, spawn, or manage any process. The first UI use is compact Live Monitor diagnostic wording that can say, for example, that telemetry is missing and manual Bridge launch may be required.
+
+Manual Bridge launch remains the current lifecycle model:
+
+```powershell
+python -m bridge_app.main --run-for-ms 250
+```
+
+The UI may show that command as help text, but it does not execute it in Phase 9I.
+
 ## Phase 9G Lifecycle Ownership Decision
 
 Phase 9G is documented in `docs/HelmForge/phase-9g-bridge-lifecycle-ownership-design.md`.
@@ -237,4 +263,5 @@ This is design-only. No lifecycle implementation, tray manager, service install,
 - Output verification.
 - automatic Bridge process launch from UI.
 - process spawning from UI.
+- process start/stop/restart controls.
 - Final IPC transport.
