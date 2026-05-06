@@ -4,7 +4,7 @@
 
 HelmForge is a safe rebuild of the lost HOTAS Control Panel project. The recovered HOTAS Control Panel V2 forensic notes, raw recovery chats, and PNG screenshot evidence are the governing reconstruction references for this repository.
 
-The current rebuild state is Phase 2 domain models and workspace schema. Phase 0 created the package structure, dependency metadata, documentation anchors, and a minimal PySide6 window titled `HelmForge — HOTAS Control Panel V3`. Phase 1 added typed runtime status, safe missing-device detection, simulation snapshots, and a runtime bridge contract. Phase 1A added official-source-only Thrustmaster T-Flight HOTAS One setup guidance and setup status labels. Phase 2 adds UI-independent axes, mapping, modes, tuning, filtering, combat, rules, profiles, workspace state, and JSON persistence models. It does not implement real HOTAS input polling, vJoy output writes, tuning math, UI pages, overlays, or installer packaging.
+The current rebuild state is Phase 3 tuning math and signal pipeline. Phase 0 created the package structure, dependency metadata, documentation anchors, and a minimal PySide6 window titled `HelmForge — HOTAS Control Panel V3`. Phase 1 added typed runtime status, safe missing-device detection, simulation snapshots, and a runtime bridge contract. Phase 1A added official-source-only Thrustmaster T-Flight HOTAS One setup guidance and setup status labels. Phase 2 added UI-independent axes, mapping, modes, tuning, filtering, combat, rules, profiles, workspace state, and JSON persistence models. Phase 3 adds shared-core curve, deadzone, filtering, mode-modifier, rule-placeholder, and stage-by-stage stack math. It does not implement real HOTAS input polling, vJoy output writes, UI pages, overlays, or installer packaging.
 
 ## Recovery Sources
 
@@ -23,7 +23,7 @@ HelmForge will be developed simulation-first so the UI, shared core, and tests c
 
 Known physical HOTAS target: **Thrustmaster T-Flight HOTAS One**.
 
-Phase 2 does **not** provide real support for that hardware. It does **not** install or use Thrustmaster drivers, vJoy, or any hardware driver. No live runtime support should be claimed until a later phase implements and verifies it.
+Phase 3 does **not** provide real support for that hardware. It does **not** install or use Thrustmaster drivers, vJoy, or any hardware driver. No live runtime support should be claimed until a later phase implements and verifies it.
 
 The V3 workspace/config filename is `hotas_bridge_config_v3.json`. The recovered V2 notes referenced `hotas_bridge_config_v2.json`; that legacy name is preserved in schema documentation for provenance.
 
