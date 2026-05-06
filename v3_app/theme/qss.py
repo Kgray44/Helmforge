@@ -63,7 +63,9 @@ def app_qss() -> str:
         font-weight: 750;
     }
 
-    QLabel#cardTitle {
+    QLabel#cardTitle,
+    QLabel#rawTraceTitle,
+    QLabel#overlayTraceTitle {
         font-size: 18px;
         font-weight: 750;
     }
@@ -240,6 +242,10 @@ def app_qss() -> str:
     QProgressBar::chunk {
         background: #53b7ff;
         border-radius: 5px;
+    }
+
+    QProgressBar[levelKind="final"]::chunk {
+        background: #76d39b;
     }
 
     QLineEdit,

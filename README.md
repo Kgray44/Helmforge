@@ -4,7 +4,7 @@
 
 HelmForge is a safe rebuild of the lost HOTAS Control Panel project. The recovered HOTAS Control Panel V2 forensic notes, raw recovery chats, and PNG screenshot evidence are the governing reconstruction references for this repository.
 
-The current rebuild state includes the Phase 8 Effective Response Stack page, Phase 7 Conditional Rules page/evaluator, Phase 6B Mapping editor polish, Phase 6 core tuning pages, Phase 5 Mapping page, Phase 4 PySide6 visual shell, Phase 2B Bridge/UI architecture boundary contracts, Phase 2A local runtime setup tooling, and the Phase 3 tuning math and signal pipeline. Phase 8 replaces the Effective Response Stack placeholder with a screenshot-guided diagnostic page that visualizes one selected axis through the shared-core pipeline, Raw vs Final graph, freeze/resume display state, and inline Phase 7 rule injection metadata. The current app still does not implement real HOTAS input polling, vJoy output writes, Live Monitor internals, overlays, or installer packaging.
+The current rebuild state includes the Phase 9 Live Monitor page, Phase 8 Effective Response Stack page, Phase 7 Conditional Rules page/evaluator, Phase 6B Mapping editor polish, Phase 6 core tuning pages, Phase 5 Mapping page, Phase 4 PySide6 visual shell, Phase 2B Bridge/UI architecture boundary contracts, Phase 2A local runtime setup tooling, and the Phase 3 tuning math and signal pipeline. Phase 9 replaces the Live Monitor placeholder with a screenshot-guided diagnostic page for simulation-backed raw/final traces, axis levels, buttons, hats, and Bridge-ready telemetry snapshot display. The current app still does not implement real HOTAS input polling, vJoy output writes, flight recorder, live overlay, or installer packaging.
 
 ## Recovery Sources
 
@@ -23,7 +23,7 @@ HelmForge is developed simulation-first so the UI, shared core, and tests can pr
 
 Known physical HOTAS target: **Thrustmaster T-Flight HOTAS One**.
 
-Phase 8 does **not** provide real support for that hardware. It does **not** implement real HOTAS polling or real vJoy output writes. No live runtime support should be claimed until a later phase implements and verifies it.
+Phase 9 does **not** provide real support for that hardware. It does **not** implement real HOTAS polling or real vJoy output writes. No live runtime support should be claimed until a later phase implements and verifies it.
 
 The V3 workspace/config filename is `hotas_bridge_config_v3.json`. The recovered V2 notes referenced `hotas_bridge_config_v2.json`; that legacy name is preserved in schema documentation for provenance.
 
@@ -36,13 +36,13 @@ HelmForge has two main parts:
 - Bridge: owns real-time HOTAS input, workspace processing, virtual output, and telemetry.
 - UI App: owns configuration, visualization, diagnostics, help/docs, recorder/overlay surfaces, and user interaction.
 
-The Phase 8 UI reads runtime truth and displays shell/status surfaces, but it does not own real-time processing. Early phases may run Bridge-like behavior in-process for development, but the final architecture should allow the Bridge to run without the PySide6 UI open. The Bridge/UI boundary is documented in `docs/HelmForge/bridge-ui-architecture.md`.
+The Phase 9 UI reads runtime truth and simulation-backed telemetry snapshots for visualization, but it does not own real-time processing. Early phases may run Bridge-like behavior in-process for development, but the final architecture should allow the Bridge to run without the PySide6 UI open. The Bridge/UI boundary is documented in `docs/HelmForge/bridge-ui-architecture.md`.
 
 ## Project Layout
 
 ```text
 shared_core/          Shared models, runtime contracts, math pipeline, rules evaluator, and non-UI core code.
-v3_app/               PySide6 application package, app shell, theme, Mapping editor, tuning/rules/stack pages, and remaining placeholder pages.
+v3_app/               PySide6 application package, app shell, theme, Mapping editor, tuning/rules/stack/live-monitor pages, and remaining placeholder pages.
 docs/HelmForge/       Implementation notes, decisions, and phase reports.
 docs/recovery/        Recovery-source preservation notes and evidence inventory.
 tests/                Phase smoke and contract tests.

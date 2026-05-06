@@ -14,6 +14,7 @@ from v3_app.pages.combat_profile_page import CombatProfilePage
 from v3_app.pages.conditional_rules_page import ConditionalRulesPage
 from v3_app.pages.effective_response_stack_page import EffectiveResponseStackPage
 from v3_app.pages.filtering_page import FilteringPage
+from v3_app.pages.live_monitor_page import LiveMonitorPage
 from v3_app.pages.mapping_page import MappingPage
 from v3_app.pages.modes_page import ModesPage
 from v3_app.pages.placeholders import PAGE_DEFINITIONS, create_placeholder_page, page_definition_by_id
@@ -136,6 +137,8 @@ class HelmForgeShell(QWidget):
             )
         if page_id == "effective_response_stack":
             return EffectiveResponseStackPage(**common)
+        if page_id == "live_monitor":
+            return LiveMonitorPage(**common)
         return create_placeholder_page(page, runtime_label=self.state.runtime.runtime_card_label)
 
     def mark_workspace_dirty(self, message: str) -> None:
