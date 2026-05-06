@@ -49,6 +49,7 @@ from v3_app.services.bridge_commands import (
 from v3_app.services.bridge_presence import (
     BridgeProcessPresenceProvider,
     UnavailableBridgeProcessPresenceProvider,
+    build_live_monitor_diagnostic_rows,
     compose_bridge_lifecycle_diagnostics,
 )
 from v3_app.ui.status_chips import action_button, status_chip
@@ -104,6 +105,7 @@ class LiveMonitorPage(QWidget):
         self._axis_bars: dict[str, tuple[QProgressBar, QProgressBar]] = {}
         self._hotas_buttons: dict[str, QLabel] = {}
         self._output_buttons: dict[str, QLabel] = {}
+        self._diagnostic_row_labels: dict[str, QLabel] = {}
 
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 22, 24, 28)
@@ -218,7 +220,7 @@ class LiveMonitorPage(QWidget):
     def _build_live_state_card(self) -> QWidget:
         frame = card("liveStateCard")
         layout = card_layout(frame)
-        layout.addWidget(card_header("Live State", "Current mode state and bridge activity."))
+        layout.addWidget(card_header("Live State", "Current mode state, Bridge telemetry, and diagnostic hints."))
         self.live_state_label = QLabel("")
         self.live_state_label.setObjectName("liveStateText")
         self.live_state_label.setWordWrap(True)
@@ -227,6 +229,11 @@ class LiveMonitorPage(QWidget):
         self.bridge_health_label.setObjectName("bridgeHealthText")
         self.bridge_health_label.setWordWrap(True)
         layout.addWidget(self.bridge_health_label)
+        self.diagnostic_grid = QGridLayout()
+        self.diagnostic_grid.setObjectName("bridgeDiagnosticGrid")
+        self.diagnostic_grid.setHorizontalSpacing(12)
+        self.diagnostic_grid.setVerticalSpacing(10)
+        layout.addLayout(self.diagnostic_grid)
         self.command_status_label = QLabel("Bridge commands are requests; fresh telemetry confirms later.")
         self.command_status_label.setObjectName("bridgeCommandStatusText")
         self.command_status_label.setWordWrap(True)
@@ -503,6 +510,12 @@ class LiveMonitorPage(QWidget):
             fallback_output_verified=output_verified,
         )
         self.latest_bridge_diagnostics = diagnostics
+        rows = build_live_monitor_diagnostic_rows(
+            diagnostics,
+            latest_request_id=self.latest_command_request_id,
+            latest_command_name=self.latest_command_name,
+        )
+        self._render_diagnostic_rows(rows)
 
         return (
             f"Bridge: {bridge_result.status.value} | "
@@ -518,6 +531,28 @@ class LiveMonitorPage(QWidget):
             f"Device discovery: {diagnostics.device_discovery_status}. "
             f"Diagnosis: {diagnostics.diagnostic_text}"
         )
+
+    def _render_diagnostic_rows(self, rows) -> None:
+        existing_labels = set(self._diagnostic_row_labels)
+        for index, row in enumerate(rows):
+            label = self._diagnostic_row_labels.get(row.label)
+            if label is None:
+                label = QLabel("")
+                label.setObjectName(f"bridgeDiagnostic_{_key(row.label)}")
+                label.setWordWrap(True)
+                self._diagnostic_row_labels[row.label] = label
+                self.diagnostic_grid.addWidget(label, index // 2, index % 2)
+            label.setText(f"{row.label}\n{row.value}")
+            label.setToolTip(row.detail)
+            label.setProperty("diagnosticSeverity", row.severity)
+            label.style().unpolish(label)
+            label.style().polish(label)
+            existing_labels.discard(row.label)
+
+        for stale_label in existing_labels:
+            label = self._diagnostic_row_labels.pop(stale_label)
+            label.setParent(None)
+            label.deleteLater()
 
     def _device_discovery_text(self, device_discovery: object, *, output_verified: bool) -> str:
         if hasattr(device_discovery, "to_dict"):

@@ -1,6 +1,6 @@
 # Bridge/UI Architecture
 
-Status: Phase 9I adds UI-side Bridge process presence hints and diagnostic visibility. Shared contracts exist, `bridge_app` can run as a separate simulation-only Python process, the PySide6 Live Monitor can consume fresh Bridge telemetry JSON with safe simulation fallback, and the UI can request safe Bridge commands through a JSON command file. The Bridge echoes the most recently consumed command request in telemetry, and the UI shows compact Bridge health/timing details, device discovery truth, and process-presence hints. Continuous real HOTAS polling, live physical input streaming, vJoy writes, output verification, automatic Bridge launch, process spawning from the UI, Windows Service install, tray manager work, and login auto-start are not implemented yet.
+Status: Phase 9K freezes the Phase 9 Bridge/UI boundary after Live Monitor diagnostic UX polish and edge-state cleanup. Shared contracts exist, `bridge_app` can run as a separate simulation-only Python process, the PySide6 Live Monitor can consume fresh Bridge telemetry JSON with safe simulation fallback, and the UI can request safe Bridge commands through a JSON command file. The Bridge echoes the most recently consumed command request in telemetry, and the UI shows compact Bridge health/timing details, device discovery truth, process-presence hints, and a stable diagnostic hierarchy. Continuous real HOTAS polling, live physical input streaming, vJoy writes, output verification, automatic Bridge launch, process spawning from the UI, Windows Service install, tray manager work, and login auto-start are not implemented yet.
 
 ## Core Rule
 
@@ -140,6 +140,58 @@ The Live Monitor can now show compact text such as:
 
 The UI does not execute the manual-launch command and does not add Start, Stop, Restart, Service, Auto Start, or Verify Output controls.
 
+## Live Monitor Diagnostic UX
+
+Phase 9J organizes the Live Monitor Live State diagnostics in this stable order:
+
+- Telemetry
+- Lifecycle
+- Runtime
+- Output verified
+- HOTAS discovery
+- Process hint
+- Last command
+- Diagnosis
+- Manual launch, only when telemetry is missing or stale
+
+The display uses diagnostic-only severities:
+
+- `ok`
+- `info`
+- `warning`
+- `error`
+- `muted`
+
+These severities do not change runtime truth. They only help the UI present edge states clearly.
+
+Command status follows the Phase 9E request-id rule. Old or unrelated `last_command` telemetry never completes the current UI request. Missing or stale telemetry keeps the current UI request in an awaiting-telemetry state.
+
+Manual launch guidance remains text only:
+
+```powershell
+python -m bridge_app.main --run-for-ms 250
+```
+
+The UI does not add a button or background process launch path for that command.
+
+## Phase 9K Boundary Freeze
+
+Phase 9K is a stabilization and regression-gate pass for the Phase 9 truth layer:
+
+- telemetry remains the truth surface.
+- command files are requests, not success proof.
+- Bridge command acknowledgement must use matching request_id.
+- process presence is a hint only.
+- HOTAS discovery is discovery-only.
+- supported_device_detected does not mean polling/live runtime/output verified.
+- manual Bridge launch remains the current lifecycle model.
+- UI does not start, stop, restart, spawn, install, or manage the Bridge.
+- output_verified remains false until a future output verification phase.
+- Full Live Runtime Ready remains false until future phases prove input and output.
+- live device/runtime work remains deferred.
+
+Phase 9K adds guard tests around forbidden UI controls, unsafe commands, stale telemetry, discovery-only wording, process-hint wording, command acknowledgement matching, and forbidden runtime-authority imports or APIs. It does not add new UI panels or move the Live Monitor layout away from the recovered graph-first design.
+
 ## Command Flow
 
 Phase 9D added `v3_app/services/bridge_commands.py`, which writes safe command requests to `%TEMP%\helmforge_bridge_command.json` using atomic JSON writes. Phase 9E adds request IDs, schema versioning, Bridge `last_command` telemetry, stale-command protection, and in-memory duplicate request protection.
@@ -238,6 +290,7 @@ Implemented:
 - Phase 9E Bridge `last_command` telemetry;
 - UI command status matching by request ID;
 - stale-command and duplicate-request protection.
+- Phase 9K boundary-freeze tests and documentation consistency checks.
 - Phase 9F telemetry health/timing details;
 - compact Live Monitor Bridge health display;
 - explicit missing/stale/invalid/error explanation text.
@@ -247,8 +300,11 @@ Implemented:
 - Live Monitor discovery status wording that preserves output-unverified truth.
 - Phase 9I UI-side process presence diagnostics;
 - compact Live Monitor diagnosis text that preserves manual Bridge launch ownership.
+- Phase 9J stable Live Monitor diagnostic rows;
+- discovery-only and command-request wording cleanup.
+- Phase 9K final Phase 9 stabilization and boundary freeze.
 
-Current local precheck for the Phase 9I pass:
+Current local precheck for the Phase 9J pass:
 
 - Thrustmaster driver/software detected: yes.
 - vJoy detected: yes.
@@ -268,4 +324,5 @@ Deferred:
 - real vJoy writes;
 - socket/named-pipe/streaming IPC;
 - UI pages for Bridge control;
-- UI-launched Bridge process management.
+- UI-launched Bridge process management;
+- diagnostic UX that implies live readiness before output verification.

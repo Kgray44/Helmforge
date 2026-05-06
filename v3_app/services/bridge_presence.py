@@ -73,8 +73,18 @@ class BridgeLifecycleDiagnostics:
     process_hint_label: str
     device_discovery_status: str
     last_command_status: str
+    last_command_request_id: str | None
+    last_command_command: str
     diagnostic_text: str
     manual_launch_hint: str | None = None
+
+
+@dataclass(frozen=True)
+class BridgeDiagnosticDisplayRow:
+    label: str
+    value: str
+    severity: str = "info"
+    detail: str = ""
 
 
 def compose_bridge_lifecycle_diagnostics(
@@ -91,6 +101,8 @@ def compose_bridge_lifecycle_diagnostics(
     device_status = _device_discovery_status(getattr(telemetry, "device_discovery", None))
     last_command = getattr(telemetry, "last_command", None)
     last_command_status = _mapping_value(last_command, "status", fallback="none")
+    last_command_request_id = _mapping_optional_value(last_command, "request_id")
+    last_command_command = _mapping_value(last_command, "command", fallback="Bridge")
 
     effective_hint = _effective_presence_hint(telemetry_result.status, process_hint)
     diagnostic = _diagnostic_sentence(
@@ -117,9 +129,75 @@ def compose_bridge_lifecycle_diagnostics(
         process_hint_label=effective_hint.label,
         device_discovery_status=device_status,
         last_command_status=last_command_status,
+        last_command_request_id=last_command_request_id,
+        last_command_command=last_command_command,
         diagnostic_text=diagnostic,
         manual_launch_hint=manual_hint,
     )
+
+
+def build_live_monitor_diagnostic_rows(
+    diagnostics: BridgeLifecycleDiagnostics,
+    *,
+    latest_request_id: str | None = None,
+    latest_command_name: str | None = None,
+) -> tuple[BridgeDiagnosticDisplayRow, ...]:
+    rows: list[BridgeDiagnosticDisplayRow] = [
+        BridgeDiagnosticDisplayRow(
+            "Telemetry",
+            _telemetry_display_value(diagnostics.telemetry_status),
+            _telemetry_severity(diagnostics.telemetry_status),
+            _age_detail(diagnostics.telemetry_age_seconds),
+        ),
+        BridgeDiagnosticDisplayRow(
+            "Lifecycle",
+            diagnostics.lifecycle_state,
+            "info" if diagnostics.lifecycle_state.lower() == "simulated" else "muted",
+        ),
+        BridgeDiagnosticDisplayRow(
+            "Runtime",
+            _runtime_display_value(diagnostics.runtime_truth),
+            _runtime_severity(diagnostics.runtime_truth),
+        ),
+        BridgeDiagnosticDisplayRow(
+            "Output verified",
+            str(diagnostics.output_verified).lower(),
+            "ok" if diagnostics.output_verified else "muted",
+        ),
+        BridgeDiagnosticDisplayRow(
+            "HOTAS discovery",
+            _discovery_display_value(
+                diagnostics.device_discovery_status,
+                output_verified=diagnostics.output_verified,
+            ),
+            _discovery_severity(diagnostics.device_discovery_status),
+        ),
+        BridgeDiagnosticDisplayRow(
+            "Process hint",
+            diagnostics.process_hint_label,
+            _process_hint_severity(diagnostics.process_hint.state),
+        ),
+        _command_display_row(
+            diagnostics,
+            latest_request_id=latest_request_id,
+            latest_command_name=latest_command_name,
+        ),
+        BridgeDiagnosticDisplayRow(
+            "Diagnosis",
+            diagnostics.diagnostic_text,
+            _telemetry_severity(diagnostics.telemetry_status),
+        ),
+    ]
+    if diagnostics.manual_launch_hint:
+        rows.append(
+            BridgeDiagnosticDisplayRow(
+                "Manual launch",
+                MANUAL_BRIDGE_LAUNCH_COMMAND,
+                "warning",
+                "Manual Bridge launch expected.",
+            )
+        )
+    return tuple(rows)
 
 
 def build_bridge_diagnostic_copy_text(diagnostics: BridgeLifecycleDiagnostics) -> str:
@@ -206,7 +284,7 @@ def _diagnostic_sentence(
 
     if telemetry_result.status is BridgeTelemetryStatus.MISSING:
         if process_hint.state is BridgeProcessPresenceState.SEEN_BUT_TELEMETRY_MISSING:
-            return "Bridge process may be running, but telemetry is missing."
+            return "Bridge process may be running, but telemetry is missing. Manual Bridge launch may be required."
         return "Bridge telemetry missing; manual Bridge launch may be required."
 
     if telemetry_result.status is BridgeTelemetryStatus.STALE:
@@ -252,6 +330,12 @@ def _mapping_value(value: object, key: str, *, fallback: str) -> str:
     return fallback
 
 
+def _mapping_optional_value(value: object, key: str) -> str | None:
+    if isinstance(value, Mapping) and value.get(key):
+        return str(value.get(key))
+    return None
+
+
 def _string_value(value: object, *, fallback: str) -> str:
     if value is None:
         return fallback
@@ -272,3 +356,134 @@ def _presence_label(state: BridgeProcessPresenceState) -> str:
         BridgeProcessPresenceState.TELEMETRY_INVALID: "Telemetry invalid",
         BridgeProcessPresenceState.TELEMETRY_ERROR: "Telemetry error",
     }[state]
+
+
+def _telemetry_display_value(status: BridgeTelemetryStatus) -> str:
+    return {
+        BridgeTelemetryStatus.CONNECTED: "Fresh",
+        BridgeTelemetryStatus.MISSING: "Missing",
+        BridgeTelemetryStatus.STALE: "Stale",
+        BridgeTelemetryStatus.INVALID: "Invalid",
+        BridgeTelemetryStatus.ERROR: "Error",
+    }[status]
+
+
+def _telemetry_severity(status: BridgeTelemetryStatus) -> str:
+    return {
+        BridgeTelemetryStatus.CONNECTED: "ok",
+        BridgeTelemetryStatus.MISSING: "warning",
+        BridgeTelemetryStatus.STALE: "warning",
+        BridgeTelemetryStatus.INVALID: "error",
+        BridgeTelemetryStatus.ERROR: "error",
+    }[status]
+
+
+def _age_detail(age_seconds: float | None) -> str:
+    if age_seconds is None:
+        return "age n/a"
+    return f"age {age_seconds:.1f}s"
+
+
+def _runtime_display_value(runtime_truth: str) -> str:
+    return {
+        "blocked_missing_device": "Runtime blocked: missing device",
+        "blocked_missing_driver": "Runtime blocked: missing output",
+        "detected_unverified": "Detected unverified",
+        "live_verified": "Live verified",
+        "simulated": "Simulated",
+        "error": "Runtime error",
+    }.get(runtime_truth, runtime_truth)
+
+
+def _runtime_severity(runtime_truth: str) -> str:
+    if runtime_truth in {"blocked_missing_device", "blocked_missing_driver", "detected_unverified"}:
+        return "warning"
+    if runtime_truth == "error":
+        return "error"
+    if runtime_truth == "live_verified":
+        return "ok"
+    return "info"
+
+
+def _discovery_display_value(device_discovery_status: str, *, output_verified: bool) -> str:
+    if device_discovery_status == "supported_device_detected":
+        return (
+            "Supported HOTAS detected; polling not active. "
+            f"Discovery only; output verification {str(output_verified).lower()}."
+        )
+    if device_discovery_status == "no_supported_device":
+        return "No supported HOTAS detected"
+    if device_discovery_status == "backend_unavailable":
+        return "Discovery backend unavailable"
+    if device_discovery_status == "discovery_error":
+        return "Discovery error"
+    return "Not checked"
+
+
+def _discovery_severity(device_discovery_status: str) -> str:
+    if device_discovery_status in {"discovery_error"}:
+        return "error"
+    if device_discovery_status in {"no_supported_device", "backend_unavailable"}:
+        return "warning"
+    if device_discovery_status == "supported_device_detected":
+        return "info"
+    return "muted"
+
+
+def _process_hint_severity(state: BridgeProcessPresenceState) -> str:
+    if state in {
+        BridgeProcessPresenceState.SEEN_BUT_TELEMETRY_MISSING,
+        BridgeProcessPresenceState.SEEN_BUT_TELEMETRY_STALE,
+    }:
+        return "warning"
+    if state in {BridgeProcessPresenceState.TELEMETRY_INVALID, BridgeProcessPresenceState.TELEMETRY_ERROR}:
+        return "error"
+    if state is BridgeProcessPresenceState.FRESH_TELEMETRY_CONFIRMED:
+        return "ok"
+    if state is BridgeProcessPresenceState.MAYBE_RUNNING:
+        return "info"
+    return "muted"
+
+
+def _command_display_row(
+    diagnostics: BridgeLifecycleDiagnostics,
+    *,
+    latest_request_id: str | None,
+    latest_command_name: str | None,
+) -> BridgeDiagnosticDisplayRow:
+    if latest_request_id:
+        if diagnostics.telemetry_status is not BridgeTelemetryStatus.CONNECTED:
+            return BridgeDiagnosticDisplayRow("Last command", "Awaiting Bridge telemetry", "warning")
+        if diagnostics.last_command_request_id != latest_request_id:
+            return BridgeDiagnosticDisplayRow(
+                "Last command",
+                "Awaiting Bridge telemetry",
+                "warning",
+                _unrelated_command_detail(diagnostics),
+            )
+        status = diagnostics.last_command_status
+        if status == "completed":
+            return BridgeDiagnosticDisplayRow("Last command", "Completed by Bridge", "ok")
+        if status == "acknowledged":
+            return BridgeDiagnosticDisplayRow("Last command", "Acknowledged by Bridge", "info")
+        if status in {"failed", "rejected", "ignored_stale"}:
+            return BridgeDiagnosticDisplayRow("Last command", f"{status.replace('_', ' ').title()} by Bridge", "error")
+        return BridgeDiagnosticDisplayRow("Last command", f"{status} by Bridge", "info")
+
+    if diagnostics.last_command_request_id:
+        return BridgeDiagnosticDisplayRow(
+            "Last command",
+            "No UI command requested",
+            "muted",
+            _unrelated_command_detail(diagnostics),
+        )
+    return BridgeDiagnosticDisplayRow("Last command", "No command requested", "muted")
+
+
+def _unrelated_command_detail(diagnostics: BridgeLifecycleDiagnostics) -> str:
+    if not diagnostics.last_command_request_id:
+        return ""
+    return (
+        "Unrelated Bridge command telemetry: "
+        f"{diagnostics.last_command_status} for {diagnostics.last_command_request_id}."
+    )
