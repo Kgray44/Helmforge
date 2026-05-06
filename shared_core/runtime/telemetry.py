@@ -103,6 +103,33 @@ class OutputVerificationState:
 
 
 @dataclass(frozen=True)
+class BridgeCommandStatusSnapshot:
+    request_id: str
+    command: str
+    status: str
+    received_at: datetime
+    completed_at: datetime | None = None
+    updated_at: datetime | None = None
+    message: str = ""
+    error: str | None = None
+    schema_version: str = "helmforge.bridge_command_status.v1"
+
+    def to_dict(self) -> dict[str, object]:
+        updated = self.updated_at or self.completed_at or self.received_at
+        return {
+            "schema_version": self.schema_version,
+            "request_id": self.request_id,
+            "command": self.command,
+            "status": self.status,
+            "received_at": self.received_at.isoformat(),
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "updated_at": updated.isoformat(),
+            "message": self.message,
+            "error": self.error,
+        }
+
+
+@dataclass(frozen=True)
 class BridgeTelemetrySnapshot:
     runtime_truth: RuntimeTruth
     lifecycle_state: BridgeLifecycleState
@@ -116,6 +143,7 @@ class BridgeTelemetrySnapshot:
     active_profile: str = "Current Workspace"
     rule_summary: RuleStateSummary = field(default_factory=RuleStateSummary)
     output_verification: OutputVerificationState = field(default_factory=OutputVerificationState)
+    last_command: BridgeCommandStatusSnapshot | None = None
     warnings: tuple[str, ...] = ()
     errors: tuple[str, ...] = ()
 
@@ -140,6 +168,7 @@ class BridgeTelemetrySnapshot:
             "rule_summary": self.rule_summary.to_dict(),
             "output_verification": self.output_verification.to_dict(),
             "output_verified": self.output_verified,
+            "last_command": self.last_command.to_dict() if self.last_command else None,
             "warnings": list(self.warnings),
             "errors": list(self.errors),
         }

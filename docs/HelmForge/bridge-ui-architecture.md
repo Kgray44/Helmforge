@@ -1,6 +1,6 @@
 # Bridge/UI Architecture
 
-Status: Phase 9D safe UI command-file seam implemented. Shared contracts exist, `bridge_app` can run as a separate simulation-only Python process, the PySide6 Live Monitor can consume fresh Bridge telemetry JSON with safe simulation fallback, and the UI can request safe Bridge commands through a JSON command file. Real HOTAS polling, vJoy writes, output verification, Windows Service install, and login auto-start are not implemented yet.
+Status: Phase 9E command acknowledgement/status refinement implemented. Shared contracts exist, `bridge_app` can run as a separate simulation-only Python process, the PySide6 Live Monitor can consume fresh Bridge telemetry JSON with safe simulation fallback, and the UI can request safe Bridge commands through a JSON command file. The Bridge now echoes the most recently consumed command request in telemetry. Real HOTAS polling, vJoy writes, output verification, Windows Service install, and login auto-start are not implemented yet.
 
 ## Core Rule
 
@@ -86,7 +86,7 @@ Phase 2B telemetry contracts are defined in `shared_core/runtime/telemetry.py`. 
 
 ## Command Flow
 
-Phase 9D adds `v3_app/services/bridge_commands.py`, which writes safe command requests to `%TEMP%\helmforge_bridge_command.json` using atomic JSON writes.
+Phase 9D added `v3_app/services/bridge_commands.py`, which writes safe command requests to `%TEMP%\helmforge_bridge_command.json` using atomic JSON writes. Phase 9E adds request IDs, schema versioning, Bridge `last_command` telemetry, stale-command protection, and in-memory duplicate request protection.
 
 Allowed UI commands in Phase 9D:
 
@@ -105,6 +105,14 @@ Disallowed UI commands in Phase 9D:
 - `VerifyOutput`
 
 Writing a command file is a request, not a success response. UI labels must use wording such as "command requested" and "awaiting Bridge telemetry" until a later fresh telemetry snapshot provides the actual state.
+
+Phase 9E acknowledgement rules:
+
+- UI command writes include `schema_version`, `request_id`, `command`, `created_at`, and `source`.
+- Bridge telemetry includes `last_command` when it consumes, completes, fails, or ignores a command.
+- The UI shows acknowledged/completed/failed/ignored only when telemetry `last_command.request_id` matches the latest UI-written request ID.
+- Stale command files older than 30 seconds are ignored and reported as `ignored_stale`.
+- Re-reading the same request ID on later ticks does not re-execute the command.
 
 ## Runtime Truth Rules
 
@@ -152,8 +160,11 @@ Implemented:
 - Phase 9D UI command writer for safe commands;
 - compact Live Monitor command request controls;
 - UI rejection of unsafe commands such as `VerifyOutput` and `StartBridge`.
+- Phase 9E Bridge `last_command` telemetry;
+- UI command status matching by request ID;
+- stale-command and duplicate-request protection.
 
-Current local precheck for the Phase 9D pass:
+Current local precheck for the Phase 9E pass:
 
 - Thrustmaster driver/software detected: yes.
 - vJoy detected: yes.

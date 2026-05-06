@@ -53,6 +53,7 @@ class BridgeTelemetryPayload:
     hats: Mapping[str, str]
     active_modes: Mapping[str, Any]
     rule_summary: Mapping[str, int]
+    last_command: Mapping[str, Any] | None = None
     warnings: tuple[str, ...] = ()
     errors: tuple[str, ...] = ()
     bridge_name: str = "HelmForge Bridge"
@@ -187,6 +188,7 @@ def _parse_payload(path: Path, payload: Mapping[str, Any]) -> BridgeTelemetryPay
         hats={str(key): str(value) for key, value in _mapping(payload["hats"], "hats").items()},
         active_modes=dict(_mapping(payload["active_modes"], "active_modes")),
         rule_summary=_int_mapping(payload["rule_summary"], field_name="rule_summary"),
+        last_command=_optional_mapping(payload.get("last_command"), "last_command"),
         warnings=tuple(str(item) for item in payload.get("warnings", ()) or ()),
         errors=tuple(str(item) for item in payload.get("errors", ()) or ()),
         bridge_name=str(payload.get("bridge_name") or "HelmForge Bridge"),
@@ -207,6 +209,12 @@ def _mapping(value: object, field_name: str) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
         raise TypeError(f"{field_name} must be an object")
     return value
+
+
+def _optional_mapping(value: object, field_name: str) -> Mapping[str, Any] | None:
+    if value is None:
+        return None
+    return dict(_mapping(value, field_name))
 
 
 def _float_mapping(value: object, *, field_name: str) -> dict[str, float]:

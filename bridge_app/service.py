@@ -20,6 +20,7 @@ from shared_core.runtime.simulated_runtime import SimulatedRuntime
 from shared_core.runtime.telemetry import (
     AxisTelemetrySnapshot,
     BridgeTelemetrySnapshot,
+    BridgeCommandStatusSnapshot,
     ButtonHatTelemetrySnapshot,
     ModeStateTelemetrySnapshot,
     OutputVerificationState,
@@ -34,6 +35,7 @@ class BridgeServiceOptions:
     config_path: Path | None = None
     simulate: bool = True
     tick_interval_ms: int = 50
+    command_stale_after_seconds: int = 30
 
 
 class BridgeService:
@@ -49,6 +51,9 @@ class BridgeService:
         self.pipeline = WorkspaceSignalPipeline(self.config.workspace)
         self.pipeline_state = self.pipeline.initial_state()
         self._stop_requested = False
+        self._consumed_command_request_ids: set[str] = set()
+        self._last_command: BridgeCommandStatusSnapshot | None = None
+        self.command_execution_count = 0
 
     def reload_config(self, config_path: str | Path | None = None) -> None:
         requested_path = Path(config_path) if config_path else self.options.config_path
@@ -59,9 +64,7 @@ class BridgeService:
         self.state = self.state.with_messages(warnings=self.config.warnings, errors=self.config.errors)
 
     def run_once(self) -> BridgeTelemetrySnapshot:
-        command = read_command(self.options.command_path)
-        if command is not None:
-            self.handle_command(command)
+        self._consume_pending_command()
 
         lifecycle_state = BridgeLifecycleState.STOPPING if self._stop_requested else lifecycle_for_preflight(
             self.runtime_status,
@@ -112,6 +115,62 @@ class BridgeService:
         if command.command is BridgeCommandType.STATUS:
             return
 
+    def _consume_pending_command(self) -> None:
+        command = read_command(self.options.command_path)
+        if command is None:
+            return
+
+        now = datetime.now(timezone.utc)
+        age_seconds = max(0.0, (now - command.created_at).total_seconds())
+        if age_seconds > max(1, self.options.command_stale_after_seconds):
+            self._last_command = BridgeCommandStatusSnapshot(
+                request_id=command.request_id,
+                command=command.command.value,
+                status="ignored_stale",
+                received_at=now,
+                completed_at=now,
+                updated_at=now,
+                message=(
+                    f"Ignored stale command request {command.request_id}; "
+                    f"age {age_seconds:.1f}s exceeds {self.options.command_stale_after_seconds}s."
+                ),
+            )
+            return
+
+        if command.request_id in self._consumed_command_request_ids:
+            return
+
+        received_at = now
+        try:
+            self.handle_command(command)
+        except Exception as exc:
+            completed_at = datetime.now(timezone.utc)
+            self._last_command = BridgeCommandStatusSnapshot(
+                request_id=command.request_id,
+                command=command.command.value,
+                status="failed",
+                received_at=received_at,
+                completed_at=completed_at,
+                updated_at=completed_at,
+                message=f"{command.command.value} command failed in Bridge skeleton.",
+                error=str(exc),
+            )
+            self._consumed_command_request_ids.add(command.request_id)
+            return
+
+        completed_at = datetime.now(timezone.utc)
+        self.command_execution_count += 1
+        self._consumed_command_request_ids.add(command.request_id)
+        self._last_command = BridgeCommandStatusSnapshot(
+            request_id=command.request_id,
+            command=command.command.value,
+            status="completed",
+            received_at=received_at,
+            completed_at=completed_at,
+            updated_at=completed_at,
+            message=f"{command.command.value} command completed by simulation-only Bridge.",
+        )
+
     def _telemetry_from_snapshot(self, snapshot, lifecycle_state: BridgeLifecycleState) -> BridgeTelemetrySnapshot:
         pipeline_result = self.pipeline.process(
             snapshot.raw_axis_values,
@@ -144,6 +203,7 @@ class BridgeService:
                 backend_name=self.runtime_status.detected_output_backend_name,
                 message="Live output writes are not verified.",
             ),
+            last_command=self._last_command,
             warnings=(*self.runtime_status.warnings, *self.state.warnings),
             errors=(*self.runtime_status.errors, *self.state.errors),
         )

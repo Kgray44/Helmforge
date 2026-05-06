@@ -52,6 +52,10 @@ def parse_command_payload(payload: Mapping[str, Any]) -> BridgeCommandRequest:
             created_at = datetime.now(timezone.utc)
     else:
         created_at = datetime.now(timezone.utc)
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=timezone.utc)
+    else:
+        created_at = created_at.astimezone(timezone.utc)
 
     request_id = str(payload.get("request_id") or uuid4())
     options = payload.get("options")
