@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -17,7 +19,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from shared_core.models.mappings import AxisMapping, ButtonMapping, HatMapping
+from shared_core.models.mappings import (
+    AxisMapping,
+    ButtonMapping,
+    HatMapping,
+    MappingConfig,
+    default_button_mappings,
+    default_hat_mappings,
+)
 from shared_core.models.runtime import (
     InputStatus,
     OutputStatus,
@@ -34,6 +43,16 @@ from v3_app.ui.status_chips import action_button, status_chip
 
 OnDirty = Callable[[str], None]
 OnStatus = Callable[[str], None]
+OnWorkspaceChanged = Callable[[WorkspaceConfig, str], None]
+
+RAW_AXIS_OPTIONS = tuple(f"Axis {index}" for index in range(1, 9))
+LOGICAL_OUTPUT_OPTIONS = ("X", "Y", "Z", "RX", "RY", "RZ", "SL0", "SL1")
+RUNTIME_VJOY_OPTIONS = ("X(axis1)", "Y(axis2)", "Z(axis3)", "RX(axis4)", "RY(axis5)", "RZ(axis6)", "SL0", "SL1")
+HOTAS_BUTTON_OPTIONS = tuple(f"B{index}" for index in range(1, 16))
+VJOY_BUTTON_OPTIONS = tuple(str(index) for index in range(1, 21))
+HAT_OPTIONS = ("1", "2")
+POV_OPTIONS = ("1", "2", "3", "4")
+DIRECTION_BUTTON_OPTIONS = ("None", *tuple(str(index) for index in range(0, 21)))
 
 
 class MappingPage(QWidget):
@@ -45,6 +64,7 @@ class MappingPage(QWidget):
         runtime_status: RuntimePreflightStatus | None = None,
         on_dirty: OnDirty | None = None,
         on_status: OnStatus | None = None,
+        on_workspace_changed: OnWorkspaceChanged | None = None,
     ) -> None:
         super().__init__()
         self.setObjectName("mappingPage")
@@ -53,10 +73,16 @@ class MappingPage(QWidget):
         self._runtime_status = runtime_status or build_runtime_preflight_status()
         self._on_dirty = on_dirty
         self._on_status = on_status
+        self._on_workspace_changed = on_workspace_changed
         self._snapshot = RuntimeBridge(
             preflight_status=self._runtime_status,
             deterministic_simulation=True,
         ).snapshot()
+        self._axis_route_labels: list[QLabel] = []
+        self._count_labels: dict[str, QLabel] = {}
+        self._axis_table: QTableWidget | None = None
+        self._button_table: QTableWidget | None = None
+        self._hat_table: QTableWidget | None = None
 
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 22, 24, 28)
@@ -179,6 +205,7 @@ class MappingPage(QWidget):
             value.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             rows.addWidget(name, index, 0)
             rows.addWidget(value, index, 1)
+            self._axis_route_labels.append(value)
         layout.addLayout(rows)
 
         note = QLabel(self._runtime_route_note())
@@ -267,42 +294,15 @@ class MappingPage(QWidget):
         body.setObjectName("cardBody")
         body.setWordWrap(True)
 
-        table = QTableWidget(len(self._workspace.mappings.axis_routes), 7)
+        self._axis_table = QTableWidget(len(self._workspace.mappings.axis_routes), 7)
+        table = self._axis_table
         table.setObjectName("axisRoutingTable")
         table.setHorizontalHeaderLabels(
             ("Function", "Raw Axis", "Logical Output", "Runtime vJoy", "Invert", "Live Raw", "Live Output")
         )
-        table.verticalHeader().hide()
-        table.setAlternatingRowColors(False)
-        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
-        table.horizontalHeader().setStretchLastSection(True)
-        table.setMinimumHeight(300)
+        self._configure_table(table, minimum_height=320)
+        self._populate_axis_table()
 
-        for row, route in enumerate(self._workspace.mappings.axis_routes):
-            raw_value = self._snapshot.raw_axis_values.get(route.function_name, route.live_raw_value)
-            output_value = self._snapshot.final_output_values.get(route.function_name, route.live_output_value)
-            values = (
-                route.function_name,
-                route.raw_axis_channel,
-                route.logical_output,
-                route.runtime_vjoy_output,
-                "",
-                _signed(raw_value),
-                _signed(output_value),
-            )
-            for column, value in enumerate(values):
-                table.setItem(row, column, QTableWidgetItem(value))
-            checkbox = QCheckBox()
-            checkbox.setObjectName(f"invert_{route.function_name.lower().replace(' ', '_')}")
-            checkbox.setChecked(route.invert)
-            checkbox.stateChanged.connect(
-                lambda _state, axis=route.function_name: self._mark_dirty(f"Mapping edit staged for {axis} invert.")
-            )
-            table.setCellWidget(row, 4, checkbox)
-
-        table.resizeColumnsToContents()
         layout.addWidget(title)
         layout.addWidget(body)
         layout.addWidget(table)
@@ -322,27 +322,23 @@ class MappingPage(QWidget):
 
         actions = QHBoxLayout()
         actions.setSpacing(10)
-        for text, name in (
-            ("Add Route", "addButtonRouteButton"),
-            ("Remove Selected", "removeButtonRouteButton"),
-            ("Reset 1:1", "resetButtonRoutesButton"),
-        ):
-            button = action_button(text, object_name=name)
-            button.clicked.connect(lambda _checked=False, label=text: self._status_message(f"{label} is reserved for a later mapping edit phase."))
-            actions.addWidget(button)
+        add_button = action_button("Add Route", object_name="addButtonRouteButton")
+        remove_button = action_button("Remove Selected", object_name="removeButtonRouteButton")
+        reset_button = action_button("Reset 1:1", object_name="resetButtonRoutesButton")
+        add_button.clicked.connect(self._add_button_route)
+        remove_button.clicked.connect(self._remove_selected_button_route)
+        reset_button.clicked.connect(self._reset_button_routes)
+        actions.addWidget(add_button)
+        actions.addWidget(remove_button)
+        actions.addWidget(reset_button)
         actions.addStretch(1)
 
-        table = QTableWidget(len(self._workspace.mappings.button_routes), 4)
+        self._button_table = QTableWidget(len(self._workspace.mappings.button_routes), 4)
+        table = self._button_table
         table.setObjectName("buttonRoutingTable")
         table.setHorizontalHeaderLabels(("HOTAS Button", "vJoy Button", "Raw", "Output"))
-        table.verticalHeader().hide()
-        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        table.horizontalHeader().setStretchLastSection(True)
-        table.setMinimumHeight(360)
-        for row, route in enumerate(self._workspace.mappings.button_routes):
-            for column, value in enumerate(_button_values(route)):
-                table.setItem(row, column, QTableWidgetItem(value))
-        table.resizeColumnsToContents()
+        self._configure_table(table, minimum_height=360)
+        self._populate_button_table()
 
         layout.addWidget(title)
         layout.addWidget(body)
@@ -364,26 +360,20 @@ class MappingPage(QWidget):
 
         actions = QHBoxLayout()
         actions.setSpacing(10)
-        for text, name in (
-            ("Add Hat", "addHatRouteButton"),
-            ("Remove Selected", "removeHatRouteButton"),
-        ):
-            button = action_button(text, object_name=name)
-            button.clicked.connect(lambda _checked=False, label=text: self._status_message(f"{label} is reserved for a later hat-routing edit phase."))
-            actions.addWidget(button)
+        add_button = action_button("Add Hat", object_name="addHatRouteButton")
+        remove_button = action_button("Remove Selected", object_name="removeHatRouteButton")
+        add_button.clicked.connect(self._add_hat_route)
+        remove_button.clicked.connect(self._remove_selected_hat_route)
+        actions.addWidget(add_button)
+        actions.addWidget(remove_button)
         actions.addStretch(1)
 
-        table = QTableWidget(len(self._workspace.mappings.hat_routes), 7)
+        self._hat_table = QTableWidget(len(self._workspace.mappings.hat_routes), 7)
+        table = self._hat_table
         table.setObjectName("hatRoutingTable")
         table.setHorizontalHeaderLabels(("HOTAS Hat", "vJoy POV", "Up", "Right", "Down", "Left", "Live"))
-        table.verticalHeader().hide()
-        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        table.horizontalHeader().setStretchLastSection(True)
-        table.setMinimumHeight(220)
-        for row, route in enumerate(self._workspace.mappings.hat_routes):
-            for column, value in enumerate(_hat_values(route, self._snapshot.hat_state)):
-                table.setItem(row, column, QTableWidgetItem(value))
-        table.resizeColumnsToContents()
+        self._configure_table(table, minimum_height=240)
+        self._populate_hat_table()
 
         layout.addWidget(title)
         layout.addWidget(body)
@@ -391,12 +381,308 @@ class MappingPage(QWidget):
         layout.addWidget(table)
         return card
 
+    def _populate_axis_table(self) -> None:
+        if self._axis_table is None:
+            return
+        table = self._axis_table
+        table.setRowCount(len(self._workspace.mappings.axis_routes))
+        for row, route in enumerate(self._workspace.mappings.axis_routes):
+            raw_value = self._snapshot.raw_axis_values.get(route.function_name, route.live_raw_value)
+            output_value = self._snapshot.final_output_values.get(route.function_name, route.live_output_value)
+            self._set_text_item(table, row, 0, route.function_name)
+            self._set_combo_cell(
+                table,
+                row,
+                1,
+                object_name=f"axisRaw_{_key(route.function_name)}",
+                options=RAW_AXIS_OPTIONS,
+                current=route.raw_axis_channel,
+                on_changed=lambda value, index=row: self._update_axis_route(index, raw_axis_channel=value),
+            )
+            self._set_combo_cell(
+                table,
+                row,
+                2,
+                object_name=f"axisLogical_{_key(route.function_name)}",
+                options=LOGICAL_OUTPUT_OPTIONS,
+                current=route.logical_output,
+                on_changed=lambda value, index=row: self._update_axis_route(index, logical_output=value),
+            )
+            self._set_combo_cell(
+                table,
+                row,
+                3,
+                object_name=f"axisRuntime_{_key(route.function_name)}",
+                options=RUNTIME_VJOY_OPTIONS,
+                current=route.runtime_vjoy_output,
+                on_changed=lambda value, index=row: self._update_axis_route(index, runtime_vjoy_output=value),
+            )
+            checkbox = QCheckBox()
+            checkbox.setObjectName(f"invert_{_key(route.function_name)}")
+            checkbox.setChecked(route.invert)
+            checkbox.stateChanged.connect(
+                lambda _state, index=row: self._update_axis_route(index, invert=bool(self._axis_table.cellWidget(index, 4).isChecked()))
+            )
+            table.setItem(row, 4, QTableWidgetItem("true" if route.invert else "false"))
+            table.setCellWidget(row, 4, checkbox)
+            self._set_text_item(table, row, 5, _signed(raw_value))
+            self._set_text_item(table, row, 6, _signed(output_value))
+        table.resizeColumnsToContents()
+
+    def _populate_button_table(self) -> None:
+        if self._button_table is None:
+            return
+        table = self._button_table
+        table.setRowCount(len(self._workspace.mappings.button_routes))
+        for row, route in enumerate(self._workspace.mappings.button_routes):
+            self._set_combo_cell(
+                table,
+                row,
+                0,
+                object_name=f"buttonHotas_{row}",
+                options=HOTAS_BUTTON_OPTIONS,
+                current=f"B{route.hotas_button}",
+                on_changed=lambda value, index=row: self._update_button_route(index, hotas_button=_parse_button(value)),
+            )
+            self._set_combo_cell(
+                table,
+                row,
+                1,
+                object_name=f"buttonVjoy_{row}",
+                options=VJOY_BUTTON_OPTIONS,
+                current=str(route.output_button),
+                on_changed=lambda value, index=row: self._update_button_route(index, output_button=int(value)),
+            )
+            self._set_text_item(table, row, 2, "Pressed" if route.raw_state else "Idle")
+            self._set_text_item(table, row, 3, "Pressed" if route.output_state else "Idle")
+        table.resizeColumnsToContents()
+
+    def _populate_hat_table(self) -> None:
+        if self._hat_table is None:
+            return
+        table = self._hat_table
+        table.setRowCount(len(self._workspace.mappings.hat_routes))
+        for row, route in enumerate(self._workspace.mappings.hat_routes):
+            self._set_combo_cell(
+                table,
+                row,
+                0,
+                object_name=f"hatHotas_{row}",
+                options=HAT_OPTIONS,
+                current=str(route.hotas_hat),
+                on_changed=lambda value, index=row: self._update_hat_route(index, hotas_hat=int(value)),
+            )
+            self._set_combo_cell(
+                table,
+                row,
+                1,
+                object_name=f"hatPov_{row}",
+                options=POV_OPTIONS,
+                current=str(route.vjoy_pov),
+                on_changed=lambda value, index=row: self._update_hat_route(index, vjoy_pov=int(value)),
+            )
+            for column, field_name, current in (
+                (2, "up_button", route.up_button),
+                (3, "right_button", route.right_button),
+                (4, "down_button", route.down_button),
+                (5, "left_button", route.left_button),
+            ):
+                self._set_combo_cell(
+                    table,
+                    row,
+                    column,
+                    object_name=f"hat{field_name.removesuffix('_button').title()}_{row}",
+                    options=DIRECTION_BUTTON_OPTIONS,
+                    current="None" if current is None else str(current),
+                    on_changed=lambda value, index=row, field=field_name: self._update_hat_route(index, **{field: _parse_direction_button(value)}),
+                )
+            self._set_text_item(table, row, 6, self._snapshot.hat_state or route.live_hat_state)
+        table.resizeColumnsToContents()
+
+    def _update_axis_route(self, row: int, **changes) -> None:
+        routes = list(self._workspace.mappings.axis_routes)
+        if not 0 <= row < len(routes):
+            return
+        routes[row] = replace(routes[row], **changes)
+        self._set_mapping_config(
+            replace(self._workspace.mappings, axis_routes=tuple(routes)),
+            f"Mapping edit staged for {routes[row].function_name} axis route.",
+        )
+        if self._axis_table is not None:
+            for field, column in (("raw_axis_channel", 1), ("logical_output", 2), ("runtime_vjoy_output", 3), ("invert", 4)):
+                if field in changes:
+                    value = changes[field]
+                    self._set_text_item(self._axis_table, row, column, "true" if value is True else "false" if value is False else str(value))
+        self._refresh_route_summary()
+
+    def _update_button_route(self, row: int, **changes) -> None:
+        routes = list(self._workspace.mappings.button_routes)
+        if not 0 <= row < len(routes):
+            return
+        routes[row] = replace(routes[row], **changes)
+        self._set_mapping_config(
+            replace(self._workspace.mappings, button_routes=tuple(routes)),
+            f"Mapping edit staged for button route {row + 1}.",
+        )
+        if self._button_table is not None:
+            if "hotas_button" in changes:
+                self._set_text_item(self._button_table, row, 0, f"B{changes['hotas_button']}")
+            if "output_button" in changes:
+                self._set_text_item(self._button_table, row, 1, str(changes["output_button"]))
+        self._refresh_counts()
+
+    def _update_hat_route(self, row: int, **changes) -> None:
+        routes = list(self._workspace.mappings.hat_routes)
+        if not 0 <= row < len(routes):
+            return
+        routes[row] = replace(routes[row], **changes)
+        self._set_mapping_config(
+            replace(self._workspace.mappings, hat_routes=tuple(routes)),
+            f"Mapping edit staged for hat route {row + 1}.",
+        )
+        self._refresh_counts()
+
+    def _add_button_route(self) -> None:
+        routes = list(self._workspace.mappings.button_routes)
+        used_hotas = {route.hotas_button for route in routes}
+        used_outputs = {route.output_button for route in routes}
+        hotas = next((index for index in range(1, 16) if index not in used_hotas), None)
+        output = next((index for index in range(1, 21) if index not in used_outputs), None)
+        if hotas is None or output is None:
+            self._status_message("No unmapped HOTAS/vJoy button slot is available.")
+            return
+        routes.append(ButtonMapping(hotas, output))
+        routes.sort(key=lambda route: route.hotas_button)
+        self._set_mapping_config(
+            replace(self._workspace.mappings, button_routes=tuple(routes)),
+            f"Added button route B{hotas} -> {output}.",
+        )
+        self._populate_button_table()
+        self._refresh_counts()
+
+    def _remove_selected_button_route(self) -> None:
+        if self._button_table is None:
+            return
+        row = _selected_row(self._button_table)
+        if row is None:
+            self._status_message("Select a button route before removing it.")
+            return
+        routes = list(self._workspace.mappings.button_routes)
+        if not 0 <= row < len(routes):
+            return
+        removed = routes.pop(row)
+        self._set_mapping_config(
+            replace(self._workspace.mappings, button_routes=tuple(routes)),
+            f"Removed button route B{removed.hotas_button} -> {removed.output_button}.",
+        )
+        self._populate_button_table()
+        self._refresh_counts()
+
+    def _reset_button_routes(self) -> None:
+        self._set_mapping_config(
+            replace(self._workspace.mappings, button_routes=default_button_mappings()),
+            "Reset button routing to B1-B15 -> vJoy 1-15.",
+        )
+        self._populate_button_table()
+        self._refresh_counts()
+
+    def _add_hat_route(self) -> None:
+        if self._workspace.mappings.hat_routes:
+            self._status_message("Hat route 1 is already present; additional hats are deferred until the schema needs them.")
+            return
+        self._set_mapping_config(
+            replace(self._workspace.mappings, hat_routes=default_hat_mappings()),
+            "Added default HOTAS Hat 1 -> vJoy POV 1 route.",
+        )
+        self._populate_hat_table()
+        self._refresh_counts()
+
+    def _remove_selected_hat_route(self) -> None:
+        if self._hat_table is None:
+            return
+        row = _selected_row(self._hat_table)
+        if row is None:
+            self._status_message("Select a hat route before removing it.")
+            return
+        routes = list(self._workspace.mappings.hat_routes)
+        if not 0 <= row < len(routes):
+            return
+        removed = routes.pop(row)
+        self._set_mapping_config(
+            replace(self._workspace.mappings, hat_routes=tuple(routes)),
+            f"Removed HOTAS Hat {removed.hotas_hat} route.",
+        )
+        self._populate_hat_table()
+        self._refresh_counts()
+
+    def _set_mapping_config(self, mapping_config: MappingConfig, message: str) -> None:
+        self._workspace = replace(self._workspace, mappings=mapping_config)
+        if self._on_workspace_changed is not None:
+            self._on_workspace_changed(self._workspace, message)
+        elif self._on_dirty is not None:
+            self._on_dirty(message)
+
+    def _refresh_counts(self) -> None:
+        values = {
+            "axisRouteCount": len(self._workspace.mappings.axis_routes),
+            "buttonRouteCount": len(self._workspace.mappings.button_routes),
+            "hatRouteCount": len(self._workspace.mappings.hat_routes),
+        }
+        for name, value in values.items():
+            if name in self._count_labels:
+                self._count_labels[name].setText(str(value))
+
+    def _refresh_route_summary(self) -> None:
+        for label, route in zip(self._axis_route_labels, self._workspace.mappings.axis_routes, strict=False):
+            label.setText(_route_summary(route))
+
+    def _set_combo_cell(
+        self,
+        table: QTableWidget,
+        row: int,
+        column: int,
+        *,
+        object_name: str,
+        options: tuple[str, ...],
+        current: str,
+        on_changed: Callable[[str], None],
+    ) -> None:
+        combo = QComboBox()
+        combo.setObjectName(object_name)
+        available = list(options)
+        if current not in available:
+            available.append(current)
+        combo.addItems(available)
+        combo.setCurrentText(current)
+        combo.currentTextChanged.connect(on_changed)
+        self._set_text_item(table, row, column, current)
+        table.setCellWidget(row, column, combo)
+
+    def _set_text_item(self, table: QTableWidget, row: int, column: int, value: str) -> None:
+        item = table.item(row, column)
+        if item is None:
+            item = QTableWidgetItem(value)
+            table.setItem(row, column, item)
+        else:
+            item.setText(value)
+
+    def _configure_table(self, table: QTableWidget, *, minimum_height: int) -> None:
+        table.verticalHeader().hide()
+        table.verticalHeader().setDefaultSectionSize(38)
+        table.setAlternatingRowColors(False)
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        table.horizontalHeader().setStretchLastSection(True)
+        table.setMinimumHeight(minimum_height)
+
     def _add_count_row(self, layout: QGridLayout, row: int, label: str, object_name: str, value: int) -> None:
         name = QLabel(label)
         name.setObjectName("tableMutedText")
         count = QLabel(str(value))
         count.setObjectName(object_name)
         count.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self._count_labels[object_name] = count
         layout.addWidget(name, row, 0)
         layout.addWidget(count, row, 1)
 
@@ -449,10 +735,6 @@ class MappingPage(QWidget):
             RuntimeTruth.ERROR: "error",
         }[self._runtime_status.truth]
 
-    def _mark_dirty(self, message: str) -> None:
-        if self._on_dirty is not None:
-            self._on_dirty(message)
-
     def _status_message(self, message: str) -> None:
         if self._on_status is not None:
             self._on_status(message)
@@ -470,22 +752,26 @@ def _route_summary(route: AxisMapping) -> str:
     return f"Raw {raw} -> {route.logical_output} -> {route.runtime_vjoy_output}"
 
 
-def _button_values(route: ButtonMapping) -> tuple[str, str, str, str]:
-    raw = "Pressed" if route.raw_state else "Idle"
-    output = "Pressed" if route.output_state else "Idle"
-    return (f"B{route.hotas_button}", str(route.output_button), raw, output)
+def _parse_button(value: str) -> int:
+    return int(value.removeprefix("B"))
 
 
-def _hat_values(route: HatMapping, live_state: str) -> tuple[str, str, str, str, str, str, str]:
-    return (
-        str(route.hotas_hat),
-        str(route.vjoy_pov),
-        "" if route.up_button is None else str(route.up_button),
-        "" if route.right_button is None else str(route.right_button),
-        "" if route.down_button is None else str(route.down_button),
-        "" if route.left_button is None else str(route.left_button),
-        live_state or route.live_hat_state,
-    )
+def _parse_direction_button(value: str) -> int | None:
+    return None if value == "None" else int(value)
+
+
+def _selected_row(table: QTableWidget) -> int | None:
+    row = table.currentRow()
+    if row >= 0:
+        return row
+    indexes = table.selectedIndexes()
+    if indexes:
+        return indexes[0].row()
+    return None
+
+
+def _key(value: str) -> str:
+    return value.casefold().replace(" ", "_").replace("/", "_")
 
 
 def _signed(value: float) -> str:

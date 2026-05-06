@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import time
+from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QScrollArea, QStackedWidget, QVBoxLayout, QWidget
 
-from shared_core.models.workspace import create_default_workspace
+from shared_core.models.workspace import CONFIG_FILENAME, WorkspaceConfig, create_default_workspace
+from shared_core.persistence.workspace_store import WorkspaceJsonError, load_workspace, save_workspace
 from shared_core.runtime.device_discovery import build_runtime_preflight_status
 from v3_app.pages.base_tuning_page import BaseTuningPage
 from v3_app.pages.combat_profile_page import CombatProfilePage
@@ -21,11 +23,20 @@ from v3_app.ui.sidebar import Sidebar
 
 
 class HelmForgeShell(QWidget):
-    def __init__(self, state: AppState | None = None) -> None:
+    def __init__(
+        self,
+        state: AppState | None = None,
+        *,
+        workspace: WorkspaceConfig | None = None,
+        workspace_path: str | Path | None = None,
+    ) -> None:
         super().__init__()
         self.setObjectName("helmforgeShell")
         self.state = state or build_initial_app_state()
-        self.workspace = create_default_workspace()
+        self.workspace_path = Path(workspace_path or CONFIG_FILENAME)
+        self.workspace = workspace or self._load_initial_workspace()
+        self._last_saved_workspace = self.workspace
+        self.state.source_config = str(self.workspace_path)
         self.runtime_status = build_runtime_preflight_status()
         self.active_page_id = self.state.active_page_id
         self.page_widgets: dict[str, QScrollArea] = {}
@@ -38,7 +49,13 @@ class HelmForgeShell(QWidget):
         self.header = Header(self.state)
         self.stack = QStackedWidget()
         self.stack.setObjectName("pageStack")
-        self.footer = Footer(self.state, page_definition_by_id(self.active_page_id))
+        self.footer = Footer(
+            self.state,
+            page_definition_by_id(self.active_page_id),
+            on_import_profile=self.import_profile_placeholder,
+            on_revert=self.revert_workspace,
+            on_save=self.save_workspace,
+        )
 
         main = QWidget()
         main.setObjectName("contentViewport")
@@ -55,6 +72,15 @@ class HelmForgeShell(QWidget):
         self._build_pages()
         self.switch_page(self.active_page_id, record_timing=False)
 
+    def _load_initial_workspace(self) -> WorkspaceConfig:
+        if self.workspace_path.exists():
+            try:
+                return load_workspace(self.workspace_path).workspace
+            except WorkspaceJsonError as exc:
+                self.state.status_message = f"Workspace load failed; using default draft. {exc}"
+                self.state.saved = False
+        return create_default_workspace()
+
     def _build_pages(self) -> None:
         for page in PAGE_DEFINITIONS:
             scroll = QScrollArea()
@@ -67,6 +93,15 @@ class HelmForgeShell(QWidget):
             self.stack.addWidget(scroll)
             self.page_widgets[page.page_id] = scroll
 
+    def _rebuild_pages(self) -> None:
+        while self.stack.count():
+            widget = self.stack.widget(0)
+            self.stack.removeWidget(widget)
+            widget.deleteLater()
+        self.page_widgets = {}
+        self._build_pages()
+        self.switch_page(self.active_page_id, record_timing=False)
+
     def _create_page_content(self, page_id: str, page) -> QWidget:
         common = {
             "state": self.state,
@@ -74,7 +109,12 @@ class HelmForgeShell(QWidget):
             "runtime_status": self.runtime_status,
         }
         if page_id == "mapping":
-            return MappingPage(**common, on_dirty=self.mark_workspace_dirty, on_status=self.set_status_message)
+            return MappingPage(
+                **common,
+                on_dirty=self.mark_workspace_dirty,
+                on_status=self.set_status_message,
+                on_workspace_changed=self.update_workspace_draft,
+            )
         if page_id == "modes":
             return ModesPage(**common, on_dirty=self.mark_workspace_dirty)
         if page_id == "base_tuning":
@@ -93,9 +133,46 @@ class HelmForgeShell(QWidget):
         self.header.update_state(self.state)
         self.footer.update_state(self.state, page_definition_by_id(self.active_page_id))
 
+    def update_workspace_draft(self, workspace: WorkspaceConfig, message: str) -> None:
+        self.workspace = workspace
+        self.mark_workspace_dirty(message)
+
     def set_status_message(self, message: str) -> None:
         self.state.status_message = message
         self.footer.update_state(self.state, page_definition_by_id(self.active_page_id))
+
+    def import_profile_placeholder(self) -> None:
+        self.set_status_message("Import Profile is reserved for a later import phase; no workspace file was changed.")
+
+    def save_workspace(self) -> None:
+        try:
+            save_workspace(self.workspace, self.workspace_path, overwrite=True)
+        except Exception as exc:
+            self.state.saved = False
+            self.set_status_message(f"Workspace save failed: {exc}")
+            self.header.update_state(self.state)
+            return
+        self._last_saved_workspace = self.workspace
+        self.state.saved = True
+        self.state.status_message = f"Saved workspace draft to {self.workspace_path}."
+        self.header.update_state(self.state)
+        self.footer.update_state(self.state, page_definition_by_id(self.active_page_id))
+
+    def revert_workspace(self) -> None:
+        if self.workspace_path.exists():
+            try:
+                self.workspace = load_workspace(self.workspace_path).workspace
+            except WorkspaceJsonError as exc:
+                self.set_status_message(f"Workspace revert failed: {exc}")
+                return
+        else:
+            self.workspace = self._last_saved_workspace
+        self._last_saved_workspace = self.workspace
+        self.state.saved = True
+        self.state.status_message = "Reverted the workspace to the last saved or imported state."
+        self.header.update_state(self.state)
+        self.footer.update_state(self.state, page_definition_by_id(self.active_page_id))
+        self._rebuild_pages()
 
     def switch_page(self, page_id: str, *, record_timing: bool = True) -> None:
         if page_id not in self.page_widgets:
