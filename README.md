@@ -4,7 +4,7 @@
 
 HelmForge is a safe rebuild of the lost HOTAS Control Panel project. The recovered HOTAS Control Panel V2 forensic notes, raw recovery chats, and PNG screenshot evidence are the governing reconstruction references for this repository.
 
-The current rebuild state is Phase 1 runtime preflight foundation. Phase 0 created the package structure, dependency metadata, documentation anchors, and a minimal PySide6 window titled `HelmForge — HOTAS Control Panel V3`. Phase 1 adds typed runtime status, safe missing-device detection, simulation snapshots, and a runtime bridge contract. It does not implement real HOTAS input polling, vJoy output writes, profiles, tuning math, overlays, or installer packaging.
+The current rebuild state is Phase 1A runtime setup guidance. Phase 0 created the package structure, dependency metadata, documentation anchors, and a minimal PySide6 window titled `HelmForge — HOTAS Control Panel V3`. Phase 1 added typed runtime status, safe missing-device detection, simulation snapshots, and a runtime bridge contract. Phase 1A adds official-source-only Thrustmaster T-Flight HOTAS One setup guidance and setup status labels. It does not implement real HOTAS input polling, vJoy output writes, profiles, tuning math, overlays, or installer packaging.
 
 ## Recovery Sources
 
@@ -23,7 +23,9 @@ HelmForge will be developed simulation-first so the UI, shared core, and tests c
 
 Known physical HOTAS target: **Thrustmaster T-Flight HOTAS One**.
 
-Phase 1 does **not** provide real support for that hardware. It does **not** install or use Thrustmaster drivers, vJoy, or any hardware driver. No live runtime support should be claimed until a later phase implements and verifies it.
+Phase 1A does **not** provide real support for that hardware. It does **not** install or use Thrustmaster drivers, vJoy, or any hardware driver. No live runtime support should be claimed until a later phase implements and verifies it.
+
+Official Thrustmaster setup guidance is documented in `docs/HelmForge/help/runtime-setup-hotas-driver.md`. The app links to the official Thrustmaster support page only; it does not download or run driver installers.
 
 ## Project Layout
 

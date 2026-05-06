@@ -17,14 +17,20 @@ KNOWN_TARGET_HARDWARE = "Thrustmaster T-Flight HOTAS One"
 
 
 def build_main_window():
-    from PySide6.QtCore import Qt
-    from PySide6.QtWidgets import QLabel, QMainWindow, QVBoxLayout, QWidget
+    from PySide6.QtCore import Qt, QUrl
+    from PySide6.QtGui import QDesktopServices
+    from PySide6.QtWidgets import QLabel, QPushButton, QMainWindow, QVBoxLayout, QWidget
     from shared_core.runtime.device_discovery import build_runtime_preflight_status
+    from shared_core.runtime.setup_guidance import (
+        OFFICIAL_THRUSTMASTER_SUPPORT_PAGE,
+        build_setup_status_labels,
+    )
 
     window = QMainWindow()
     window.setWindowTitle(WINDOW_TITLE)
     window.resize(820, 420)
     runtime_status = build_runtime_preflight_status()
+    setup_labels = build_setup_status_labels(runtime_status)
 
     central = QWidget()
     layout = QVBoxLayout(central)
@@ -60,6 +66,16 @@ def build_main_window():
     runtime_detail.setWordWrap(True)
     runtime_detail.setObjectName("runtimeDetail")
 
+    setup_status = QLabel("Setup status: " + " | ".join(label.value for label in setup_labels))
+    setup_status.setWordWrap(True)
+    setup_status.setObjectName("setupStatus")
+
+    support_button = QPushButton("Open Official Thrustmaster Support Page")
+    support_button.setObjectName("supportButton")
+    support_button.clicked.connect(
+        lambda: QDesktopServices.openUrl(QUrl(OFFICIAL_THRUSTMASTER_SUPPORT_PAGE))
+    )
+
     layout.addWidget(title)
     layout.addWidget(subtitle)
     layout.addSpacing(10)
@@ -67,6 +83,8 @@ def build_main_window():
     layout.addWidget(target)
     layout.addWidget(runtime)
     layout.addWidget(runtime_detail)
+    layout.addWidget(setup_status)
+    layout.addWidget(support_button)
     layout.addStretch(1)
 
     window.setCentralWidget(central)
@@ -94,12 +112,24 @@ def build_main_window():
         QLabel#phaseNotice,
         QLabel#targetHardware,
         QLabel#runtimeStatus,
-        QLabel#runtimeDetail {
+        QLabel#runtimeDetail,
+        QLabel#setupStatus {
             color: #d8e3ec;
             line-height: 1.35;
         }
         QLabel#runtimeStatus {
             color: #ffd28a;
+        }
+        QPushButton#supportButton {
+            background: #1f6f8b;
+            color: #f7fbff;
+            border: 1px solid #3990b2;
+            border-radius: 6px;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        QPushButton#supportButton:hover {
+            background: #267f9f;
         }
         """
     )

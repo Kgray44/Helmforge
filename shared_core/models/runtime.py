@@ -50,6 +50,10 @@ class TargetHardwareMetadata:
     vendor_hint: str = "Thrustmaster"
     device_role: str = "physical HOTAS input"
 
+    @property
+    def alternate_name(self) -> str:
+        return self.alternate_device_name
+
 
 KNOWN_TARGET_HARDWARE = TargetHardwareMetadata()
 
@@ -130,4 +134,3 @@ def simulation_fallback_status(
         messages=(default_message, *messages),
         warnings=warnings,
     )
-

@@ -11,6 +11,16 @@ The primary physical HOTAS target is:
 
 HelmForge uses this target metadata during runtime preflight detection. Phase 1 only detects likely device names and reports status. It does not implement real HOTAS polling.
 
+## Official Thrustmaster Setup
+
+Phase 1A adds explicit setup guidance for the target HOTAS. Use the official Thrustmaster support page only:
+
+https://support.thrustmaster.com/en/product/t-flight-hotas-one-en/
+
+At implementation time, the official page lists a driver package resembling `Drivers - Package 2025_TFHT_5 + Firmware` for Windows 10 / Windows 11. Driver package names can change, so the official support page should be checked before installing anything.
+
+The app should guide the user to the official page with an `Open Official Thrustmaster Support Page` action. It must not silently install or download drivers.
+
 ## Thrustmaster Software vs vJoy
 
 Thrustmaster driver/software and vJoy are separate runtime pieces:
@@ -71,4 +81,3 @@ Driver installation steps are intentionally separated from detection code. Phase
 - claim real HOTAS or vJoy runtime support is working.
 
 When installation is introduced in a later reviewed phase, it should be documented as an operator action and verified separately from runtime detection.
-
