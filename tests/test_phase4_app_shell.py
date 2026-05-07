@@ -125,7 +125,7 @@ def test_phase4_runtime_status_surfaces_do_not_claim_live_when_unverified():
         labels_text = " ".join(label.text() for label in shell.findChildren(QLabel))
 
         assert expected in labels_text
-        assert "Full Live Runtime Ready" not in labels_text
+        assert "Full Live Runtime Ready true" not in labels_text
         assert "Output Verified" not in labels_text
 
 

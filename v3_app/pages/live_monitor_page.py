@@ -33,6 +33,11 @@ from v3_app.pages.live_monitor_data import (
     telemetry_sample_from_bridge_payload,
     telemetry_sample_from_runtime_snapshot,
 )
+from v3_app.overlay.config_dialog import LiveOverlayConfigDialog
+from v3_app.overlay.live_overlay_window import LiveOverlayWindow
+from v3_app.overlay.overlay_config import LiveOverlayConfig
+from v3_app.overlay.telemetry_buffer import OverlayTelemetryBuffer, OverlayTelemetrySample
+from v3_app.overlay.trace_builder import build_overlay_traces
 from v3_app.pages.page_helpers import card, card_header, card_layout, page_intro, signed
 from v3_app.services.app_state import AppState
 from v3_app.services.bridge_client import (
@@ -106,6 +111,10 @@ class LiveMonitorPage(QWidget):
         self._hotas_buttons: dict[str, QLabel] = {}
         self._output_buttons: dict[str, QLabel] = {}
         self._diagnostic_row_labels: dict[str, QLabel] = {}
+        self.overlay_config = LiveOverlayConfig.defaults()
+        self.overlay_buffer = OverlayTelemetryBuffer(history_seconds=self.overlay_config.history_seconds)
+        self.live_overlay_window: LiveOverlayWindow | None = None
+        self._live_overlay_rows: dict[str, QLabel] = {}
 
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 22, 24, 28)
@@ -130,6 +139,7 @@ class LiveMonitorPage(QWidget):
         root.addLayout(status_grid)
 
         root.addWidget(self._build_axis_levels_card())
+        root.addWidget(self._build_live_overlay_card())
 
         button_grid = QGridLayout()
         button_grid.setHorizontalSpacing(18)
@@ -189,6 +199,59 @@ class LiveMonitorPage(QWidget):
         row.addWidget(self.runtime_chip)
         row.addWidget(output_chip)
         layout.addLayout(row)
+        return frame
+
+    def _build_live_overlay_card(self) -> QWidget:
+        frame = card("liveOverlayCard")
+        layout = card_layout(frame)
+        layout.addWidget(
+            card_header(
+                "Live Overlay",
+                "Launch the detached telemetry strip, choose a preset, and adjust advanced behavior only when needed.",
+            )
+        )
+        rows = (
+            "Preset",
+            "Status",
+            "Attached display",
+            "Toggle",
+            "Summary",
+            "Runtime truth",
+            "Output verified",
+            "Full Live Runtime Ready",
+            "Hotkey status",
+            "Click-through",
+            "Source truth",
+        )
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(14)
+        grid.setVerticalSpacing(9)
+        for index, label in enumerate(rows):
+            key = QLabel(label)
+            key.setObjectName("tableMutedText")
+            value = QLabel("")
+            value.setObjectName("routeSummaryValue")
+            value.setWordWrap(True)
+            self._live_overlay_rows[label] = value
+            grid.addWidget(key, index, 0)
+            grid.addWidget(value, index, 1)
+        layout.addLayout(grid)
+        layout.addWidget(
+            _body(
+                "The detached overlay is app-owned and renders simulation or Bridge telemetry already available to the UI. "
+                "Hotkey registration and click-through support are not active in this phase."
+            )
+        )
+        button_row = QHBoxLayout()
+        self.show_overlay_button = action_button("Show Overlay", object_name="showLiveOverlayButton")
+        self.show_overlay_button.clicked.connect(self.toggle_live_overlay)
+        configure = action_button("Configure", object_name="configureLiveOverlayButton")
+        configure.clicked.connect(self.open_live_overlay_config_dialog)
+        button_row.addWidget(self.show_overlay_button)
+        button_row.addWidget(configure)
+        button_row.addStretch(1)
+        layout.addLayout(button_row)
+        self._update_live_overlay_card()
         return frame
 
     def _build_raw_trace_card(self) -> QWidget:
@@ -356,6 +419,94 @@ class LiveMonitorPage(QWidget):
         self.show_raw_and_output_together = bool(checked)
         self._update_graphs()
 
+    def create_live_overlay_config_dialog(self) -> LiveOverlayConfigDialog:
+        return LiveOverlayConfigDialog(
+            config=self.overlay_config,
+            on_apply=self.apply_live_overlay_config,
+            parent=self,
+        )
+
+    def open_live_overlay_config_dialog(self) -> None:
+        self.create_live_overlay_config_dialog().exec()
+
+    def apply_live_overlay_config(self, config: LiveOverlayConfig) -> None:
+        self.overlay_config = config
+        self.overlay_buffer.history_seconds = config.history_seconds
+        if self.live_overlay_window is not None:
+            self.live_overlay_window.apply_config(config)
+            self._sync_live_overlay_window()
+        self._update_live_overlay_card()
+
+    def toggle_live_overlay(self) -> None:
+        if self.live_overlay_window is not None and self.live_overlay_window.is_overlay_active():
+            self.hide_live_overlay()
+        else:
+            self.show_live_overlay()
+
+    def show_live_overlay(self) -> None:
+        window = self._ensure_live_overlay_window()
+        self._sync_live_overlay_window()
+        window.show_overlay()
+        self._update_live_overlay_card()
+
+    def hide_live_overlay(self) -> None:
+        if self.live_overlay_window is not None:
+            self.live_overlay_window.hide_overlay()
+        self._update_live_overlay_card()
+
+    def _ensure_live_overlay_window(self) -> LiveOverlayWindow:
+        if self.live_overlay_window is None:
+            self.live_overlay_window = LiveOverlayWindow(
+                config=self.overlay_config,
+                runtime_truth=self._runtime_status.truth.value,
+                output_verified=self._runtime_status.live_output_writes_verified,
+                full_live_runtime_ready=_full_live_runtime_ready(self._runtime_status),
+                parent=self,
+            )
+            self.live_overlay_window.visibility_changed.connect(self._handle_live_overlay_visibility_changed)
+        return self.live_overlay_window
+
+    def _handle_live_overlay_visibility_changed(self, _visible: bool) -> None:
+        self._update_live_overlay_card()
+
+    def _sync_live_overlay_window(self) -> None:
+        if self.live_overlay_window is None:
+            return
+        self.live_overlay_window.set_runtime_truth(
+            runtime_truth=self._runtime_status.truth.value,
+            output_verified=self._runtime_status.live_output_writes_verified,
+            full_live_runtime_ready=_full_live_runtime_ready(self._runtime_status),
+        )
+        traces = build_overlay_traces(self.overlay_config, self.overlay_buffer.samples())
+        self.live_overlay_window.set_trace_set(traces)
+
+    def _update_live_overlay_card(self) -> None:
+        config = self.overlay_config
+        full_ready = _full_live_runtime_ready(self._runtime_status)
+        overlay_active = self.live_overlay_window is not None and self.live_overlay_window.is_overlay_active()
+        self.show_overlay_button.setText("Hide Overlay" if overlay_active else "Show Overlay")
+        click_through = (
+            self.live_overlay_window.click_through_status_text()
+            if self.live_overlay_window is not None
+            else "Not enabled - not verified"
+        )
+        row_values = {
+            "Preset": config.preset,
+            "Status": "Active" if overlay_active else "Inactive",
+            "Attached display": config.display_label,
+            "Toggle": config.toggle_hotkey,
+            "Summary": _overlay_summary(config),
+            "Runtime truth": self._runtime_status.truth.value,
+            "Output verified": str(self._runtime_status.live_output_writes_verified).lower(),
+            "Full Live Runtime Ready": str(full_ready).lower(),
+            "Hotkey status": "Not registered",
+            "Click-through": click_through,
+            "Source truth": "Final output stream uses simulation or Bridge telemetry already available to the UI; no live hardware runtime is created.",
+        }
+        for label, value in row_values.items():
+            if label in self._live_overlay_rows:
+                self._live_overlay_rows[label].setText(value)
+
     def request_bridge_command(self, command: BridgeCommandType, label: str | None = None) -> BridgeCommandWriteResult:
         result = self._command_client.write_command(command)
         self.last_command_result = result
@@ -383,8 +534,20 @@ class LiveMonitorPage(QWidget):
                 rule_summary=self._rule_summary(snapshot.raw_axis_values),
             )
         self.history.append(sample)
+        self._append_overlay_sample(sample)
         self._update_from_sample(sample, telemetry, bridge_result)
         self._update_graphs()
+        self._sync_live_overlay_window()
+
+    def _append_overlay_sample(self, sample) -> None:
+        axes = sample.final_axes if self.overlay_config.source == "Final output" else sample.raw_axes
+        self.overlay_buffer.append(
+            OverlayTelemetrySample(
+                timestamp=float(sample.index),
+                axes=axes,
+                source=self.overlay_config.source,
+            )
+        )
 
     def _rule_summary(self, raw_axes) -> object:
         result = self._pipeline.process(raw_axes, mode_state=ModeState(), state=self._pipeline_state)
@@ -660,3 +823,12 @@ def _set_chip_state(chip: QLabel, text: str, active: bool) -> None:
 
 def _key(axis_name: str) -> str:
     return axis_name.replace(" ", "_")
+
+
+def _overlay_summary(config: LiveOverlayConfig) -> str:
+    opacity_percent = int(round(config.opacity * 100))
+    return f"{config.preset} | {config.position} | {opacity_percent}% opacity | {config.source}"
+
+
+def _full_live_runtime_ready(runtime_status: RuntimePreflightStatus) -> bool:
+    return bool(runtime_status.live_output_writes_verified and runtime_status.truth.value == "live_verified")

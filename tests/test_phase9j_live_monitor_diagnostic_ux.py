@@ -314,7 +314,8 @@ def test_phase9j_live_monitor_renders_compact_rows_and_command_matching(tmp_path
     assert "Manual launch expected:" not in labels_text
     assert "completed by Bridge for current-request" not in labels_text
     assert "Output Verified" not in labels_text
-    assert "Full Live Runtime Ready" not in labels_text
+    assert "Full Live Runtime Ready\nfalse" in labels_text
+    assert "Full Live Runtime Ready\ntrue" not in labels_text
 
     _write_payload(telemetry_path, _payload(timestamp=now, last_command_request_id="current-request"))
     page.refresh_snapshot(force_new=True)

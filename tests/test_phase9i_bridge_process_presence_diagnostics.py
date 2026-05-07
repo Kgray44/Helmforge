@@ -302,7 +302,8 @@ def test_phase9i_live_monitor_displays_compact_process_diagnostics_without_lifec
     assert "Enable Auto Start" not in button_text
     assert "Verify Output" not in button_text
     assert "Output Verified" not in labels_text
-    assert "Full Live Runtime Ready" not in labels_text
+    assert "Full Live Runtime Ready false" in labels_text
+    assert "Full Live Runtime Ready true" not in labels_text
 
 
 def test_phase9i_unsafe_lifecycle_commands_remain_rejected(tmp_path):

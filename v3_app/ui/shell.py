@@ -14,6 +14,7 @@ from v3_app.pages.combat_profile_page import CombatProfilePage
 from v3_app.pages.conditional_rules_page import ConditionalRulesPage
 from v3_app.pages.effective_response_stack_page import EffectiveResponseStackPage
 from v3_app.pages.filtering_page import FilteringPage
+from v3_app.pages.flight_recorder_page import FlightRecorderPage
 from v3_app.pages.help_docs_page import HelpDocsPage
 from v3_app.pages.live_monitor_page import LiveMonitorPage
 from v3_app.pages.mapping_page import MappingPage
@@ -147,6 +148,8 @@ class HelmForgeShell(QWidget):
             return EffectiveResponseStackPage(**common)
         if page_id == "live_monitor":
             return LiveMonitorPage(**common)
+        if page_id == "flight_recorder":
+            return FlightRecorderPage(**common)
         if page_id == "help_docs":
             return HelpDocsPage(**common)
         if page_id == "perf_diagnostics":

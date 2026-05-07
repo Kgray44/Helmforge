@@ -200,7 +200,8 @@ def test_phase9c_live_monitor_falls_back_when_bridge_missing(tmp_path):
     assert "Bridge Missing" in labels_text
     assert "Output writes verified: false" in labels_text
     assert "Output Verified" not in labels_text
-    assert "Full Live Runtime Ready" not in labels_text
+    assert "Full Live Runtime Ready false" in labels_text
+    assert "Full Live Runtime Ready true" not in labels_text
 
 
 def test_phase9c_live_monitor_falls_back_when_bridge_stale(tmp_path):

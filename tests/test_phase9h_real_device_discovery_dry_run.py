@@ -252,7 +252,8 @@ def test_phase9h_live_monitor_displays_discovery_without_live_claims(tmp_path):
     assert "Supported HOTAS detected; polling not active." in labels_text
     assert "Device discovery only; output verification false." in labels_text
     assert "Output Verified" not in labels_text
-    assert "Full Live Runtime Ready" not in labels_text
+    assert "Full Live Runtime Ready false" in labels_text
+    assert "Full Live Runtime Ready true" not in labels_text
     assert "writing to vJoy" not in labels_text
 
 

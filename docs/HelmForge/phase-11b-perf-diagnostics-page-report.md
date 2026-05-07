@@ -8,7 +8,6 @@ Scope: Perf / Diagnostics page only
 
 Phase 11B implements Perf / Diagnostics page only. The page is an observational product diagnostics surface for runtime truth, Bridge telemetry state, UI/workspace state, timing summaries, hidden-page skip visibility, safe preflight refresh, and local diagnostic copy text.
 
-Diagnostics are observational and do not add runtime authority.
 In product wording, diagnostics are observational and do not add runtime authority.
 
 ## Implemented Page
@@ -133,4 +132,4 @@ Final verification results:
 - `python -m bridge_app.main --run-for-ms 250` - passed.
 - `python -m bridge_app.main --status` - passed with `lifecycle=Simulated`, `truth=blocked_missing_device`, and `output_verified=False`.
 - `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\runtime_setup_check.ps1 -DryRun` - passed. Runtime truth during implementation: Thrustmaster software detected, vJoy detected, HOTAS not connected, Simulation Mode Active unless physical input and output writes are both verified, Full Live Runtime Ready false, and no installers launched.
-- `git diff --check` - pending final diff hygiene pass after this report update.
+- `git diff --check` - passed.

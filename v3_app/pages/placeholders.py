@@ -30,7 +30,7 @@ PAGE_DEFINITIONS = (
     PageDefinition("conditional_rules", "Conditional Rules", "Build responsive modifier rules, track their live state, and see exactly where they inject into the response stack.", "Rule list, detail, editor, and live status are rebuilt in the rules phase."),
     PageDefinition("effective_response_stack", "Effective Response Stack", "Inspect one selected axis at a time from raw HOTAS input through shaping, filtering, mode modifiers, rule injections, and final output.", "Stage cards are powered by the shared-core stack results."),
     PageDefinition("live_monitor", "Live Monitor", "Watch raw HOTAS input, final vJoy output, buttons, hats, and axis levels in one dedicated live workspace.", "Live Monitor is backed by simulation/telemetry snapshots until the Bridge verifies live output writes."),
-    PageDefinition("flight_recorder", "Flight Recorder", "Prepare capture, clip review, and telemetry overlay workflows.", "Recorder controls are placeholders until capture/compositor work begins."),
+    PageDefinition("flight_recorder", "Flight Recorder", "Configure the recorder shell, clip library, preview area, and future telemetry overlay.", "Phase 13A implements UI/state/settings only; capture, encoding, and hindsight buffering are deferred."),
     PageDefinition("help_docs", "Help / Docs", "Search the built-in guide, browse by category, and keep the details you use most close at hand.", "Built-in documentation is implemented in the Help / Docs phase."),
     PageDefinition("perf_diagnostics", "Perf / Diagnostics", "Inspect shell timing, runtime truth, and future Bridge diagnostics.", "Diagnostics hooks are seeded without adding heavy live instrumentation."),
 )

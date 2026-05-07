@@ -83,7 +83,12 @@ class PerfDiagnosticsPage(QWidget):
         layout = card_layout(frame)
         layout.addWidget(card_header("Runtime Truth", "Current runtime state without live-output claims."))
         layout.addLayout(self._row_grid(("Runtime mode", "Runtime truth", "Input device status", "Output/vJoy status", "Output verified", "Full Live Runtime Ready", "Runtime setup/preflight status")))
-        layout.addWidget(_body("Telemetry remains the truth surface. vJoy detected; output writes unverified until a future verification phase proves writes."))
+        layout.addWidget(
+            _body(
+                "Telemetry remains the truth surface. vJoy detected; output writes unverified until a future verification phase proves writes. "
+                "vJoy detected does not mean output verified."
+            )
+        )
         return frame
 
     def _bridge_card(self) -> QWidget:
@@ -91,7 +96,7 @@ class PerfDiagnosticsPage(QWidget):
         layout = card_layout(frame)
         layout.addWidget(card_header("Bridge / Telemetry", "Bridge presence and telemetry freshness are observational."))
         layout.addLayout(self._row_grid(("Bridge lifecycle", "Bridge telemetry status", "Telemetry age", "Process hint", "HOTAS discovery", "Last command status", "Last command request_id")))
-        layout.addWidget(_body("Process presence is a hint only. Manual Bridge launch remains text guidance only."))
+        layout.addWidget(_body("Process presence is a hint only. HOTAS discovery is discovery-only. Manual Bridge launch remains text guidance only."))
         layout.addWidget(status_chip(f"Manual Bridge launch: {DEFAULT_MANUAL_BRIDGE_COMMAND}", tone="warning", object_name="manualBridgeLaunchGuidance"))
         return frame
 
@@ -100,7 +105,7 @@ class PerfDiagnosticsPage(QWidget):
         layout = card_layout(frame)
         layout.addWidget(card_header("Workspace / UI State", "Current UI selection and workspace source."))
         layout.addLayout(self._row_grid(("Active page", "Selected axis", "Workspace/source file", "Diagnostics collection state")))
-        layout.addWidget(_body("See Help / Docs -> Runtime Setup / vJoy Setup and Runtime Indicators for terminology."))
+        layout.addWidget(_body("See Help / Docs -> Runtime Setup / vJoy Setup, Runtime Indicators, and Performance / Diagnostics for terminology."))
         return frame
 
     def _timing_card(self) -> QWidget:
@@ -121,7 +126,12 @@ class PerfDiagnosticsPage(QWidget):
         frame = card("perfCommandsPreflightCard")
         layout = card_layout(frame)
         layout.addWidget(card_header("Commands / Preflight", "Safe checks only. No runtime activation or output verification."))
-        layout.addWidget(_body("Run Runtime Preflight refreshes the local runtime setup truth. It does not install drivers, launch installers, start the Bridge, poll live HOTAS input, write vJoy, or verify output."))
+        layout.addWidget(
+            _body(
+                "Run Runtime Preflight is a safe check/request, not runtime activation. It refreshes the local runtime setup truth. "
+                "It does not install drivers, launch installers, start the Bridge, poll live HOTAS input, write vJoy, or verify output."
+            )
+        )
         return frame
 
     def _actions_card(self) -> QWidget:

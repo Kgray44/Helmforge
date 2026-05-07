@@ -139,6 +139,9 @@ ARTICLES = (
         paragraphs=(
             "Graphs and previews show how the current workspace math is expected to transform input. They help compare raw input, shaped response, filtered response, and final output from the shared-core pipeline.",
             "A graph can be useful even in simulation mode, but it is not proof that a physical HOTAS is being polled or that vJoy output writes are verified. Treat graph values as workspace or telemetry evidence depending on the source label.",
+            "Phase 12A adds Live Overlay core/config foundations, and Phase 12B adds an app-owned detached overlay window and renderer. Overlay traces can use simulation or runtime snapshot values already available to the UI, but they do not prove live hardware, vJoy writes, or output verification.",
+            "Live Overlay is app-owned and detached. It does not inject into games, does not use graphics API hooking, and does not capture the screen. Hotkey and click-through statuses are truth-labeled; they are not claimed unless implemented and verified. Flight Recorder is a separate later phase.",
+            "Phase 13A adds Flight Recorder UI/state/settings/library/preview shell only. Axis overlay colors reuse the Live Overlay color model, but real capture and encoding are deferred, hindsight video buffering is deferred, recorder hotkey registration is deferred, and the recorder shell does not add screen capture, game injection, graphics API hooking, or runtime activation.",
             "When a graph is backed by simulation, the UI should say Simulation Fallback or a similar truthful status. When Bridge telemetry is fresh, the graph can consume Bridge-provided values while still respecting output_verified truth.",
         ),
     ),
@@ -147,9 +150,9 @@ ARTICLES = (
         category="Analysis",
         summary="Understand the exact runtime truth terms used across HelmForge.",
         keywords=("runtime", "telemetry", "truth", "stale", "missing", "invalid", "bridge"),
-        related_topics=("Runtime Setup / vJoy Setup", "Live Monitor", "Effective Response Stack"),
+        related_topics=("Runtime Setup / vJoy Setup", "Performance / Diagnostics", "Live Monitor", "Effective Response Stack"),
         paragraphs=(
-            "Telemetry is the UI truth surface for Bridge-reported runtime state. Bridge lifecycle describes the Bridge state such as Simulated, Starting, Stopping, or future live states. Runtime truth is the typed status, for example blocked_missing_device or detected_unverified.",
+            "Telemetry remains the truth surface for Bridge-reported runtime state. Bridge lifecycle describes the Bridge state such as Simulated, Starting, Stopping, or future live states. Runtime truth is the typed status, for example blocked_missing_device or detected_unverified.",
             "Output verified means actual output writes have been proven by a future verification phase. Full Live Runtime Ready means both input and output are proven. In the current Phase 11A boundary, output_verified remains false and Full Live Runtime Ready remains false.",
             "HOTAS discovery and Device discovery are read-only identity checks. Process hint is only a diagnostic hint and never becomes runtime truth. Command acknowledgement means Bridge telemetry has a matching request_id for the latest UI command request.",
             "Stale telemetry is too old to treat as fresh. Missing telemetry means the file is not present. Invalid telemetry means the JSON could not be parsed or validated. Simulation fallback keeps the UI usable when telemetry is stale, missing, or invalid.",
@@ -234,9 +237,11 @@ ARTICLES = (
         keywords=("performance", "diagnostics", "perf", "phase 11b", "timings", "preflight"),
         related_topics=("Runtime Indicators", "Runtime Setup / vJoy Setup"),
         paragraphs=(
-            "Performance / Diagnostics is the diagnostics half of Phase 11. Phase 11B surfaces runtime truth, telemetry freshness, Bridge lifecycle, HOTAS discovery, output verification truth, workspace state, and lightweight UI timing metrics.",
-            "Run Runtime Preflight is a safe check. It refreshes preflight truth but does not install drivers, launch installers, start the Bridge, poll live HOTAS input, write virtual output, verify output, or activate runtime.",
-            "Timing metrics are UI/app diagnostics, not live hardware proof. Process presence remains a hint, telemetry remains the truth surface, and Full Live Runtime Ready remains false until future phases prove input and output.",
+            "Performance / Diagnostics is the diagnostics half of Phase 11. Diagnostics are observational. The page surfaces runtime truth, telemetry freshness, Bridge lifecycle, HOTAS discovery, output verification truth, workspace state, and lightweight UI timing metrics.",
+            "Run Runtime Preflight is safe and does not verify output. It refreshes preflight truth but does not install drivers, launch installers, start the Bridge, poll live HOTAS input, write virtual output, verify output, or activate runtime.",
+            "timing metrics are app/UI diagnostics, not live hardware proof. hidden-page skip counters show skipped expensive updates where instrumented, and unavailable counters are labeled truthfully.",
+            "Copy Diagnostics creates local diagnostic text. output_verified remains false until a future verification phase proves writes. Full Live Runtime Ready remains false until future phases prove both input and output.",
+            "Process presence remains a hint and telemetry remains the truth surface.",
         ),
     ),
     HelpArticle(
@@ -256,7 +261,7 @@ ARTICLES = (
         category="Getting Started",
         summary="Understand simulation mode, Bridge telemetry, missing HOTAS, vJoy detection, and output verification truth.",
         keywords=("runtime", "setup", "vjoy", "bridge", "preflight", "request_id", "blocked_missing_device"),
-        related_topics=("Runtime Indicators", "Quick Start", "Mapping"),
+        related_topics=("Runtime Indicators", "Performance / Diagnostics", "Quick Start", "Mapping"),
         paragraphs=(
             "Simulation mode works without physical HOTAS hardware. Simulation mode also works without output verification. This lets the UI, workspace model, graphs, rules, and Helm recommendations remain useful while live hardware work is deferred.",
             "Bridge telemetry is the runtime truth surface. Manual Bridge launch remains the current lifecycle model. The manual Bridge launch command is text only: python -m bridge_app.main --run-for-ms 250. The UI does not start, stop, restart, spawn, install, or manage the Bridge.",

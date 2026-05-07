@@ -8,7 +8,7 @@ Scope: Help / Docs foundation only
 
 Phase 11A implements Help / Docs foundation only. The page is built as integrated local product documentation with category browsing, deterministic search, and a scrollable guide pane.
 
-Perf / Diagnostics page work is deferred to Phase 11B.
+Perf / Diagnostics page work was deferred to Phase 11B at the end of Phase 11A. Phase 11B implemented it later, and Phase 11C freezes the combined Phase 11 boundary.
 
 ## Page Behavior
 

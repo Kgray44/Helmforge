@@ -2,13 +2,13 @@
 
 Product: HelmForge  
 Technical subtitle: HOTAS Control Panel V3  
-Status: Phase 11B Perf / Diagnostics and Phase 9K runtime boundary freeze; no polling, output, process control, or lifecycle implementation added
+Status: Phase 13A Flight Recorder UI shell and Phase 9K runtime boundary freeze; no polling, output, process control, capture backend, or lifecycle implementation added
 
 ## Purpose
 
 The Bridge is the background/runtime side of HelmForge. It is intended to own real-time HOTAS input, workspace processing, virtual output, and telemetry. The PySide6 UI owns configuration, visualization, diagnostics, and user interaction.
 
-Phase 9B created the separate process skeleton so future real HOTAS and vJoy work lands outside `v3_app`. Phase 9C added UI-side telemetry reading without moving Bridge processing into the UI. Phase 9D added a safe UI command writer for status/config/preflight requests only. Phase 9E added per-command acknowledgement/status telemetry while keeping telemetry as the truth source. Phase 9F refined telemetry health and timing details for UI-visible lifecycle presence. Phase 9G records lifecycle ownership options, wording rules, and safety gates; it adds no lifecycle implementation. Phase 9H adds a Bridge-owned, read-only HOTAS discovery dry-run and publishes discovery truth through telemetry. Phase 9I adds UI-side process presence hints and diagnostic wording while keeping telemetry as the truth surface. Phase 9J polishes the Live Monitor diagnostic UX and edge-state wording without changing Bridge authority. Phase 9K freezes the Phase 9 boundary with regression tests and documentation consistency checks. Phase 10E finalizes the Helm overlay without adding any Bridge runtime authority. Phase 11B adds an observational Perf / Diagnostics page without adding any Bridge runtime authority.
+Phase 9B created the separate process skeleton so future real HOTAS and vJoy work lands outside `v3_app`. Phase 9C added UI-side telemetry reading without moving Bridge processing into the UI. Phase 9D added a safe UI command writer for status/config/preflight requests only. Phase 9E added per-command acknowledgement/status telemetry while keeping telemetry as the truth source. Phase 9F refined telemetry health and timing details for UI-visible lifecycle presence. Phase 9G records lifecycle ownership options, wording rules, and safety gates; it adds no lifecycle implementation. Phase 9H adds a Bridge-owned, read-only HOTAS discovery dry-run and publishes discovery truth through telemetry. Phase 9I adds UI-side process presence hints and diagnostic wording while keeping telemetry as the truth surface. Phase 9J polishes the Live Monitor diagnostic UX and edge-state wording without changing Bridge authority. Phase 9K freezes the Phase 9 boundary with regression tests and documentation consistency checks. Phase 10E finalizes the Helm overlay without adding any Bridge runtime authority. Phase 11B adds an observational Perf / Diagnostics page without adding any Bridge runtime authority. Phase 11C completes Phase 11 with Help / Docs + Perf / Diagnostics cross-links, terminology consistency, and final boundary tests; it does not add runtime authority. Phase 12A adds Live Overlay config/core models, a Live Monitor card, and a configuration dialog shell. Phase 12B adds an app-owned detached Live Overlay renderer. Phase 12C freezes the Live Overlay boundary without adding Bridge runtime authority. Phase 13A adds the Flight Recorder UI/state/settings/library/preview shell without capture, encoding, hotkey registration, or Bridge runtime authority.
 
 ## Current Entry Points
 
@@ -311,6 +311,48 @@ Phase 11B implements Perf / Diagnostics page only. The page is observational:
 - copy diagnostics text is a local summary, not a runtime command.
 
 Phase 11B does not add hardware polling, live physical input streaming, vJoy writes, output verification, Bridge lifecycle control, process spawning, installer launch, service install, login auto-start, tray manager work, cloud AI/LLM behavior, auto-save, or runtime activation.
+
+## Phase 11C Help / Docs + Perf / Diagnostics Boundary Freeze
+
+Phase 11 is now complete.
+
+Phase 11C aligns Help / Docs and Perf / Diagnostics wording:
+
+- telemetry remains the truth surface;
+- process presence remains a hint;
+- HOTAS discovery is discovery-only;
+- vJoy detected does not mean output verified;
+- Output verified remains false until a future output verification phase proves writes;
+- Full Live Runtime Ready remains false until future phases prove both input and output;
+- Run Runtime Preflight is a safe check/request, not runtime activation;
+- Copy Diagnostics creates local diagnostic text.
+
+Phase 11C does not add runtime authority. It does not add Live Overlay, Flight Recorder, real HOTAS polling, live physical input streaming, vJoy writes, output verification, automatic Bridge launch, UI-launched child process, service install, login auto-start, tray manager, installer launch, StartBridge/StopBridge/RestartBridge behavior, real process scanner, cloud AI or LLM behavior, auto-save, or real runtime activation.
+
+The next prompt-book phase is Phase 12 Live Overlay Foundation. Phase 12 must preserve the Phase 9K runtime boundary and Phase 10E Helm boundary.
+
+## Phase 12 Live Overlay Boundary
+
+Phase 12A implements Live Overlay core/config foundation only:
+
+- shared axis colors;
+- serializable overlay configuration defaults and validation;
+- overlay telemetry history buffer;
+- trace-building data structures;
+- Live Monitor Live Overlay card;
+- Live Overlay Configuration dialog shell.
+
+Phase 12B adds an app-owned detached overlay window and Qt renderer. Show Overlay and Hide Overlay only control that UI-owned window. Status is Active only while the window is visible. The overlay can render simulation/runtime snapshots already available to the UI, but it does not create live hardware runtime.
+
+Phase 12C finalizes the Live Overlay boundary. Hotkey registration is not claimed and remains `Not registered`. Click-through support is not claimed and remains `Not enabled - not verified`. Always-on-top is config-backed through Qt window flags only. Direct overlay-window close events update the Live Monitor status to Inactive.
+
+Phase 12 does not add Flight Recorder, clip capture, video encoding, clip library, clip preview, hindsight buffer, recorder hotkey Ctrl+Shift+F10, real HOTAS polling, live physical input streaming, vJoy writes, output verification, automatic Bridge launch, UI-launched child process, service install, login auto-start, tray manager, installer launch, StartBridge/StopBridge/RestartBridge behavior, real process scanner, game injection, graphics API hooking, screen capture, cloud AI or LLM behavior, auto-save, or real runtime activation.
+
+## Phase 13A Flight Recorder Boundary
+
+Phase 13A implements Flight Recorder UI/state/settings/library/preview shell only. It reuses shared Live Overlay colors for axis overlay settings.
+
+Phase 13A does not add real desktop capture, video encoding, clip export, actual hindsight video buffering, recorder global hotkey registration, screen capture, game injection, graphics API hooking, real HOTAS polling, live physical input streaming, vJoy writes, output verification, automatic Bridge launch, UI-launched child process, service install, login auto-start, tray manager, installer launch, StartBridge/StopBridge/RestartBridge behavior, real process scanner, cloud AI or LLM behavior, auto-save, or real runtime activation.
 
 ## Phase 9G Lifecycle Ownership Decision
 

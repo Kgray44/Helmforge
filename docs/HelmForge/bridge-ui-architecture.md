@@ -1,6 +1,6 @@
 # Bridge/UI Architecture
 
-Status: Phase 11B implements the Perf / Diagnostics page after Phase 11A added Help / Docs, Phase 10E finalized Helm for Phase 10, and Phase 9K froze the Bridge/UI boundary. Shared contracts exist, `bridge_app` can run as a separate simulation-only Python process, the PySide6 Live Monitor can consume fresh Bridge telemetry JSON with safe simulation fallback, and the UI can request safe Bridge commands through a JSON command file. The Bridge echoes the most recently consumed command request in telemetry, and the UI shows compact Bridge health/timing details, device discovery truth, process-presence hints, and a stable diagnostic hierarchy. Helm remains overlay/modal from the ASSISTANT cluster, analyzes local workspace values through deterministic/local symptom paths, reads mode/rule/stack/runtime context without mutating it, labels evidence sources, groups recommendations, asks deterministic follow-up questions when a symptom is ambiguous, shows staged-review counts and risk/outcome copy, and only mutates the in-memory workspace draft when the user applies selected changes. Help / Docs adds local built-in documentation, category browsing, and deterministic search. Perf / Diagnostics adds observational runtime, telemetry, timing, hidden-skip, preflight, and copy-summary visibility. Continuous real HOTAS polling, live physical input streaming, vJoy writes, output verification, automatic Bridge launch, process spawning from the UI, Windows Service install, tray manager work, and login auto-start are not implemented yet.
+Status: Phase 13A implements the Flight Recorder UI/state/settings/library/preview shell after Phase 12C finalized Live Overlay polish and boundary freeze. Phase 11C completed the Help / Docs + Perf / Diagnostics boundary freeze. Phase 10E finalized Helm for Phase 10, and Phase 9K froze the Bridge/UI boundary. Shared contracts exist, `bridge_app` can run as a separate simulation-only Python process, the PySide6 Live Monitor can consume fresh Bridge telemetry JSON with safe simulation fallback, and the UI can request safe Bridge commands through a JSON command file. The Bridge echoes the most recently consumed command request in telemetry, and the UI shows compact Bridge health/timing details, device discovery truth, process-presence hints, and a stable diagnostic hierarchy. Helm remains overlay/modal from the ASSISTANT cluster, analyzes local workspace values through deterministic/local symptom paths, reads mode/rule/stack/runtime context without mutating it, labels evidence sources, groups recommendations, asks deterministic follow-up questions when a symptom is ambiguous, shows staged-review counts and risk/outcome copy, and only mutates the in-memory workspace draft when the user applies selected changes. Help / Docs adds local built-in documentation, category browsing, deterministic search, and cross-links for Phase 11 topics. Perf / Diagnostics adds observational runtime, telemetry, timing, hidden-skip, preflight, and copy-summary visibility. Live Overlay has shared config/core models, axis colors, telemetry history buffering, trace building, a Live Monitor card, a configuration dialog shell, an app-owned detached Qt overlay renderer, finalized hotkey/click-through truth labels, and final boundary tests. Flight Recorder now has a page shell, settings model, state model, axis overlay settings, recording library shell, and clip preview shell. Continuous real HOTAS polling, live physical input streaming, vJoy writes, output verification, automatic Bridge launch, process spawning from the UI, Windows Service install, tray manager work, login auto-start, game injection, graphics API hooking, global hotkey registration, click-through support, real desktop capture, video encoding, clip export, and actual hindsight video buffering are not implemented yet.
 
 ## Core Rule
 
@@ -237,7 +237,7 @@ Phase 10E finalizes Helm for Phase 10:
 
 The next prompt-book phase is Phase 11: Help / Docs and Perf / Diagnostics. Phase 11 should preserve the Phase 9K runtime freeze and the Phase 10E Helm boundary.
 
-## Help / Docs Foundation
+## Help / Docs and Perf / Diagnostics
 
 Phase 11A implements Help / Docs foundation only:
 
@@ -247,9 +247,7 @@ Phase 11A implements Help / Docs foundation only:
 - The Helm article documents Phase 10 behavior: overlay/modal, deterministic/local, in-memory apply/revert, evidence labels, no conditional-rule mutation, no cloud AI or LLM behavior, and no live hardware analysis.
 - Runtime Indicators, Saving and Importing, and Tuning Glossary articles define the app vocabulary.
 
-Perf / Diagnostics page work is deferred to Phase 11B. Help / Docs does not add runtime authority, hardware polling, vJoy writes, output verification, Bridge lifecycle control, process spawning, auto-start, cloud AI or LLM behavior, auto-save, or runtime activation.
-
-## Perf / Diagnostics Page
+Help / Docs does not add runtime authority, hardware polling, vJoy writes, output verification, Bridge lifecycle control, process spawning, auto-start, cloud AI or LLM behavior, auto-save, or runtime activation.
 
 Phase 11B implements Perf / Diagnostics page only:
 
@@ -262,6 +260,66 @@ Phase 11B implements Perf / Diagnostics page only:
 - Copy Diagnostics prepares text locally; clipboard integration is not required for Phase 11B.
 
 Diagnostics are observational and do not add runtime authority. Phase 11B does not add hardware polling, vJoy writes, output verification, Bridge lifecycle control, process spawning, installer launch, cloud AI/LLM behavior, auto-save, or runtime activation.
+
+Phase 11C completes Phase 11 with polish and a boundary freeze:
+
+- Help / Docs related-topic labels connect Runtime Setup / vJoy Setup, Runtime Indicators, Performance / Diagnostics, Helm, Saving and Importing, Effective Response Stack, Graphs and Previews, and Conditional Rules.
+- Perf / Diagnostics page copy states that telemetry remains the truth surface, process presence is a hint only, HOTAS discovery is discovery-only, vJoy detected does not mean output verified, Output verified is false, and Full Live Runtime Ready is false.
+- Run Runtime Preflight is a safe check/request, not runtime activation.
+- Copy Diagnostics is local diagnostic text, not a runtime command.
+- Phase 11 is now complete.
+- Phase 11C does not add runtime authority.
+
+The next prompt-book phase is Phase 12 Live Overlay Foundation. Phase 12 must preserve the Phase 9K runtime boundary and Phase 10E Helm boundary.
+
+## Live Overlay Foundation
+
+Phase 12A implements the Live Overlay foundation:
+
+- `v3_app/overlay/axis_colors.py` centralizes the recovered six-axis color model.
+- `v3_app/overlay/overlay_config.py` stores the serializable Live Overlay configuration with defaults, restore-defaults behavior, and validation/clamping.
+- `v3_app/overlay/telemetry_buffer.py` keeps a bounded simulation/runtime snapshot history for overlay traces.
+- `v3_app/overlay/trace_builder.py` converts history samples into plain trace series without depending on PySide6 drawing.
+- Live Monitor includes a Live Overlay card that shows preset, status, attached display, hotkey text, summary, runtime truth, Output verified false, and Full Live Runtime Ready false.
+- The Live Overlay Configuration dialog shell exposes Placement, Appearance, Behavior, Data, and Axes sections.
+
+Phase 12B adds detached rendering on top of that foundation:
+
+- `v3_app/overlay/live_overlay_window.py` creates an app-owned top-level frameless Qt window for the overlay strip.
+- `v3_app/overlay/overlay_renderer.py` draws trace lines, legend, live values, and idle/runtime truth text from Phase 12A trace data.
+- Show Overlay creates/shows the detached overlay window; Hide Overlay hides it. The Live Monitor card says Active only when that window is visible.
+- Bottom-strip placement uses the current display where Qt can identify one, with safe fallback sizing if screen geometry is unavailable.
+- Configuration changes apply to the visible overlay on OK and are discarded on Cancel.
+
+Hotkey registration is not claimed. Click-through support is not claimed. Always-on-top uses Qt window flags only when configured. The overlay can consume simulation/runtime snapshots already available to the UI, but it does not create live hardware runtime, poll real HOTAS input, write vJoy, verify output, manage Bridge lifecycle, hook graphics APIs, inject into games, capture the screen, auto-save, or activate runtime.
+
+Phase 12C freezes the Live Overlay boundary:
+
+- Direct overlay-window close events notify Live Monitor so Status returns to Inactive.
+- Dialog copy no longer carries Phase 12A renderer-pending language.
+- Hotkey status remains `Not registered`.
+- Click-through status remains `Not enabled - not verified`.
+- Always-on-top status is config-backed through Qt window flags.
+- Help / Docs states that Live Overlay is app-owned and detached, does not inject into games, does not use graphics API hooking, and does not capture the screen.
+- Final Phase 12 tests guard against Flight Recorder, recorder hotkey `Ctrl+Shift+F10`, real HOTAS polling, live input streaming, vJoy writes, output verification, process spawning, global-hotkey fake success, click-through fake success, game injection, graphics API hooking, screen capture, cloud AI/LLM behavior, auto-save, and runtime activation.
+
+Axis colors are shared for future Flight Recorder reuse. Flight Recorder is not implemented in Phase 12A, Phase 12B, or Phase 12C.
+
+Phase 12 is complete. The next prompt-book phase is Phase 13: Flight Recorder, Clip Library, and Hindsight Buffer. Phase 13 should reuse shared overlay colors and trace concepts where appropriate, but it must not claim real clip capture, video encoding, or hindsight buffering until implemented and verified.
+
+## Flight Recorder
+
+Phase 13A implements Flight Recorder UI/state/settings/library/preview shell only:
+
+- `v3_app/recorder/recorder_settings.py` stores serializable default settings, validation/clamping, backend availability flags, and axis overlay settings using shared Live Overlay colors.
+- `v3_app/recorder/recorder_state.py` stores truthful UI states including capture backend missing, buffering unavailable, saving unavailable, compositor unavailable, and error.
+- `v3_app/recorder/clip_library.py` provides a read-only clip library shell and empty-state copy.
+- `v3_app/pages/flight_recorder_page.py` provides Recorder Settings, Axis Overlay, Recording Library, and Clip Preview cards.
+- The page defaults to capture backend missing and hotkey not registered.
+- Record Now and Save Last Clip are disabled because capture, encoding, and hindsight video buffering are not active.
+- Clip Preview is a shell and does not play video.
+
+Phase 13A does not add real desktop capture, video encoding, clip export, actual hindsight video buffering, recorder global hotkey registration, screen capture, game injection, graphics API hooking, real HOTAS polling, live input streaming, vJoy writes, output verification, Bridge lifecycle control, process spawning, cloud AI/LLM behavior, auto-save, or runtime activation.
 
 ## Phase 9K Boundary Freeze
 

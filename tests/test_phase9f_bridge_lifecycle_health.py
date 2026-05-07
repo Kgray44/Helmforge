@@ -251,7 +251,8 @@ def test_phase9f_live_monitor_preserves_phase9e_matching_request_behavior(tmp_pa
     assert "awaiting bridge telemetry" in command_text
     assert "completed by bridge" not in command_text
     assert "Output Verified" not in labels_text
-    assert "Full Live Runtime Ready" not in labels_text
+    assert "Full Live Runtime Ready false" in labels_text
+    assert "Full Live Runtime Ready true" not in labels_text
 
 
 def test_phase9f_no_hardware_or_ui_dependency_boundary_regression():

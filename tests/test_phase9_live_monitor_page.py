@@ -140,7 +140,8 @@ def test_phase9_runtime_truth_does_not_claim_verified_output():
     assert "Detected Unverified" in labels_text
     assert "Output writes verified: false" in labels_text
     assert "Output Verified" not in labels_text
-    assert "Full Live Runtime Ready" not in labels_text
+    assert "Full Live Runtime Ready false" in labels_text
+    assert "Full Live Runtime Ready true" not in labels_text
 
 
 def test_phase9_refresh_updates_values_in_place_and_supports_hidden_skip():
