@@ -1,1 +1,1 @@
-"""Flight Recorder UI/state foundation for HelmForge."""
+"""Flight Recorder UI/state/backend/compositor foundation for HelmForge."""

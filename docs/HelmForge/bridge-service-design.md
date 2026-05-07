@@ -2,13 +2,13 @@
 
 Product: HelmForge  
 Technical subtitle: HOTAS Control Panel V3  
-Status: Phase 13A Flight Recorder UI shell and Phase 9K runtime boundary freeze; no polling, output, process control, capture backend, or lifecycle implementation added
+Status: Phase 13C Flight Recorder simulated compositor/export foundation and Phase 9K runtime boundary freeze; no real polling, output, process control, capture backend implementation, encoding, or lifecycle implementation added
 
 ## Purpose
 
 The Bridge is the background/runtime side of HelmForge. It is intended to own real-time HOTAS input, workspace processing, virtual output, and telemetry. The PySide6 UI owns configuration, visualization, diagnostics, and user interaction.
 
-Phase 9B created the separate process skeleton so future real HOTAS and vJoy work lands outside `v3_app`. Phase 9C added UI-side telemetry reading without moving Bridge processing into the UI. Phase 9D added a safe UI command writer for status/config/preflight requests only. Phase 9E added per-command acknowledgement/status telemetry while keeping telemetry as the truth source. Phase 9F refined telemetry health and timing details for UI-visible lifecycle presence. Phase 9G records lifecycle ownership options, wording rules, and safety gates; it adds no lifecycle implementation. Phase 9H adds a Bridge-owned, read-only HOTAS discovery dry-run and publishes discovery truth through telemetry. Phase 9I adds UI-side process presence hints and diagnostic wording while keeping telemetry as the truth surface. Phase 9J polishes the Live Monitor diagnostic UX and edge-state wording without changing Bridge authority. Phase 9K freezes the Phase 9 boundary with regression tests and documentation consistency checks. Phase 10E finalizes the Helm overlay without adding any Bridge runtime authority. Phase 11B adds an observational Perf / Diagnostics page without adding any Bridge runtime authority. Phase 11C completes Phase 11 with Help / Docs + Perf / Diagnostics cross-links, terminology consistency, and final boundary tests; it does not add runtime authority. Phase 12A adds Live Overlay config/core models, a Live Monitor card, and a configuration dialog shell. Phase 12B adds an app-owned detached Live Overlay renderer. Phase 12C freezes the Live Overlay boundary without adding Bridge runtime authority. Phase 13A adds the Flight Recorder UI/state/settings/library/preview shell without capture, encoding, hotkey registration, or Bridge runtime authority.
+Phase 9B created the separate process skeleton so future real HOTAS and vJoy work lands outside `v3_app`. Phase 9C added UI-side telemetry reading without moving Bridge processing into the UI. Phase 9D added a safe UI command writer for status/config/preflight requests only. Phase 9E added per-command acknowledgement/status telemetry while keeping telemetry as the truth source. Phase 9F refined telemetry health and timing details for UI-visible lifecycle presence. Phase 9G records lifecycle ownership options, wording rules, and safety gates; it adds no lifecycle implementation. Phase 9H adds a Bridge-owned, read-only HOTAS discovery dry-run and publishes discovery truth through telemetry. Phase 9I adds UI-side process presence hints and diagnostic wording while keeping telemetry as the truth surface. Phase 9J polishes the Live Monitor diagnostic UX and edge-state wording without changing Bridge authority. Phase 9K freezes the Phase 9 boundary with regression tests and documentation consistency checks. Phase 10E finalizes the Helm overlay without adding any Bridge runtime authority. Phase 11B adds an observational Perf / Diagnostics page without adding any Bridge runtime authority. Phase 11C completes Phase 11 with Help / Docs + Perf / Diagnostics cross-links, terminology consistency, and final boundary tests; it does not add runtime authority. Phase 12A adds Live Overlay config/core models, a Live Monitor card, and a configuration dialog shell. Phase 12B adds an app-owned detached Live Overlay renderer. Phase 12C freezes the Live Overlay boundary without adding Bridge runtime authority. Phase 13A adds the Flight Recorder UI/state/settings/library/preview shell without capture, encoding, hotkey registration, or Bridge runtime authority. Phase 13B adds recorder backend interfaces, telemetry hindsight buffering, simulated non-video artifacts, and controller wiring without adding real capture, encoding, video hindsight, hotkeys, or Bridge runtime authority. Phase 13C adds a compositor abstraction and simulated export bundles with trace/metadata files without adding real capture, encoding, playable export, video hindsight, hotkeys, or Bridge runtime authority.
 
 ## Current Entry Points
 
@@ -353,6 +353,24 @@ Phase 12 does not add Flight Recorder, clip capture, video encoding, clip librar
 Phase 13A implements Flight Recorder UI/state/settings/library/preview shell only. It reuses shared Live Overlay colors for axis overlay settings.
 
 Phase 13A does not add real desktop capture, video encoding, clip export, actual hindsight video buffering, recorder global hotkey registration, screen capture, game injection, graphics API hooking, real HOTAS polling, live physical input streaming, vJoy writes, output verification, automatic Bridge launch, UI-launched child process, service install, login auto-start, tray manager, installer launch, StartBridge/StopBridge/RestartBridge behavior, real process scanner, cloud AI or LLM behavior, auto-save, or real runtime activation.
+
+## Phase 13B Recorder Backend Boundary
+
+Phase 13B adds Flight Recorder backend interfaces and safe foundation models only. The default capture backend remains missing/unavailable. A deterministic simulated backend can be injected by tests or dev code to write JSON manifest artifacts that are explicitly simulated, non-video, and not real recordings.
+
+Phase 13B adds telemetry hindsight buffering only. It does not add desktop video hindsight buffering. Save Last Clip cannot save real video until future capture and buffer backends exist.
+
+Phase 13B does not add real desktop capture, real screen capture APIs, video encoding, real clip export, actual desktop video hindsight buffering, recorder global hotkey registration, screen capture, game injection, graphics API hooking, real HOTAS polling, live physical input streaming, vJoy writes, output verification, automatic Bridge launch, UI-launched child process, service install, login auto-start, tray manager, installer launch, StartBridge/StopBridge/RestartBridge behavior, real process scanner, cloud AI or LLM behavior, auto-save, or real runtime activation.
+
+## Phase 13C Simulated Compositor Boundary
+
+Phase 13C adds Flight Recorder compositor/export architecture only. The default compositor remains unavailable. A deterministic simulated compositor can be injected by tests or dev code to write simulated export bundles containing `manifest.json`, `overlay_trace.json`, `summary.md`, and `preview_metadata.json`.
+
+Simulated export bundles are metadata/trace artifacts, not recordings. They do not contain playable video and must not be presented as desktop capture.
+
+Phase 13C reuses Phase 12 overlay trace concepts and shared axis colors. Telemetry hindsight can feed simulated overlay trace exports, but desktop video hindsight buffering remains unavailable/deferred.
+
+Phase 13C does not add real desktop capture, real screen capture APIs, video encoding, playable clip export, actual desktop video hindsight buffering, recorder global hotkey registration, screen capture, game injection, graphics API hooking, real HOTAS polling, live physical input streaming, vJoy writes, output verification, automatic Bridge launch, UI-launched child process, service install, login auto-start, tray manager, installer launch, StartBridge/StopBridge/RestartBridge behavior, real process scanner, cloud AI or LLM behavior, auto-save, or real runtime activation.
 
 ## Phase 9G Lifecycle Ownership Decision
 

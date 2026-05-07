@@ -195,8 +195,8 @@ def test_phase13a_recorder_actions_do_not_claim_recording_or_saved_clip(tmp_path
     page.record_now()
     page.save_last_clip()
     text = _label_text(page)
-    assert "Capture backend missing; Record Now is unavailable in Phase 13A." in text
-    assert "Hindsight video buffer is not implemented yet; Save Last Clip cannot save video." in text
+    assert "Recording unavailable; capture backend missing." in text
+    assert "Hindsight video buffer unavailable; Save Last Clip cannot save real video until capture buffering exists." in text
     assert "recording started" not in text.lower()
     assert "clip saved" not in text.lower()
 
