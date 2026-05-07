@@ -1,19 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from shared_core.models.workspace import WorkspaceConfig
+from v3_app.helm.context import HelmContext, build_helm_context
 from v3_app.helm.diff_model import HelmDiff
 from v3_app.helm.recommendation_library import diffs_for_symptom
 from v3_app.helm.symptom_library import MatchedSymptom, match_symptom
-
-
-@dataclass(frozen=True)
-class HelmContext:
-    active_profile: str
-    runtime_truth: str
-    output_verified: bool
-    rule_count: int
 
 
 @dataclass(frozen=True)
@@ -21,6 +14,8 @@ class HelmFinding:
     title: str
     text: str
     severity: str = "info"
+    evidence_source: str = "Workspace values"
+    source_group: str = "Workspace findings"
 
 
 @dataclass(frozen=True)
@@ -63,6 +58,7 @@ class HelmRecommendationResult:
     follow_up_questions: tuple[HelmFollowUpQuestion, ...] = ()
     analysis_findings: tuple[HelmFinding, ...] = ()
     warnings: tuple[str, ...] = ()
+    context: HelmContext | None = None
 
 
 FOLLOW_UP_QUESTIONS = (
@@ -96,10 +92,20 @@ class HelmEngine:
         runtime_truth: str = "blocked_missing_device",
         output_verified: bool = False,
         answers: dict[str, str] | None = None,
+        selected_axis: str | None = None,
+        stack_snapshot: object | None = None,
+        runtime_diagnostics: object | None = None,
     ) -> HelmRecommendationResult:
         symptom = match_symptom(symptom_text)
-        context = extract_context(workspace, runtime_truth=runtime_truth, output_verified=output_verified)
-        workspace_findings, warnings = analyze_workspace(workspace)
+        context = build_helm_context(
+            workspace,
+            runtime_truth=runtime_truth,
+            output_verified=output_verified,
+            selected_axis=selected_axis,
+            stack_snapshot=stack_snapshot,
+            runtime_diagnostics=runtime_diagnostics,
+        )
+        workspace_findings, warnings = analyze_workspace(workspace, context=context)
         if symptom is None:
             return HelmRecommendationResult(
                 symptom=None,
@@ -114,6 +120,7 @@ class HelmEngine:
                 diffs=(),
                 analysis_findings=workspace_findings,
                 warnings=warnings,
+                context=context,
             )
 
         answer_map = answers or {}
@@ -132,14 +139,16 @@ class HelmEngine:
                 follow_up_questions=FOLLOW_UP_QUESTIONS,
                 analysis_findings=workspace_findings,
                 warnings=warnings,
+                context=context,
             )
 
         symptom_id = _refine_symptom_id(symptom.symptom_id, answer_map)
-        diffs = diffs_for_symptom(workspace, symptom_id)
+        diffs = _contextualize_diffs(diffs_for_symptom(workspace, symptom_id), context)
         if diffs:
             confidence_score = _confidence_score(symptom_id, answer_map)
             groups = group_diffs(diffs)
             findings = _findings_for(symptom_id, context)
+            context_findings, context_warnings = analyze_context(context)
             return HelmRecommendationResult(
                 symptom=symptom,
                 status="ready",
@@ -150,8 +159,9 @@ class HelmEngine:
                 diffs=diffs,
                 groups=groups,
                 follow_up_questions=(),
-                analysis_findings=workspace_findings,
-                warnings=warnings,
+                analysis_findings=(*workspace_findings, *context_findings),
+                warnings=(*warnings, *context_warnings),
+                context=context,
             )
 
         return HelmRecommendationResult(
@@ -168,6 +178,7 @@ class HelmEngine:
             follow_up_questions=FOLLOW_UP_QUESTIONS,
             analysis_findings=workspace_findings,
             warnings=warnings,
+            context=context,
         )
 
 
@@ -177,15 +188,10 @@ def extract_context(
     runtime_truth: str,
     output_verified: bool,
 ) -> HelmContext:
-    return HelmContext(
-        active_profile=workspace.active_profile,
-        runtime_truth=runtime_truth,
-        output_verified=output_verified,
-        rule_count=len(workspace.rules.rules),
-    )
+    return build_helm_context(workspace, runtime_truth=runtime_truth, output_verified=output_verified)
 
 
-def analyze_workspace(workspace: WorkspaceConfig) -> tuple[tuple[HelmFinding, ...], tuple[str, ...]]:
+def analyze_workspace(workspace: WorkspaceConfig, *, context: HelmContext | None = None) -> tuple[tuple[HelmFinding, ...], tuple[str, ...]]:
     findings: list[HelmFinding] = []
     warnings: list[str] = []
     yaw_tuning = workspace.tuning.axes["yaw"]
@@ -199,6 +205,8 @@ def analyze_workspace(workspace: WorkspaceConfig) -> tuple[tuple[HelmFinding, ..
                 "Yaw center gate",
                 f"Yaw deadzone is {yaw_tuning.deadzone:.2f}, which can make small corrections feel ignored.",
                 "warning",
+                "Workspace values",
+                "Workspace findings",
             )
         )
         warnings.append("Extreme values are present in the current workspace; I would apply changes in small batches.")
@@ -208,14 +216,18 @@ def analyze_workspace(workspace: WorkspaceConfig) -> tuple[tuple[HelmFinding, ..
                 "Cross-axis mismatch",
                 "Roll response is significantly more aggressive than yaw, so combined aiming can feel uneven.",
                 "info",
+                "Workspace values",
+                "Workspace findings",
             )
         )
     if yaw_combat.combat_scale < 0.72 and pitch_combat.combat_scale >= 0.80:
         findings.append(
             HelmFinding(
                 "Combat yaw authority",
-                "Combat yaw scale is lower than pitch, which can make target tracking feel held back.",
+                "Yaw combat scale is lower than pitch, so yaw may feel held back in combat.",
                 "info",
+                "Workspace values",
+                "Workspace findings",
             )
         )
     if yaw_combat.combat_same_slew < 0.10 and yaw_combat.combat_reverse_slew < 0.10:
@@ -224,6 +236,8 @@ def analyze_workspace(workspace: WorkspaceConfig) -> tuple[tuple[HelmFinding, ..
                 "Combat slew gate",
                 "Yaw combat slew values are very low, so reversals and same-direction motion may both feel sticky.",
                 "warning",
+                "Workspace values",
+                "Workspace findings",
             )
         )
     if not findings:
@@ -232,8 +246,75 @@ def analyze_workspace(workspace: WorkspaceConfig) -> tuple[tuple[HelmFinding, ..
                 "Workspace check",
                 "I did not find an extreme tuning conflict in the current workspace.",
                 "info",
+                "Workspace values",
+                "Workspace findings",
             )
         )
+    return tuple(findings), tuple(dict.fromkeys(warnings))
+
+
+def analyze_context(context: HelmContext) -> tuple[tuple[HelmFinding, ...], tuple[str, ...]]:
+    findings: list[HelmFinding] = []
+    warnings: list[str] = []
+    if context.mode.stack_mode == "multiply":
+        message = "Precision and combat stack by multiplication, so aggressive scaling can compound."
+        findings.append(HelmFinding("Mode stack", message, "warning", "Mode settings", "Mode findings"))
+        warnings.append(message)
+
+    if context.rules.disabled_rule_summaries:
+        for summary in context.rules.disabled_rule_summaries:
+            findings.append(
+                HelmFinding(
+                    "Rule context",
+                    f"{summary} I'm not changing rules in Helm v1.",
+                    "info",
+                    "Conditional rules",
+                    "Rule findings",
+                )
+            )
+
+    if context.stack.available:
+        findings.append(
+            HelmFinding(
+                "Response stack snapshot",
+                (
+                    f"{context.stack.selected_axis} stack snapshot reports {context.stack.largest_stage_name} "
+                    "as the largest observed stage delta."
+                ),
+                "info",
+                "Response stack snapshot",
+                "Stack findings",
+            )
+        )
+    else:
+        findings.append(
+            HelmFinding(
+                "Response stack snapshot",
+                "Response stack context is unavailable here; I will not pretend stage evidence exists.",
+                "info",
+                "Unavailable",
+                "Stack findings",
+            )
+        )
+
+    runtime_lines = [
+        f"Bridge telemetry says runtime truth is {context.runtime.runtime_truth}.",
+        f"output_verified {str(context.runtime.output_verified).lower()}; changes are draft tuning only.",
+    ]
+    if context.runtime.device_discovery_status == "no_supported_device":
+        runtime_lines.append("No physical HOTAS is currently available for live validation.")
+    elif context.runtime.device_discovery_status == "supported_device_detected":
+        runtime_lines.append("Supported HOTAS detected; discovery-only status, polling not active.")
+    runtime_lines.append("I'm using workspace/simulation context only; live hardware analysis is not active.")
+    findings.append(
+        HelmFinding(
+            "Runtime boundary",
+            " ".join(runtime_lines),
+            "warning",
+            "Runtime diagnostics",
+            "Runtime boundary",
+        )
+    )
     return tuple(findings), tuple(dict.fromkeys(warnings))
 
 
@@ -302,6 +383,24 @@ def _confidence_score(symptom_id: str, answers: dict[str, str]) -> float:
     return round(score, 2)
 
 
+def _contextualize_diffs(diffs: tuple[HelmDiff, ...], context: HelmContext) -> tuple[HelmDiff, ...]:
+    contextualized: list[HelmDiff] = []
+    for diff in diffs:
+        reason = diff.reason
+        evidence = diff.evidence_source
+        risk = diff.risk_level
+        if diff.section == "Combat Profile":
+            evidence = "Mode settings and combat profile"
+        if context.mode.stack_mode == "multiply" and diff.section == "Combat Profile":
+            reason = f"{reason} Because precision and combat use multiply stacking, I would keep this change moderate."
+            if diff.risk_level == "Low" and abs(diff.delta_amount) >= 0.10:
+                risk = "Medium"
+        if any(rule_axis.casefold() == diff.axis.casefold() for rule_axis in context.rules.target_axes):
+            reason = f"{reason} I also see rule context on {diff.axis}, so I would review rules before larger tuning moves."
+        contextualized.append(replace(diff, reason=reason, risk_level=risk, evidence_source=evidence))
+    return tuple(contextualized)
+
+
 def _summary_for(symptom_id: str, answers: dict[str, str]) -> str:
     summaries = {
         "combat_sluggish": "I'd soften yaw recovery slightly and raise combat center damping.",
@@ -324,8 +423,8 @@ def _summary_for(symptom_id: str, answers: dict[str, str]) -> str:
 def _findings_for(symptom_id: str, context: HelmContext) -> tuple[str, ...]:
     return (
         "I checked the current workspace values before proposing changes.",
-        f"Runtime truth is {context.runtime_truth}; I am not treating this as hardware evidence.",
-        f"I see {context.rule_count} conditional rule entries, but I won't create or edit rules.",
+        f"Runtime truth is {context.runtime.runtime_truth}; I am not treating this as hardware evidence.",
+        f"I see {context.rules.total_count} conditional rule entries, but I won't create or edit rules.",
         "I'll keep this in memory until you save the workspace.",
         _diagnostic_sentence(symptom_id),
     )

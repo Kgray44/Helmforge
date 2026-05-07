@@ -167,10 +167,12 @@ class HelmForgeShell(QWidget):
                 runtime_status=self.runtime_status,
                 on_workspace_changed=self.update_workspace_draft,
                 on_status=self.set_status_message,
+                selected_axis=self.state.selected_axis,
                 parent=self,
             )
         else:
             self.helm_overlay._workspace = self.workspace
+            self.helm_overlay._selected_axis = self.state.selected_axis
         self.helm_overlay.open_for_parent()
 
     def save_workspace(self) -> None:

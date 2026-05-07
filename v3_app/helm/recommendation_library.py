@@ -19,6 +19,7 @@ class RecommendationSpec:
     confidence_score: float
     group_id: str
     group_label: str
+    evidence_source: str = "Workspace values"
 
 
 PARAMETER_KEYS = {
@@ -370,6 +371,7 @@ def _diff_from_spec(workspace: WorkspaceConfig, spec: RecommendationSpec) -> Hel
         risk_level=spec.risk_level,
         group_id=spec.group_id,
         group_label=spec.group_label,
+        evidence_source=spec.evidence_source,
     )
 
 

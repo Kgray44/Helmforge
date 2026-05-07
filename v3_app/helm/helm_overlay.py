@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 
 from shared_core.models.runtime import RuntimePreflightStatus
 from shared_core.models.workspace import WorkspaceConfig
+from v3_app.helm.context import HelmContext
 from v3_app.helm.diff_model import HelmDiff, apply_selected_diffs, revert_applied_diffs
 from v3_app.helm.helm_engine import HelmEngine, HelmRecommendationGroup, HelmRecommendationResult
 from v3_app.helm.symptom_library import SYMPTOM_CHIPS
@@ -40,6 +41,7 @@ class HelmOverlay(QDialog):
         runtime_status: RuntimePreflightStatus,
         on_workspace_changed: WorkspaceChanged | None = None,
         on_status: StatusChanged | None = None,
+        selected_axis: str | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -49,6 +51,7 @@ class HelmOverlay(QDialog):
         self.setModal(True)
         self._workspace = workspace
         self._runtime_status = runtime_status
+        self._selected_axis = selected_axis
         self._on_workspace_changed = on_workspace_changed
         self._on_status = on_status
         self._engine = HelmEngine()
@@ -57,6 +60,8 @@ class HelmOverlay(QDialog):
         self._parent_effect: QGraphicsOpacityEffect | None = None
         self._diff_checks: dict[str, QCheckBox] = {}
         self._group_checks: dict[str, QCheckBox] = {}
+        self._group_diff_labels: dict[str, tuple[str, ...]] = {}
+        self._follow_up_answers: dict[str, str] = {}
 
         self._build_ui()
 
@@ -223,6 +228,9 @@ class HelmOverlay(QDialog):
         layout = card_layout(frame)
         layout.addWidget(card_header("What I found", "Diagnosis, confidence, and context from the current stack and runtime state."))
         self.confidence_chip = status_chip("Idle", tone="warning", object_name="helmConfidenceChip")
+        self.context_summary = QLabel("Axis context: workspace-wide\nEvidence: Workspace values\nLive analysis: not active")
+        self.context_summary.setObjectName("helmContextSummary")
+        self.context_summary.setWordWrap(True)
         self.findings_title = QLabel("I'm ready when you are.")
         self.findings_title.setObjectName("routeSummaryValue")
         self.findings_title.setWordWrap(True)
@@ -230,6 +238,7 @@ class HelmOverlay(QDialog):
         self.findings_body.setObjectName("cardBody")
         self.findings_body.setWordWrap(True)
         layout.addWidget(self.confidence_chip)
+        layout.addWidget(self.context_summary)
         layout.addWidget(self.findings_title)
         layout.addWidget(self.findings_body)
         return frame
@@ -240,17 +249,23 @@ class HelmOverlay(QDialog):
         layout.addWidget(card_header("Apply / Revert", "Helm updates the current workspace only. Save when you want to keep the result."))
         actions = QHBoxLayout()
         actions.setSpacing(10)
-        apply_button = action_button("Apply Selected Changes", object_name="helmApplySelectedButton")
-        apply_button.clicked.connect(self.apply_selected_changes)
-        revert_button = action_button("Revert Last Helm Changes", object_name="helmRevertLastButton")
-        revert_button.clicked.connect(self.revert_last_changes)
-        actions.addWidget(apply_button)
-        actions.addWidget(revert_button)
+        self.apply_button = action_button("Apply Selected Changes", object_name="helmApplySelectedButton")
+        self.apply_button.clicked.connect(self.apply_selected_changes)
+        self.apply_button.setEnabled(False)
+        self.revert_button = action_button("Revert Last Helm Changes", object_name="helmRevertLastButton")
+        self.revert_button.clicked.connect(self.revert_last_changes)
+        actions.addWidget(self.apply_button)
+        actions.addWidget(self.revert_button)
         actions.addStretch(1)
-        self.apply_status = QLabel("Nothing has been applied yet.")
-        self.apply_status.setObjectName("cardBody")
+        self.review_summary = QLabel("Nothing has been applied yet. Selected changes are staged only after analysis.")
+        self.review_summary.setObjectName("helmReviewSummary")
+        self.review_summary.setWordWrap(True)
+        self.apply_status = QLabel("There isn't a Helm batch to revert yet.")
+        self.apply_status.setObjectName("helmApplyStatus")
+        self.apply_status.setProperty("uiRole", "cardBody")
         self.apply_status.setWordWrap(True)
         layout.addLayout(actions)
+        layout.addWidget(self.review_summary)
         layout.addWidget(self.apply_status)
         return frame
 
@@ -263,6 +278,8 @@ class HelmOverlay(QDialog):
             self._workspace,
             runtime_truth=self._runtime_status.truth.value,
             output_verified=self._runtime_status.live_output_writes_verified,
+            answers=self._follow_up_answers,
+            selected_axis=self._selected_axis,
         )
         self._render_result(self._last_result)
 
@@ -275,31 +292,37 @@ class HelmOverlay(QDialog):
     def cancel_draft(self) -> None:
         self.symptom_input.setPlainText("")
         self._last_result = None
+        self._follow_up_answers = {}
         self._clear_diffs("I'll propose draft-only changes before anything is applied.")
         self.confidence_chip.setText("Idle")
         self.confidence_chip.setProperty("chipTone", "warning")
+        self.context_summary.setText("Axis context: workspace-wide\nEvidence: Workspace values\nLive analysis: not active")
         self.findings_title.setText("I'm ready when you are.")
         self.findings_body.setText("Tell me what feels wrong and I'll compare it against the current workspace.")
-        self.apply_status.setText("Nothing has been applied yet.")
+        self.review_summary.setText("Nothing has been applied yet. Selected changes are staged only after analysis.")
+        self.apply_status.setText("There isn't a Helm batch to revert yet.")
+        self.apply_button.setEnabled(False)
 
     def apply_selected_changes(self) -> None:
         if self._last_result is None or not self._last_result.diffs:
             self.apply_status.setText("I do not have selected changes to apply yet.")
             return
-        selected_diffs = []
-        for diff in self._last_result.diffs:
-            checkbox = self._diff_checks.get(diff.label)
-            group_checkbox = self._group_checks.get(diff.group_id)
-            group_selected = True if group_checkbox is None else group_checkbox.isChecked()
-            diff_selected = True if checkbox is None else checkbox.isChecked()
-            selected_diffs.append(replace(diff, selected=group_selected and diff_selected))
+        selected_diffs = self._selected_diffs_from_ui()
+        selected_count = sum(1 for diff in selected_diffs if diff.selected)
+        if selected_count == 0:
+            self.apply_status.setText("Select at least one change before applying.")
+            self.apply_button.setEnabled(False)
+            return
         updated, applied = apply_selected_diffs(self._workspace, tuple(selected_diffs))
         applied_count = sum(1 for diff in applied if diff.applied)
         self._workspace = updated
-        self._last_applied_diffs = applied
+        self._last_applied_diffs = tuple(diff for diff in applied if diff.applied)
         self._last_result = replace(self._last_result, diffs=applied)
         self._render_result(self._last_result)
-        self.apply_status.setText(f"I staged {applied_count} selected changes in memory. Save the workspace if you want to keep them.")
+        self.apply_status.setText(
+            f"Applied {applied_count} changes in memory. Save Workspace is still required to keep them. "
+            "You can revert the last Helm batch."
+        )
         if self._on_workspace_changed is not None:
             self._on_workspace_changed(updated, f"Helm staged {applied_count} in-memory changes.")
         elif self._on_status is not None:
@@ -307,12 +330,18 @@ class HelmOverlay(QDialog):
 
     def revert_last_changes(self) -> None:
         if not self._last_applied_diffs:
-            self.apply_status.setText("I do not have a Helm-applied batch to revert yet.")
+            self.apply_status.setText("There isn't a Helm batch to revert yet.")
             return
         reverted = revert_applied_diffs(self._workspace, self._last_applied_diffs)
         self._workspace = reverted
         self._last_applied_diffs = ()
-        self.apply_status.setText("I reverted the last Helm-applied batch in memory.")
+        if self._last_result is not None:
+            self._last_result = replace(
+                self._last_result,
+                diffs=tuple(replace(diff, applied=False) for diff in self._last_result.diffs),
+            )
+            self._render_result(self._last_result)
+        self.apply_status.setText("Reverted the last Helm batch. The workspace is back to the prior draft values.")
         if self._on_workspace_changed is not None:
             self._on_workspace_changed(reverted, "Helm reverted the last in-memory change batch.")
         elif self._on_status is not None:
@@ -321,6 +350,7 @@ class HelmOverlay(QDialog):
     def _render_result(self, result: HelmRecommendationResult) -> None:
         self.confidence_chip.setText(result.confidence if result.confidence != "None" else "Idle")
         self.confidence_chip.setProperty("chipTone", "success" if result.status == "ready" else "warning")
+        self.context_summary.setText(_context_summary_text(result.context))
         self.findings_title.setText(result.summary)
         self.findings_body.setText(_findings_text(result))
         if result.diffs:
@@ -328,13 +358,16 @@ class HelmOverlay(QDialog):
                 self._render_groups(result.groups)
             else:
                 self._render_diffs(result.diffs)
-            self.apply_status.setText(f"{len(result.diffs)} changes ready. I will keep this in memory until you save the workspace.")
+            self.apply_status.setText("Review these before applying. Nothing has been applied yet.")
+            self._update_review_summary()
         else:
             if result.follow_up_questions:
-                self._clear_diffs("Answer the follow-up questions and I will keep the recommendation narrow.")
+                self._render_follow_ups(result)
             else:
                 self._clear_diffs("I do not have safe diffs for that symptom yet.")
+            self.review_summary.setText("Nothing has been applied yet. Selected changes are staged only after analysis.")
             self.apply_status.setText("Nothing has been applied yet.")
+            self.apply_button.setEnabled(False)
 
     def _clear_diffs(self, message: str) -> None:
         while self.diff_list.count():
@@ -344,6 +377,7 @@ class HelmOverlay(QDialog):
                 widget.deleteLater()
         self._diff_checks = {}
         self._group_checks = {}
+        self._group_diff_labels = {}
         label = QLabel(message)
         label.setObjectName("cardBody")
         label.setWordWrap(True)
@@ -356,6 +390,36 @@ class HelmOverlay(QDialog):
         for diff in diffs:
             self._add_diff_row(diff, self.diff_list)
 
+    def _render_follow_ups(self, result: HelmRecommendationResult) -> None:
+        self._clear_diffs("Answer these and I'll narrow the recommendation before staging changes.")
+        self.diff_empty_label.hide()
+        for question in result.follow_up_questions:
+            question_card = card(f"helmFollowUp_{question.question_id}")
+            layout = card_layout(question_card)
+            prompt = QLabel(question.prompt)
+            prompt.setObjectName("routeSummaryValue")
+            prompt.setWordWrap(True)
+            reason = QLabel(question.reason)
+            reason.setObjectName("cardBody")
+            reason.setWordWrap(True)
+            buttons = QHBoxLayout()
+            buttons.setSpacing(8)
+            for option in question.options:
+                button = QPushButton(_option_label(option))
+                button.setObjectName(f"helmFollowUp_{question.question_id}_{option}")
+                button.setProperty("uiRole", "symptomChip")
+                button.clicked.connect(
+                    lambda _checked=False, question_id=question.question_id, selected=option: self._answer_follow_up(
+                        question_id, selected
+                    )
+                )
+                buttons.addWidget(button)
+            buttons.addStretch(1)
+            layout.addWidget(prompt)
+            layout.addWidget(reason)
+            layout.addLayout(buttons)
+            self.diff_list.addWidget(question_card)
+
     def _render_groups(self, groups: tuple[HelmRecommendationGroup, ...]) -> None:
         self._clear_diffs("")
         self.diff_empty_label.hide()
@@ -367,15 +431,21 @@ class HelmOverlay(QDialog):
             check.setChecked(group.selected)
             title = QLabel(f"{group.label}")
             title.setObjectName("routeSummaryValue")
-            confidence = QLabel(f"Confidence: {group.confidence} · {group.affected_count} parameters")
+            confidence = QLabel(f"Confidence: {group.confidence} - {group.affected_count} parameters")
             confidence.setObjectName("sectionHint")
             summary = QLabel(group.summary)
             summary.setObjectName("cardBody")
             summary.setWordWrap(True)
+            expected = QLabel(f"Expected: {_group_expected_outcome(group)}")
+            expected.setObjectName("cardBody")
+            expected.setWordWrap(True)
+            risk = QLabel(f"Risk: {_group_risk_level(group)} - {'Selected' if group.selected else 'Not selected'}")
+            risk.setObjectName("sectionHint")
+            risk.setWordWrap(True)
             why = QPushButton("Why?")
             why.setObjectName(f"helmWhy_{_key(group.label)}")
             why.setProperty("uiRole", "subtleAction")
-            why_detail = QLabel(group.summary)
+            why_detail = QLabel(f"{group.summary} I keep this staged until you choose Apply Selected Changes.")
             why_detail.setObjectName("cardBody")
             why_detail.setWordWrap(True)
             why_detail.hide()
@@ -384,9 +454,13 @@ class HelmOverlay(QDialog):
             layout.addWidget(title)
             layout.addWidget(confidence)
             layout.addWidget(summary)
+            layout.addWidget(expected)
+            layout.addWidget(risk)
             layout.addWidget(why)
             layout.addWidget(why_detail)
             self._group_checks[group.group_id] = check
+            self._group_diff_labels[group.group_id] = tuple(diff.label for diff in group.diffs)
+            check.stateChanged.connect(lambda state, group_id=group.group_id: self._set_group_selected(group_id, state))
             for diff in group.diffs:
                 self._add_diff_row(diff, layout)
             self.diff_list.addWidget(group_card)
@@ -397,22 +471,27 @@ class HelmOverlay(QDialog):
             check = QCheckBox("Selected")
             check.setObjectName(f"helmDiffCheck_{_key(diff.label)}")
             check.setChecked(diff.selected)
-            title = QLabel(f"{diff.label}: {diff.value_text}")
+            check.stateChanged.connect(lambda _state: self._update_review_summary())
+            title = QLabel(f"{diff.label} - {diff.section}")
             title.setObjectName("routeSummaryValue")
             title.setWordWrap(True)
+            values = QLabel(f"{diff.value_text} - Delta {_fmt_delta(diff.delta_amount)}")
+            values.setObjectName("sectionHint")
+            values.setWordWrap(True)
             reason = QLabel(diff.reason)
             reason.setObjectName("cardBody")
             reason.setWordWrap(True)
             expected = QLabel(f"Expected: {diff.expected_outcome}")
             expected.setObjectName("cardBody")
             expected.setWordWrap(True)
-            risk = QLabel(f"Risk: {diff.risk_level} · Confidence: {diff.confidence_score:.2f} · {diff.reversibility}")
+            risk = QLabel(f"Risk: {diff.risk_level} - Confidence: {diff.confidence_score:.2f} - {diff.reversibility}")
             risk.setObjectName("sectionHint")
             risk.setWordWrap(True)
             state = QLabel("Applied" if diff.applied else "Draft")
             state.setObjectName("sectionHint")
             layout.addWidget(check)
             layout.addWidget(title)
+            layout.addWidget(values)
             layout.addWidget(reason)
             layout.addWidget(expected)
             layout.addWidget(risk)
@@ -420,13 +499,118 @@ class HelmOverlay(QDialog):
             self._diff_checks[diff.label] = check
             parent_layout.addWidget(row)
 
+    def _answer_follow_up(self, question_id: str, answer: str) -> None:
+        self._follow_up_answers[question_id] = answer
+        self.apply_status.setText("I noted that answer. Press Analyze again and I'll narrow the recommendation.")
+
+    def _set_group_selected(self, group_id: str, state: int) -> None:
+        selected = state == Qt.CheckState.Checked.value or state == Qt.CheckState.Checked
+        for label in self._group_diff_labels.get(group_id, ()):
+            checkbox = self._diff_checks.get(label)
+            if checkbox is not None and checkbox.isChecked() != selected:
+                checkbox.setChecked(selected)
+        self._update_review_summary()
+
+    def _selected_diffs_from_ui(self) -> tuple[HelmDiff, ...]:
+        if self._last_result is None:
+            return ()
+        selected_diffs: list[HelmDiff] = []
+        for diff in self._last_result.diffs:
+            checkbox = self._diff_checks.get(diff.label)
+            diff_selected = True if checkbox is None else checkbox.isChecked()
+            selected_diffs.append(replace(diff, selected=diff_selected))
+        return tuple(selected_diffs)
+
+    def _update_review_summary(self) -> None:
+        if self._last_result is None or not self._last_result.diffs:
+            self.apply_button.setEnabled(False)
+            return
+        selected = [diff for diff in self._selected_diffs_from_ui() if diff.selected]
+        selected_count = len(selected)
+        group_count = len(self._last_result.groups)
+        parameter_count = len(self._last_result.diffs)
+        axes = ", ".join(dict.fromkeys(diff.axis for diff in self._last_result.diffs))
+        expected = _review_expected_summary(self._last_result)
+        risk = _review_risk_summary(selected or self._last_result.diffs)
+        change_word = "change is" if selected_count == 1 else "changes are"
+        group_word = "group" if group_count == 1 else "groups"
+        self.review_summary.setText(
+            f"I found {group_count} tuning {group_word} affecting {parameter_count} parameters.\n"
+            f"{selected_count} {change_word} selected.\n"
+            f"affected axes: {axes}\n"
+            f"Expected result: {expected}\n"
+            f"Risk: {risk}; these are reversible and not saved yet.\n"
+            "In-memory only. Save Workspace is still required to keep them."
+        )
+        if selected_count == 0:
+            self.apply_status.setText("Select at least one change before applying.")
+        elif not any(diff.applied for diff in self._last_result.diffs):
+            self.apply_status.setText(f"{selected_count} changes ready. Review these before applying. Selected changes are staged only.")
+        self.apply_button.setEnabled(selected_count > 0)
+
 
 def _key(value: str) -> str:
     return value.replace("'", "").replace("/", "_").replace(" ", "_")
 
 
+def _fmt_delta(delta: float) -> str:
+    sign = "+" if delta > 0 else ""
+    text = f"{delta:.2f}".rstrip("0").rstrip(".")
+    return f"{sign}{text}" if text else "0"
+
+
+def _option_label(value: str) -> str:
+    return value.replace("_", " ").title()
+
+
+def _group_expected_outcome(group: HelmRecommendationGroup) -> str:
+    if not group.diffs:
+        return "A small, reversible tuning change."
+    return group.diffs[0].expected_outcome
+
+
+def _group_risk_level(group: HelmRecommendationGroup) -> str:
+    risks = {"Low": 1, "Medium": 2, "High": 3}
+    highest = max(group.diffs, key=lambda diff: risks.get(diff.risk_level, 0), default=None)
+    return highest.risk_level if highest is not None else "Low"
+
+
+def _review_expected_summary(result: HelmRecommendationResult) -> str:
+    if result.symptom is not None and result.symptom.symptom_id == "combat_sluggish":
+        return "smoother combat recovery with less sluggish yaw response."
+    if result.groups:
+        labels = ", ".join(group.label for group in result.groups)
+        return f"a more controlled feel across {labels}."
+    return "a small, reversible tuning change."
+
+
+def _review_risk_summary(diffs: tuple[HelmDiff, ...] | list[HelmDiff]) -> str:
+    risks = {diff.risk_level for diff in diffs}
+    if "High" in risks:
+        return "high"
+    if "Medium" in risks:
+        return "moderate"
+    return "low"
+
+
+def _context_summary_text(context: HelmContext | None) -> str:
+    if context is None:
+        return "Axis context: workspace-wide\nEvidence: Workspace values\nLive analysis: not active"
+    return "\n".join(
+        (
+            f"Axis context: {context.selected_axis}",
+            f"Evidence: {', '.join(context.evidence_labels)}",
+            f"Runtime: {context.runtime.runtime_truth}",
+            f"Output verified: {str(context.runtime.output_verified).lower()}",
+            f"Discovery-only status: {context.runtime.device_discovery_status}",
+            "Live analysis: not active",
+        )
+    )
+
+
 def _findings_text(result: HelmRecommendationResult) -> str:
     lines = list(result.findings)
+    lines.append("I'm using workspace values only; live hardware analysis is not active.")
     if result.analysis_findings:
         lines.append("")
         lines.extend(f"{finding.title}: {finding.text}" for finding in result.analysis_findings)

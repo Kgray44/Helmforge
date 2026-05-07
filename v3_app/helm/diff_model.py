@@ -53,6 +53,7 @@ class HelmDiff:
     reversibility: str = "In-memory reversible"
     group_id: str = "general"
     group_label: str = "General"
+    evidence_source: str = "Workspace values"
 
     @property
     def parameter_key(self) -> str:
