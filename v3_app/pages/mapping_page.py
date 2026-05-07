@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import replace
+from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QUrl
@@ -35,9 +36,24 @@ from shared_core.models.runtime import (
 )
 from shared_core.models.workspace import WorkspaceConfig, create_default_workspace
 from shared_core.runtime.device_discovery import build_runtime_preflight_status
+from shared_core.runtime.hotas_input import (
+    MissingPhysicalInputBackend,
+    PhysicalInputBackend,
+    PhysicalInputSnapshot,
+    build_physical_input_diagnostics,
+)
 from shared_core.runtime.runtime_bridge import RuntimeBridge
 from shared_core.runtime.setup_guidance import OFFICIAL_THRUSTMASTER_SUPPORT_PAGE
+from shared_core.runtime.vjoy_output import (
+    VirtualOutputBackend,
+    VirtualOutputLoopSnapshot,
+    VirtualOutputVerificationResult,
+    VirtualOutputWriteLoop,
+    build_virtual_output_diagnostics,
+)
 from v3_app.services.app_state import AppState
+from v3_app.services.bridge_client import RuntimeFrameTelemetryPayload
+from v3_app.services.physical_input_ui import build_input_source_status, raw_axes_from_physical_snapshot
 from v3_app.ui.status_chips import action_button, status_chip
 
 
@@ -65,6 +81,15 @@ class MappingPage(QWidget):
         on_dirty: OnDirty | None = None,
         on_status: OnStatus | None = None,
         on_workspace_changed: OnWorkspaceChanged | None = None,
+        physical_input_backend: PhysicalInputBackend | None = None,
+        selected_physical_input_device_id: str | None = None,
+        physical_input_snapshot: PhysicalInputSnapshot | None = None,
+        physical_input_clock: Callable[[], datetime] | None = None,
+        physical_sample_stale_after_seconds: float = 2.0,
+        virtual_output_backend: VirtualOutputBackend | None = None,
+        virtual_output_verification: VirtualOutputVerificationResult | None = None,
+        virtual_output_loop: VirtualOutputWriteLoop | VirtualOutputLoopSnapshot | None = None,
+        runtime_frame: RuntimeFrameTelemetryPayload | None = None,
     ) -> None:
         super().__init__()
         self.setObjectName("mappingPage")
@@ -74,6 +99,34 @@ class MappingPage(QWidget):
         self._on_dirty = on_dirty
         self._on_status = on_status
         self._on_workspace_changed = on_workspace_changed
+        self._physical_input_backend = physical_input_backend or MissingPhysicalInputBackend()
+        self._physical_input_snapshot = physical_input_snapshot
+        input_now = physical_input_clock() if physical_input_clock is not None else (
+            physical_input_snapshot.sampled_at if physical_input_snapshot is not None else None
+        )
+        self._input_source_status = build_input_source_status(
+            backend=self._physical_input_backend,
+            selected_device_id=selected_physical_input_device_id,
+            latest_snapshot=physical_input_snapshot,
+            now=input_now,
+            stale_after_seconds=physical_sample_stale_after_seconds,
+        )
+        self._physical_input_diagnostics = build_physical_input_diagnostics(
+            self._physical_input_backend,
+            selected_device_id=selected_physical_input_device_id,
+            latest_snapshot=physical_input_snapshot,
+        )
+        self._virtual_output_diagnostics = build_virtual_output_diagnostics(
+            backend=virtual_output_backend,
+            verification=virtual_output_verification,
+        )
+        self._virtual_output_loop_snapshot = _virtual_output_loop_snapshot(virtual_output_loop)
+        self._runtime_frame = runtime_frame
+        self._physical_raw_axes = (
+            raw_axes_from_physical_snapshot(physical_input_snapshot)
+            if physical_input_snapshot is not None and self._input_source_status.is_fresh_physical_sample
+            else None
+        )
         self._snapshot = RuntimeBridge(
             preflight_status=self._runtime_status,
             deterministic_simulation=True,
@@ -115,7 +168,7 @@ class MappingPage(QWidget):
 
         title = QLabel("Mapping")
         title.setObjectName("pageTitle")
-        subtitle = QLabel("Map raw HOTAS axes, buttons, and hats to the bridge outputs that drive vJoy.")
+        subtitle = QLabel("Map raw HOTAS axes, buttons, and hats to the bridge output intent path.")
         subtitle.setObjectName("pageSubtitle")
         subtitle.setWordWrap(True)
         helper = QLabel(
@@ -188,7 +241,7 @@ class MappingPage(QWidget):
 
         title = QLabel("Live Route Summary")
         title.setObjectName("cardTitle")
-        body = QLabel("See how the active workspace is currently landing on runtime vJoy outputs.")
+        body = QLabel("See how the active workspace is currently landing on intended virtual output routes.")
         body.setObjectName("cardBody")
         body.setWordWrap(True)
         layout.addWidget(title)
@@ -257,10 +310,48 @@ class MappingPage(QWidget):
         grid.setVerticalSpacing(8)
         rows = (
             ("Physical HOTAS target", "Thrustmaster T-Flight HOTAS One / Thrustmaster T.Flight Hotas One"),
+            ("Input source", self._input_source_status.source_label),
+            ("Physical input backend", self._physical_input_diagnostics.physical_input_backend),
+            ("Selected input device", self._physical_input_diagnostics.selected_input_device),
+            ("Supported HOTAS", self._physical_input_diagnostics.supported_hotas),
+            ("Input sampling", self._input_source_status.source_status),
+            ("Last sample", self._physical_input_diagnostics.last_sample),
+            ("Sample source", self._input_source_status.sample_source),
+            ("Axis count", str(self._input_source_status.axis_count)),
+            ("Button count", str(self._input_source_status.button_count)),
+            ("Hat count", str(self._input_source_status.hat_count)),
+            ("Runtime frame", _runtime_frame_status(self._runtime_frame)),
+            ("Runtime frame source", _runtime_frame_source(self._runtime_frame)),
+            ("Pipeline status", _runtime_frame_pipeline_status(self._runtime_frame)),
+            ("Output intent ready", _runtime_frame_output_intent_ready(self._runtime_frame)),
+            ("Runtime frame output backend", _runtime_frame_output_backend(self._runtime_frame)),
+            ("Runtime frame output loop state", _runtime_frame_output_loop_state(self._runtime_frame)),
+            ("Runtime frame last output write", _runtime_frame_last_output_write(self._runtime_frame)),
+            ("Input proof", _runtime_frame_input_proof(self._runtime_frame)),
+            ("Pipeline proof", _runtime_frame_pipeline_proof(self._runtime_frame)),
+            ("Output proof", _runtime_frame_output_proof(self._runtime_frame)),
+            ("Runtime candidate", _runtime_frame_candidate(self._runtime_frame)),
+            ("Proof summary", _runtime_frame_proof_summary(self._runtime_frame)),
             ("Input device status", self._input_status_label()),
             ("Output / vJoy status", self._output_status_label()),
+            ("Virtual output backend", self._virtual_output_diagnostics.virtual_output_backend),
+            ("vJoy dependency", self._virtual_output_diagnostics.vjoy_dependency_status),
+            ("vJoy device", self._virtual_output_diagnostics.vjoy_device_status),
+            ("Selected output device", self._virtual_output_diagnostics.selected_output_device),
+            ("Output device status", self._virtual_output_diagnostics.output_device_status),
+            ("Output write status", self._virtual_output_diagnostics.output_write_status),
+            ("Output loop state", _output_loop_state(self._virtual_output_loop_snapshot)),
+            ("Output loop write count", _output_loop_write_count(self._virtual_output_loop_snapshot)),
+            ("Neutral restore status", _output_loop_neutral_restore(self._virtual_output_loop_snapshot)),
+            ("Output verification status", self._virtual_output_diagnostics.output_verification_status),
+            ("Output verification source", self._virtual_output_diagnostics.output_verification_source),
+            ("Fake output verified", str(self._virtual_output_diagnostics.fake_output_verified).lower()),
+            ("Real output verified", str(self._virtual_output_diagnostics.real_output_verified).lower()),
+            ("Last verification timestamp", self._virtual_output_diagnostics.last_verification_timestamp),
             ("Runtime truth", self._runtime_truth_label()),
-            ("Output verification", f"Output writes verified: {str(self._runtime_status.live_output_writes_verified).lower()}"),
+            ("Output verified", str(self._output_verified()).lower()),
+            ("Output verification", f"Output writes verified: {str(self._output_verified()).lower()}"),
+            ("Full Live Runtime Ready", "false"),
         )
         for index, (label, value) in enumerate(rows):
             key = QLabel(label)
@@ -272,7 +363,10 @@ class MappingPage(QWidget):
             grid.addWidget(val, index, 1)
 
         caution = QLabel(
-            "The UI can edit the mapping workspace while the future Bridge owns real-time input, processing, and output writes."
+            "Physical input samples are read-only when present. The UI can edit the mapping workspace while the "
+            "future Bridge owns real-time processing. Phase 15C output loops require explicit enable and a verified backend; "
+            "Phase 16C shows input, pipeline, output, and output-loop proof separately. vJoy detection alone is not enough, "
+            "runtime_frame output intent is not a vJoy write, and Full Live Runtime Ready remains false until the final readiness gate."
         )
         caution.setObjectName("cardBody")
         caution.setWordWrap(True)
@@ -290,15 +384,16 @@ class MappingPage(QWidget):
 
         title = QLabel("Axis Routing")
         title.setObjectName("cardTitle")
-        body = QLabel("Assign each control axis to the raw HOTAS channel it reads from and the logical vJoy axis it should drive.")
+        body = QLabel("Assign each control axis to the raw HOTAS channel it reads from and the logical virtual axis it intends to drive.")
         body.setObjectName("cardBody")
         body.setWordWrap(True)
 
         self._axis_table = QTableWidget(len(self._workspace.mappings.axis_routes), 7)
         table = self._axis_table
         table.setObjectName("axisRoutingTable")
+        live_raw_label = "Live Raw (Physical input sample)" if self._physical_raw_axes is not None else "Live Raw"
         table.setHorizontalHeaderLabels(
-            ("Function", "Raw Axis", "Logical Output", "Runtime vJoy", "Invert", "Live Raw", "Live Output")
+            ("Function", "Raw Axis", "Logical Output", "Runtime vJoy", "Invert", live_raw_label, "Live Output")
         )
         self._configure_table(table, minimum_height=320)
         self._populate_axis_table()
@@ -316,7 +411,7 @@ class MappingPage(QWidget):
 
         title = QLabel("Button Routing")
         title.setObjectName("cardTitle")
-        body = QLabel("Map each HOTAS button to the vJoy button that should fire on output.")
+        body = QLabel("Map each HOTAS button to the virtual button intended for output.")
         body.setObjectName("cardBody")
         body.setWordWrap(True)
 
@@ -354,7 +449,7 @@ class MappingPage(QWidget):
 
         title = QLabel("Hat Routing")
         title.setObjectName("cardTitle")
-        body = QLabel("Drive a vJoy POV and optional directional buttons from each HOTAS hat switch.")
+        body = QLabel("Map each HOTAS hat switch to an intended virtual POV and optional directional buttons.")
         body.setObjectName("cardBody")
         body.setWordWrap(True)
 
@@ -387,7 +482,11 @@ class MappingPage(QWidget):
         table = self._axis_table
         table.setRowCount(len(self._workspace.mappings.axis_routes))
         for row, route in enumerate(self._workspace.mappings.axis_routes):
-            raw_value = self._snapshot.raw_axis_values.get(route.function_name, route.live_raw_value)
+            raw_value = (
+                self._physical_raw_axes.get(route.function_name, route.live_raw_value)
+                if self._physical_raw_axes is not None
+                else self._snapshot.raw_axis_values.get(route.function_name, route.live_raw_value)
+            )
             output_value = self._snapshot.final_output_values.get(route.function_name, route.live_output_value)
             self._set_text_item(table, row, 0, route.function_name)
             self._set_combo_cell(
@@ -725,6 +824,9 @@ class MappingPage(QWidget):
             return "vJoy Detected, Output Unverified"
         return "Output Not Checked"
 
+    def _output_verified(self) -> bool:
+        return bool(self._runtime_status.live_output_writes_verified or self._virtual_output_diagnostics.output_verified)
+
     def _runtime_truth_label(self) -> str:
         return {
             RuntimeTruth.SIMULATED: "simulated",
@@ -750,6 +852,83 @@ class MappingPage(QWidget):
 def _route_summary(route: AxisMapping) -> str:
     raw = route.raw_axis_channel.lower()
     return f"Raw {raw} -> {route.logical_output} -> {route.runtime_vjoy_output}"
+
+
+def _virtual_output_loop_snapshot(
+    loop: VirtualOutputWriteLoop | VirtualOutputLoopSnapshot | None,
+) -> VirtualOutputLoopSnapshot | None:
+    if loop is None:
+        return None
+    if isinstance(loop, VirtualOutputLoopSnapshot):
+        return loop
+    return loop.snapshot()
+
+
+def _output_loop_state(snapshot: VirtualOutputLoopSnapshot | None) -> str:
+    return snapshot.state.value if snapshot is not None else "disabled"
+
+
+def _output_loop_write_count(snapshot: VirtualOutputLoopSnapshot | None) -> str:
+    return str(snapshot.write_count) if snapshot is not None else "0"
+
+
+def _output_loop_neutral_restore(snapshot: VirtualOutputLoopSnapshot | None) -> str:
+    return snapshot.neutral_restore_status if snapshot is not None else "not_attempted"
+
+
+def _runtime_frame_status(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    if runtime_frame is None:
+        return "unavailable"
+    return "available" if runtime_frame.available else runtime_frame.parse_status
+
+
+def _runtime_frame_source(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    return runtime_frame.input_source if runtime_frame is not None else "unavailable"
+
+
+def _runtime_frame_pipeline_status(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    return runtime_frame.pipeline_status if runtime_frame is not None else "unavailable"
+
+
+def _runtime_frame_output_intent_ready(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    return str(bool(runtime_frame and runtime_frame.output_intent_ready)).lower()
+
+
+def _runtime_frame_output_backend(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    return runtime_frame.output_backend if runtime_frame is not None else "Unavailable"
+
+
+def _runtime_frame_output_loop_state(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    return runtime_frame.output_loop_state if runtime_frame is not None else "disabled"
+
+
+def _runtime_frame_last_output_write(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    return runtime_frame.last_output_write_status if runtime_frame is not None else "Not active"
+
+
+def _runtime_frame_input_proof(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    return runtime_frame.input_proof if runtime_frame is not None else "unavailable"
+
+
+def _runtime_frame_pipeline_proof(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    return runtime_frame.pipeline_proof if runtime_frame is not None else "unavailable"
+
+
+def _runtime_frame_output_proof(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    return runtime_frame.output_proof if runtime_frame is not None else "unavailable"
+
+
+def _runtime_frame_candidate(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    if runtime_frame is None:
+        return "unavailable"
+    if runtime_frame.verified_runtime_candidate:
+        return "candidate - Phase 16D final gate pending"
+    reason = runtime_frame.blocked_reason or "proof incomplete"
+    return f"blocked - {reason}"
+
+
+def _runtime_frame_proof_summary(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    return runtime_frame.proof_summary if runtime_frame is not None and runtime_frame.proof_summary else "unavailable"
 
 
 def _parse_button(value: str) -> int:

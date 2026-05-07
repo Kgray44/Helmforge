@@ -39,7 +39,7 @@ class HelpSearchResult:
 
 
 def all_articles() -> tuple[HelpArticle, ...]:
-    return ARTICLES
+    return (*ARTICLES, *AUXILIARY_ARTICLES)
 
 
 def articles_by_category() -> dict[str, tuple[HelpArticle, ...]]:
@@ -51,7 +51,7 @@ def articles_by_category() -> dict[str, tuple[HelpArticle, ...]]:
 
 def get_article(title: str) -> HelpArticle:
     normalized = _normalize(title)
-    for article in ARTICLES:
+    for article in (*ARTICLES, *AUXILIARY_ARTICLES):
         if _normalize(article.title) == normalized:
             return article
     raise KeyError(title)
@@ -63,7 +63,7 @@ def search_articles(query: str) -> tuple[HelpSearchResult, ...]:
         return tuple(HelpSearchResult(article=article, score=0) for article in ARTICLES)
 
     results: list[HelpSearchResult] = []
-    for article in ARTICLES:
+    for article in (*ARTICLES, *AUXILIARY_ARTICLES):
         haystack = _normalize(article.search_text)
         if not all(term in haystack for term in terms):
             continue
@@ -114,7 +114,7 @@ ARTICLES = (
         paragraphs=(
             "Effective Response Stack is the diagnostic page that explains why an axis feels the way it does. It visualizes recovered stages: Raw Input, Center Conditioning, Curve / Shape, Base Output Limits, Filtering, Mode Modifiers, Rule Injections, and Final Output.",
             "The Raw vs Final graph uses a true linear reference and processed response curve. Stage cards are updated in place to avoid the old twitch behavior from rebuilding widgets on every update.",
-            "Rules appear through shared rule injection metadata at their actual stack context. If stack data is simulated or unavailable, the page and Help / Docs should say so plainly instead of implying live hardware analysis.",
+            "Rules appear through shared rule injection metadata at their actual stack context. If stack data is simulated or unavailable, the page and Help / Docs should say so plainly instead of implying live hardware analysis. In Phase 14, physical input samples may feed a read-only stack preview when available, but the preview is diagnostic only and never writes output.",
         ),
     ),
     HelpArticle(
@@ -141,7 +141,7 @@ ARTICLES = (
             "A graph can be useful even in simulation mode, but it is not proof that a physical HOTAS is being polled or that vJoy output writes are verified. Treat graph values as workspace or telemetry evidence depending on the source label.",
             "Phase 12A adds Live Overlay core/config foundations, and Phase 12B adds an app-owned detached overlay window and renderer. Overlay traces can use simulation or runtime snapshot values already available to the UI, but they do not prove live hardware, vJoy writes, or output verification.",
             "Live Overlay is app-owned and detached. It does not inject into games, does not use graphics API hooking, and does not capture the screen. Hotkey and click-through statuses are truth-labeled; they are not claimed unless implemented and verified. Flight Recorder is a separate later phase.",
-            "Phase 13A adds Flight Recorder UI/state/settings/library/preview shell only. Phase 13B adds recorder backend interfaces, telemetry hindsight buffering, a missing backend, an injected simulated backend, and clearly labeled simulated non-video JSON manifests. Phase 13C adds a simulated compositor/exporter that writes metadata and overlay trace bundles, not recordings. For Phase 13 boundaries, real capture and encoding are deferred, hindsight video buffering is deferred, and playable clip export, recorder hotkey registration, screen capture, game injection, graphics API hooking, and runtime activation remain deferred.",
+            "Phase 13A adds Flight Recorder UI/state/settings/library/preview shell only. Phase 13B adds recorder backend interfaces, telemetry hindsight buffering, a missing backend, an injected simulated backend, and clearly labeled simulated non-video JSON manifests. Phase 13C adds a simulated compositor/exporter that writes metadata and overlay trace bundles, not recordings. Phase 13D finalizes the library and metadata-only preview: simulated exports are not real recordings, no screen capture or video encoding is implemented, telemetry hindsight is separate from video hindsight, Live Overlay colors and traces are reused, Ctrl+Shift+F10 is configured as recorder hotkey text but not registered, and Phase 14 is real HOTAS input, not recorder capture. For Phase 13 boundaries, real capture and encoding are deferred, and hindsight video buffering is deferred.",
             "When a graph is backed by simulation, the UI should say Simulation Fallback or a similar truthful status. When Bridge telemetry is fresh, the graph can consume Bridge-provided values while still respecting output_verified truth.",
         ),
     ),
@@ -153,9 +153,13 @@ ARTICLES = (
         related_topics=("Runtime Setup / vJoy Setup", "Performance / Diagnostics", "Live Monitor", "Effective Response Stack"),
         paragraphs=(
             "Telemetry remains the truth surface for Bridge-reported runtime state. Bridge lifecycle describes the Bridge state such as Simulated, Starting, Stopping, or future live states. Runtime truth is the typed status, for example blocked_missing_device or detected_unverified.",
-            "Output verified means actual output writes have been proven by a future verification phase. Full Live Runtime Ready means both input and output are proven. In the current Phase 11A boundary, output_verified remains false and Full Live Runtime Ready remains false.",
-            "HOTAS discovery and Device discovery are read-only identity checks. Process hint is only a diagnostic hint and never becomes runtime truth. Command acknowledgement means Bridge telemetry has a matching request_id for the latest UI command request.",
-            "Stale telemetry is too old to treat as fresh. Missing telemetry means the file is not present. Invalid telemetry means the JSON could not be parsed or validated. Simulation fallback keeps the UI usable when telemetry is stale, missing, or invalid.",
+            "Output verified means actual output writes have been proven by a guarded verification/write path. Full Live Runtime Ready means both input and output are proven. In the final Phase 15D boundary, output_verified remains false in normal runtime unless guarded real verification succeeds, and Full Live Runtime Ready remains false unless Phase 16 end-to-end runtime conditions prove both sides.",
+            "Runtime orchestrator is the Phase 16 contract that can build compact runtime frames from simulation or guarded physical input, run the shared workspace pipeline, produce final output intent, and report output-loop truth. In Phase 16A, the simulation path is complete and output intent remains separate from output write proof.",
+            "Runtime frame is the Phase 16B telemetry surface for compact orchestrator truth. It can show input source, pipeline status, final output intent summary, output loop state, output_verified, Full Live Runtime Ready, runtime truth, blocked reason, warnings, and errors without dumping full internal stack objects.",
+            "Phase 16C connects the verified input/output path semantics. physical input, pipeline, output verification, and output loop are separate proofs. fake/test path does not equal real hardware readiness. Phase 16D owns the final readiness gate, so Full Live Runtime Ready remains false in Phase 16C while verified_runtime_candidate can describe a fully proven candidate path.",
+            "Virtual output backend, Virtual output backend kind, Virtual output backend status, vJoy dependency, vJoy device, output device status, output write status, output verification status, output verification source, Fake output verified, Real output verified, Last verification timestamp, Output loop state, write count, failure count, last output write, neutral restore status, and safety stop reason describe the Phase 15 output surface. vJoy detected does not equal output verified, output intent is not a write, fake/mock verification is not real vJoy verification, and the output loop requires verified backend proof before it can write.",
+            "HOTAS discovery and Device discovery are read-only identity checks. Physical input backend, Supported HOTAS, Selected input device, Input sampling, Physical input sample, Read-only input sampling, Sample source, Sample age, and Physical input read-only are device-selection and read-only sampling truth fields; they do not prove vJoy output or live runtime readiness. Physical input sampling active means raw input can be read, not that output is verified. Process hint is only a diagnostic hint and never becomes runtime truth. Command acknowledgement means Bridge telemetry has a matching request_id for the latest UI command request.",
+            "Stale telemetry is too old to treat as fresh. Missing telemetry means the file is not present. Invalid telemetry means the JSON could not be parsed or validated. Simulation fallback keeps the UI usable when telemetry is stale, missing, or invalid, and stale/error/unavailable physical input falls back safely.",
         ),
     ),
     HelpArticle(
@@ -226,7 +230,8 @@ ARTICLES = (
         related_topics=("Runtime Setup / vJoy Setup", "Saving and Importing", "Profiles"),
         paragraphs=(
             "Mapping defines how source axes, buttons, and hats are routed into the workspace output model. It is the foundation for later tuning, filtering, modes, and conditional rules.",
-            "Mapping edits update the in-memory workspace draft and can be saved to `hotas_bridge_config_v3.json`. The page can show simulation or telemetry-backed values, but mapping itself does not write vJoy.",
+            "Mapping edits update the in-memory workspace draft and can be saved to `hotas_bridge_config_v3.json`. The page can show simulation, telemetry-backed values, or read-only physical samples. Mapping can label Live Raw values as physical input samples when a fresh physical sample is available, but mapping itself does not write vJoy and final output is not written to vJoy in Phase 14.",
+            "Mapping can show runtime frame source, pipeline status, output intent readiness, output backend, and output loop state from Phase 16B telemetry when runtime_frame is available. Phase 16C adds input proof, pipeline proof, output proof, runtime candidate, and compact proof summary fields. Those fields describe orchestrated runtime truth; output intent ready does not mean vJoy output was written.",
             "If the physical HOTAS is missing, mapping can still be edited safely. Runtime truth may remain blocked_missing_device until a later hardware/runtime phase proves live input and output.",
         ),
     ),
@@ -237,10 +242,11 @@ ARTICLES = (
         keywords=("performance", "diagnostics", "perf", "phase 11b", "timings", "preflight"),
         related_topics=("Runtime Indicators", "Runtime Setup / vJoy Setup"),
         paragraphs=(
-            "Performance / Diagnostics is the diagnostics half of Phase 11. Diagnostics are observational. The page surfaces runtime truth, telemetry freshness, Bridge lifecycle, HOTAS discovery, output verification truth, workspace state, and lightweight UI timing metrics.",
+            "Performance / Diagnostics is the diagnostics half of Phase 11. Diagnostics are observational and read-only. The page surfaces runtime truth, telemetry freshness, Bridge lifecycle, HOTAS discovery, Phase 14 physical input backend/device-selection/sampling truth, Phase 15 virtual output backend kind/status, guarded verification truth, Output loop state, output loop fields, Phase 16 runtime orchestrator truth when surfaced, simulation fallback state, output verification truth, workspace state, and lightweight UI timing metrics.",
+            "Runtime frame diagnostics include availability, sequence, source, pipeline status, output intent readiness, output backend, output loop state, last output write status, output_verified, Full Live Runtime Ready, runtime truth, blocked reason, warnings, and errors. Runtime path proof includes input proof, pipeline proof, output proof, runtime candidate, output-loop enabled/running/safety-stopped fields, and compact proof summary.",
             "Run Runtime Preflight is safe and does not verify output. It refreshes preflight truth but does not install drivers, launch installers, start the Bridge, poll live HOTAS input, write virtual output, verify output, or activate runtime.",
             "timing metrics are app/UI diagnostics, not live hardware proof. hidden-page skip counters show skipped expensive updates where instrumented, and unavailable counters are labeled truthfully.",
-            "Copy Diagnostics creates local diagnostic text. output_verified remains false until a future verification phase proves writes. Full Live Runtime Ready remains false until future phases prove both input and output.",
+            "Copy Diagnostics creates local diagnostic text and includes Virtual output backend, Virtual output backend kind, Virtual output backend status, vJoy dependency, vJoy device, Output verification status, Output verification source, Fake output verified, Real output verified, Last verification timestamp, output loop fields, neutral restore status, output_verified, and Full Live Runtime Ready. output_verified remains false until a future verification phase proves writes; Phase 15 can report guarded verification and loop truth separately. Full Live Runtime Ready remains false until future phases prove both input and output.",
             "Process presence remains a hint and telemetry remains the truth surface.",
         ),
     ),
@@ -265,7 +271,18 @@ ARTICLES = (
         paragraphs=(
             "Simulation mode works without physical HOTAS hardware. Simulation mode also works without output verification. This lets the UI, workspace model, graphs, rules, and Helm recommendations remain useful while live hardware work is deferred.",
             "Bridge telemetry is the runtime truth surface. Manual Bridge launch remains the current lifecycle model. The manual Bridge launch command is text only: python -m bridge_app.main --run-for-ms 250. The UI does not start, stop, restart, spawn, install, or manage the Bridge.",
-            "physical HOTAS discovery is discovery-only until later hardware/runtime phases. A supported device discovery result does not mean live HOTAS polling exists, live input streaming exists, vJoy writes exist, or Full Live Runtime Ready has been proven.",
+            "Phase 14 added physical input detection, selection, and read-only sampling. physical input sampling is read-only, simulation mode remains available, and stale/error/unavailable physical input falls back safely.",
+            "Phase 14A introduces physical input detection and device selection. simulation mode remains available with no HOTAS connected, no Bridge running, and no physical input backend dependency installed. A supported HOTAS detected does not mean vJoy output is active; device selection does not write output.",
+            "Phase 14B adds read-only physical input sampling and normalization. input sampling errors or disconnects fall back safely. Phase 14C makes that sample truth visible: physical samples may appear in Mapping and Live Monitor, stale or error states fall back safely, and sample stale or error states fall back safely to simulation/unavailable status.",
+            "physical input sampling does not imply vJoy output, output verification, or end-to-end runtime activation. final output is not written to vJoy in Phase 14; vJoy writes remain Phase 15 or later, and Phase 15 is where virtual output and vJoy work begins.",
+            "Phase 15A adds output backend contracts, output intent models, missing/fake backend behavior, and safe fake output verification for tests. output intent is not a write. fake/mock verification is not real vJoy verification. vJoy detected does not equal output verified, real output writes are deferred, output_verified remains false in normal runtime, and Full Live Runtime Ready remains false.",
+            "Phase 15B adds guarded real vJoy detection and a bounded write verification path. vJoy detection is not output verification. real output verification requires guarded write success, continuous output is not active in Phase 15B, Full Live Runtime Ready remains false, simulation mode remains available, and neutral restore is attempted after a real verification write.",
+            "Phase 15C adds controlled output write-loop integration. output loop requires verified backend proof and explicit enablement; vJoy detection alone is not enough. fake output loop is test/dev only. neutral restore is attempted on stop, write failures safety-stop the loop, Full Live Runtime Ready remains false if end-to-end readiness is deferred to Phase 16, and simulation mode remains available.",
+            "Phase 15D freezes the vJoy / Virtual Output Integration boundary. Phase 15 is now complete, and the next prompt-book phase is Phase 16: Runtime End-to-End Live Mode. output intent is not output write proof, fake/mock output is not real vJoy output, real output verification requires guarded write success plus neutral restore, output loop must be explicitly enabled and safety-gated, neutral restore is attempted on stop, write failures safety-stop the loop, Full Live Runtime Ready may remain Phase 16, and simulation mode remains available.",
+            "Phase 16 begins end-to-end runtime orchestration. Phase 16A adds a runtime orchestrator contract and deterministic simulation path through input, mapping, tuning, filtering, modes, conditional rules, final VirtualOutputIntent generation, and optional fake output-loop handoff for tests. The simulation pipeline remains available, output intent is still separate from output write, output loop remains safety-gated, real output still requires Phase 15 verification plus explicit enablement, and Full Live Runtime Ready requires both input and output proof.",
+            "Phase 16B adds runtime_frame telemetry and UI surfaces. runtime_frame is the compact telemetry summary of the orchestrated runtime path, runtime_frame can be simulation-backed, output intent is not necessarily an output write, output loop state must be read separately, output_verified requires real output proof, Full Live Runtime Ready requires the full proof chain, and stale/missing runtime_frame falls back safely.",
+            "Phase 16C connects the verified input/output path while keeping the final readiness gate conservative. physical input, pipeline, output verification, and output loop are separate proofs. fake/test path does not equal real hardware readiness. output intent is not a write. If every proof is present, Phase 16C reports a verified_runtime_candidate while Full Live Runtime Ready remains false because Phase 16D owns the final readiness gate.",
+            "physical HOTAS discovery is discovery-only until later hardware/runtime phases. A supported device discovery result does not mean vJoy writes exist or Full Live Runtime Ready has been proven. vJoy writes remain Phase 15 or later, and Phase 15 is where virtual output and vJoy work begins.",
             "vJoy detected does not equal output verified. output_verified remains false until a future output verification phase proves writes. Full Live Runtime Ready remains false until future phases prove both input and output. Missing HOTAS means runtime truth may be blocked_missing_device.",
             "stale, missing, or invalid telemetry falls back safely to simulation/internal telemetry. Run Preflight and Bridge commands are safe requests, not proof of runtime success. command acknowledgement requires matching request_id in fresh Bridge telemetry.",
         ),
@@ -293,6 +310,23 @@ ARTICLES = (
             "The app works with a current workspace draft. Edits mark the draft as a dirty/unsaved state. Save Workspace writes the draft to `hotas_bridge_config_v3.json`; Revert restores the last saved or imported state.",
             "Import Profile brings profile data into the workspace flow when supported by the active page. Helm changes remain in memory until saved. Applying a Helm batch changes only the current draft and can be reverted through Revert Last Helm Changes before saving.",
             "command requests do not save the workspace. runtime telemetry does not modify workspace settings. Bridge command acknowledgements report command status only; they are not persistence actions.",
+        ),
+    ),
+)
+
+
+AUXILIARY_ARTICLES = (
+    HelpArticle(
+        title="Live Monitor",
+        category="Core Pages",
+        summary="Inspect simulation, Bridge telemetry, runtime frame, physical input sample, and output-intent truth.",
+        keywords=("live monitor", "runtime_frame", "telemetry", "input source", "output intent"),
+        related_topics=("Runtime Indicators", "Runtime Setup / vJoy Setup", "Mapping"),
+        paragraphs=(
+            "Live Monitor can display runtime_frame input source, pipeline status, output intent readiness, output loop state, and last output write status when fresh Bridge telemetry includes the compact Phase 16B runtime_frame section.",
+            "Phase 16C adds input proof, pipeline proof, output proof, runtime candidate, blocked reason, and proof summary. If output loop is disabled, Live Monitor labels final values as intent only. If physical input is stale or missing, the frame remains blocked or falls back safely instead of claiming live readiness.",
+            "runtime_frame values are truth-labeled telemetry summaries. A simulation-backed runtime_frame proves the simulation pipeline and output intent path, not live hardware output. output intent is not necessarily an output write, and output loop state must be read separately from output intent readiness.",
+            "If runtime_frame is missing, stale, or malformed, Live Monitor keeps its existing simulation or Bridge telemetry fallback behavior. It must not claim output_verified or Full Live Runtime Ready unless telemetry explicitly proves those fields under the documented runtime rules.",
         ),
     ),
 )

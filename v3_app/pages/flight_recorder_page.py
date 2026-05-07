@@ -202,13 +202,13 @@ class FlightRecorderPage(QWidget):
     def _recording_library_card(self) -> QWidget:
         frame = card("recordingLibraryCard")
         layout = card_layout(frame)
-        layout.addWidget(card_header("Recording Library", "Read-only shell for clips once capture and encoding exist."))
+        layout.addWidget(card_header("Recording Library", "Metadata-only recorder artifact index for simulated exports."))
         controls = QHBoxLayout()
         sort = QComboBox()
         sort.setObjectName("recordingLibrarySortDropdown")
         sort.addItem("Newest First")
         refresh = action_button("Refresh", object_name="recordingLibraryRefreshButton")
-        refresh.setEnabled(False)
+        refresh.clicked.connect(self.refresh_library)
         controls.addWidget(QLabel("Sort"))
         controls.addWidget(sort)
         controls.addWidget(refresh)
@@ -216,9 +216,10 @@ class FlightRecorderPage(QWidget):
         layout.addLayout(controls)
         self.library_table = QTableWidget(0, 4)
         self.library_table.setObjectName("recordingLibraryTable")
-        self.library_table.setHorizontalHeaderLabels(("Clip", "Recorded", "Duration", "Opened"))
+        self.library_table.setHorizontalHeaderLabels(("Artifact or Clip", "Created/Recorded", "Duration", "Opened"))
         self.library_table.setFrameShape(QFrame.Shape.NoFrame)
         self.library_table.setMinimumHeight(160)
+        self.library_table.cellClicked.connect(lambda row, _column: self.show_library_item_preview(row))
         layout.addWidget(self.library_table)
         self.empty_library_label = QLabel(f"{self.clip_library.empty_state_title} {self.clip_library.empty_state_detail}")
         self.empty_library_label.setObjectName("recordingLibraryEmptyState")
@@ -259,7 +260,8 @@ class FlightRecorderPage(QWidget):
         return frame
 
     def _populate_library(self) -> None:
-        clips = self.clip_library.scan()
+        self._library_clips = self.clip_library.scan()
+        clips = self._library_clips
         self.library_table.setRowCount(len(clips))
         for row, clip in enumerate(clips):
             for column, value in enumerate((clip.clip, clip.recorded, clip.duration, clip.opened)):
@@ -278,6 +280,11 @@ class FlightRecorderPage(QWidget):
                     )
             else:
                 self.empty_library_label.setText("")
+        else:
+            self.empty_library_label.setText(f"{self.clip_library.empty_state_title} {self.clip_library.empty_state_detail}")
+
+    def refresh_library(self) -> None:
+        self._populate_library()
 
     def record_now(self) -> None:
         result = self.controller.record_now()
@@ -316,19 +323,51 @@ class FlightRecorderPage(QWidget):
 
     def _show_export_preview(self, metadata) -> None:
         included = ", ".join(metadata.included_axes) if metadata.included_axes else "None"
+        warnings = "; ".join(metadata.warnings) if metadata.warnings else "None"
         self.preview_status.setText(
             "Simulated export\n"
+            "Metadata-only preview\n"
             "No video preview available\n"
+            "No desktop frames were captured.\n"
+            "No encoding was performed.\n"
             f"Telemetry samples: {metadata.telemetry_sample_count}\n"
             f"Overlay source: {metadata.overlay_source}\n"
+            f"Duration: {metadata.duration_seconds:.2f} s\n"
+            f"Frame rate: {metadata.frame_rate} fps\n"
             f"Included axes: {included}\n"
-            f"Artifact path: {metadata.path}"
+            f"Artifact path: {metadata.path}\n"
+            f"Manifest path: {metadata.manifest_path}\n"
+            f"Warnings: {warnings}"
         )
         self.preview_metadata.setText(
             f"Filename: {metadata.path.name} | Overlay source: {metadata.overlay_source} | "
             "Resolution: No video | "
             f"Length: {metadata.duration_seconds:.2f} s"
         )
+
+    def show_library_item_preview(self, row: int) -> None:
+        if row < 0 or row >= len(getattr(self, "_library_clips", ())):
+            self.preview_status.setText("Select a recorder artifact to preview.\nMetadata preview unavailable.")
+            return
+        clip = self._library_clips[row]
+        if clip.export_metadata is not None:
+            self._show_export_preview(clip.export_metadata)
+            return
+        if clip.is_simulated:
+            self.preview_status.setText(
+                "Simulated artifact\n"
+                "Metadata-only preview\n"
+                "No video preview available\n"
+                f"Telemetry samples: {clip.telemetry_sample_count}\n"
+                f"Artifact path: {clip.path}"
+            )
+            self.preview_metadata.setText(
+                f"Filename: {clip.path.name} | Overlay source: {clip.overlay_source} | "
+                "Resolution: No video | "
+                f"Length: {clip.length}"
+            )
+            return
+        self.preview_status.setText("Select a recorder artifact to preview.\nNo video preview available.")
 
 
 def _row_grid(values: dict[str, str]) -> QGridLayout:

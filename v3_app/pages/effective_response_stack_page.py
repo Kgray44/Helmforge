@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import datetime
 from typing import Any
 
 from PySide6.QtCore import QTimer, Qt
@@ -22,12 +23,14 @@ from shared_core.models.axes import AXIS_DISPLAY_NAMES
 from shared_core.models.runtime import AXIS_NAMES, RuntimePreflightStatus
 from shared_core.models.workspace import WorkspaceConfig, create_default_workspace
 from shared_core.runtime.device_discovery import build_runtime_preflight_status
+from shared_core.runtime.hotas_input import MissingPhysicalInputBackend, PhysicalInputBackend, PhysicalInputSnapshot
 from shared_core.runtime.runtime_bridge import RuntimeBridge
 from shared_core.rules.evaluator import RuleStatus
 from v3_app.pages.graph_data import effective_response_stack_graph_data
 from v3_app.pages.graph_widgets import GraphPreview
 from v3_app.pages.page_helpers import card, card_header, card_layout, page_intro, signed, value_grid
 from v3_app.services.app_state import AppState
+from v3_app.services.physical_input_ui import build_input_source_status, raw_axes_from_physical_snapshot
 from v3_app.ui.status_chips import action_button, status_chip
 
 
@@ -108,12 +111,29 @@ class EffectiveResponseStackPage(QWidget):
         state: AppState,
         workspace: WorkspaceConfig | None = None,
         runtime_status: RuntimePreflightStatus | None = None,
+        physical_input_backend: PhysicalInputBackend | None = None,
+        selected_physical_input_device_id: str | None = None,
+        physical_input_snapshot: PhysicalInputSnapshot | None = None,
+        physical_input_clock: Any | None = None,
+        physical_sample_stale_after_seconds: float = 2.0,
     ) -> None:
         super().__init__()
         self.setObjectName("effectiveResponseStackPage")
         self._state = state
         self._workspace = workspace or create_default_workspace()
         self._runtime_status = runtime_status or build_runtime_preflight_status()
+        self._physical_input_backend = physical_input_backend or MissingPhysicalInputBackend()
+        self._selected_physical_input_device_id = selected_physical_input_device_id
+        self._physical_input_snapshot = physical_input_snapshot
+        self._physical_input_clock = physical_input_clock
+        self._physical_sample_stale_after_seconds = physical_sample_stale_after_seconds
+        self._input_source_status = build_input_source_status(
+            backend=self._physical_input_backend,
+            selected_device_id=self._selected_physical_input_device_id,
+            latest_snapshot=self._physical_input_snapshot,
+            now=self._physical_input_now(),
+            stale_after_seconds=self._physical_sample_stale_after_seconds,
+        )
         self.selected_axis = state.selected_axis
         self.selected_stage = "Raw Input"
         self.frozen = False
@@ -231,6 +251,10 @@ class EffectiveResponseStackPage(QWidget):
         frame = card("currentStackSummaryCard")
         layout = card_layout(frame)
         layout.addWidget(card_header("Current Stack Summary"))
+        self.input_source_summary = QLabel("")
+        self.input_source_summary.setObjectName("stackInputSourceSummary")
+        self.input_source_summary.setWordWrap(True)
+        layout.addWidget(self.input_source_summary)
         self.summary = QLabel("")
         self.summary.setObjectName("currentStackSummaryText")
         self.summary.setWordWrap(True)
@@ -285,8 +309,11 @@ class EffectiveResponseStackPage(QWidget):
             self._render(self._frozen_result, self._frozen_raw_values or self._current_raw_values)
             return
 
+        self._refresh_physical_input_source_status()
         if raw_axis_values is not None:
             current_raw = {axis: float(raw_axis_values.get(axis, 0.0)) for axis in AXIS_NAMES}
+        elif self._physical_input_snapshot is not None and self._input_source_status.is_fresh_physical_sample:
+            current_raw = raw_axes_from_physical_snapshot(self._physical_input_snapshot)
         else:
             deterministic = not force_new
             snapshot = RuntimeBridge(
@@ -351,6 +378,22 @@ class EffectiveResponseStackPage(QWidget):
         if not self.frozen:
             self.runtime_chip.setText(self._state.runtime.header_truth_label)
 
+    def _physical_input_now(self) -> datetime | None:
+        if self._physical_input_clock is not None:
+            return self._physical_input_clock()
+        if self._physical_input_snapshot is not None:
+            return self._physical_input_snapshot.sampled_at
+        return None
+
+    def _refresh_physical_input_source_status(self) -> None:
+        self._input_source_status = build_input_source_status(
+            backend=self._physical_input_backend,
+            selected_device_id=self._selected_physical_input_device_id,
+            latest_snapshot=self._physical_input_snapshot,
+            now=self._physical_input_now(),
+            stale_after_seconds=self._physical_sample_stale_after_seconds,
+        )
+
     def _update_graph(self, raw_axis_values: dict[str, float]) -> None:
         data = effective_response_stack_graph_data(
             self._workspace,
@@ -375,6 +418,15 @@ class EffectiveResponseStackPage(QWidget):
         axis_result = result.axis_results[self.selected_axis]
         largest = max(axis_result.stages, key=lambda stage: abs(stage.delta))
         active_rules = sum(1 for rule in result.rule_evaluations if rule.status is RuleStatus.ACTIVE)
+        source_note = (
+            "Stack preview uses a read-only physical input sample; diagnostic only."
+            if self._input_source_status.is_fresh_physical_sample
+            else f"Stack preview is using simulation/fallback input; diagnostic only. {self._input_source_status.fallback_behavior}"
+        )
+        self.input_source_summary.setText(
+            f"Input source: {self._input_source_status.source_label}. "
+            f"{source_note} Output verified: {str(self._runtime_status.live_output_writes_verified).lower()}. "
+        )
         self.summary.setText(
             f"{self.selected_axis}: raw {signed(result.raw_axis_values[self.selected_axis])}, "
             f"final {signed(result.final_output_values[self.selected_axis])}. "

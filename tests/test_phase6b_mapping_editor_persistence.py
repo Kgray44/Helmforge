@@ -171,7 +171,7 @@ def test_phase6b_mapping_page_stays_truthful_about_runtime_output():
 
     assert "Output writes verified: false" in labels_text
     assert "Output Verified" not in labels_text
-    assert "Full Live Runtime Ready" not in labels_text
+    assert "Full Live Runtime Ready false" in labels_text
 
 
 def test_phase6b_shared_core_boundary_still_excludes_ui_imports():

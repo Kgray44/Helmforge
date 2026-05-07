@@ -2,15 +2,67 @@
 
 Product: HelmForge  
 Technical subtitle: HOTAS Control Panel V3  
-Status: Phase 13C Flight Recorder simulated compositor/export foundation and Phase 9K runtime boundary freeze; no real polling, output, process control, capture backend implementation, encoding, or lifecycle implementation added
+Status: Phase 16C verified runtime-path proof semantics plus Phase 16B runtime_frame telemetry/UI integration, Phase 16A runtime orchestrator simulation path, Phase 15D output integration boundary freeze, and Phase 9K runtime boundary freeze; no automatic output enablement, Full Live Runtime Ready, process control, capture backend implementation, encoding, or lifecycle implementation added
 
 ## Purpose
 
 The Bridge is the background/runtime side of HelmForge. It is intended to own real-time HOTAS input, workspace processing, virtual output, and telemetry. The PySide6 UI owns configuration, visualization, diagnostics, and user interaction.
 
-Phase 9B created the separate process skeleton so future real HOTAS and vJoy work lands outside `v3_app`. Phase 9C added UI-side telemetry reading without moving Bridge processing into the UI. Phase 9D added a safe UI command writer for status/config/preflight requests only. Phase 9E added per-command acknowledgement/status telemetry while keeping telemetry as the truth source. Phase 9F refined telemetry health and timing details for UI-visible lifecycle presence. Phase 9G records lifecycle ownership options, wording rules, and safety gates; it adds no lifecycle implementation. Phase 9H adds a Bridge-owned, read-only HOTAS discovery dry-run and publishes discovery truth through telemetry. Phase 9I adds UI-side process presence hints and diagnostic wording while keeping telemetry as the truth surface. Phase 9J polishes the Live Monitor diagnostic UX and edge-state wording without changing Bridge authority. Phase 9K freezes the Phase 9 boundary with regression tests and documentation consistency checks. Phase 10E finalizes the Helm overlay without adding any Bridge runtime authority. Phase 11B adds an observational Perf / Diagnostics page without adding any Bridge runtime authority. Phase 11C completes Phase 11 with Help / Docs + Perf / Diagnostics cross-links, terminology consistency, and final boundary tests; it does not add runtime authority. Phase 12A adds Live Overlay config/core models, a Live Monitor card, and a configuration dialog shell. Phase 12B adds an app-owned detached Live Overlay renderer. Phase 12C freezes the Live Overlay boundary without adding Bridge runtime authority. Phase 13A adds the Flight Recorder UI/state/settings/library/preview shell without capture, encoding, hotkey registration, or Bridge runtime authority. Phase 13B adds recorder backend interfaces, telemetry hindsight buffering, simulated non-video artifacts, and controller wiring without adding real capture, encoding, video hindsight, hotkeys, or Bridge runtime authority. Phase 13C adds a compositor abstraction and simulated export bundles with trace/metadata files without adding real capture, encoding, playable export, video hindsight, hotkeys, or Bridge runtime authority.
+Phase 9B created the separate process skeleton so future real HOTAS and vJoy work lands outside `v3_app`. Phase 9C added UI-side telemetry reading without moving Bridge processing into the UI. Phase 9D added a safe UI command writer for status/config/preflight requests only. Phase 9E added per-command acknowledgement/status telemetry while keeping telemetry as the truth source. Phase 9F refined telemetry health and timing details for UI-visible lifecycle presence. Phase 9G records lifecycle ownership options, wording rules, and safety gates; it adds no lifecycle implementation. Phase 9H adds a Bridge-owned, read-only HOTAS discovery dry-run and publishes discovery truth through telemetry. Phase 9I adds UI-side process presence hints and diagnostic wording while keeping telemetry as the truth surface. Phase 9J polishes the Live Monitor diagnostic UX and edge-state wording without changing Bridge authority. Phase 9K freezes the Phase 9 boundary with regression tests and documentation consistency checks. Phase 10E finalizes the Helm overlay without adding any Bridge runtime authority. Phase 11B adds an observational Perf / Diagnostics page without adding any Bridge runtime authority. Phase 11C completes Phase 11 with Help / Docs + Perf / Diagnostics cross-links, terminology consistency, and final boundary tests; it does not add runtime authority. Phase 12A adds Live Overlay config/core models, a Live Monitor card, and a configuration dialog shell. Phase 12B adds an app-owned detached Live Overlay renderer. Phase 12C freezes the Live Overlay boundary without adding Bridge runtime authority. Phase 13A adds the Flight Recorder UI/state/settings/library/preview shell without capture, encoding, hotkey registration, or Bridge runtime authority. Phase 13B adds recorder backend interfaces, telemetry hindsight buffering, simulated non-video artifacts, and controller wiring without adding real capture, encoding, video hindsight, hotkeys, or Bridge runtime authority. Phase 13C adds a compositor abstraction and simulated export bundles with trace/metadata files without adding real capture, encoding, playable export, video hindsight, hotkeys, or Bridge runtime authority. Phase 13D finalizes library indexing, metadata-only preview, Help / Docs wording, reports, and boundary tests without adding real capture, encoding, video hindsight, hotkeys, or Bridge runtime authority. Phase 14A adds shared-core physical input backend/device-selection interfaces, missing/fake/read-only Windows PnP discovery backends, centralized supported HOTAS matching, and diagnostics display without adding sampling loops, output writes, output verification, or Bridge lifecycle authority. Phase 14B adds read-only input sample models, deterministic axis normalization, fake on-demand sampling, sampler/controller coordination, and diagnostics display without adding vJoy output, output verification, or Bridge lifecycle authority. Phase 14C integrates those read-only samples into Mapping, Live Monitor, Effective Response Stack preview, Perf / Diagnostics, and Help / Docs without moving polling ownership or output authority into the UI. Phase 15A adds virtual output contracts and fake/missing backends. Phase 15B adds optional guarded real vJoy detection/write-path verification. Phase 15C adds a controlled write-loop service that is disabled by default, requires explicit enablement and verified backend proof, rate-limits writes, attempts neutral restore on stop, and safety-stops on failure. Phase 15D freezes Phase 15 terminology, diagnostics, docs, and boundary tests while preparing Phase 16 readiness. Phase 16A adds a shared-core runtime orchestrator that can build deterministic simulation frames, produce final output intent, and optionally hand off to an explicitly enabled fake output loop in tests. Phase 16B publishes compact runtime_frame summaries from that orchestrator through Bridge telemetry and lets UI surfaces display them safely. Phase 16C adds verified-path proof fields and conservative candidate semantics for fresh physical input, pipeline success, guarded output verification, and output-loop state. It does not add automatic Bridge launch, Bridge lifecycle management, uncontrolled real output, or Full Live Runtime Ready.
 
 ## Current Entry Points
+
+## Phase 15C Output Loop Boundary
+
+The Phase 15C output loop lives behind shared-core backend contracts. It can write only when a backend is available, the output device path is verified, the loop is explicitly enabled, the intent is bounded, and the write-rate limiter allows the tick. Missing backends, missing devices, unverified output, failed writes, and restore failures are typed states instead of startup failures.
+
+Stopping the loop after writes attempts neutral restore with axes at zero, buttons released, and hats centered. Restore failures are surfaced in diagnostics and are not hidden. Fake output loops are deterministic test/dev behavior and never prove real vJoy. Real vJoy output loops require prior guarded real verification. Phase 15C keeps Full Live Runtime Ready false because Phase 16 remains the end-to-end live runtime integration phase if readiness is deferred.
+
+## Phase 15D Boundary Freeze
+
+Phase 15 is now complete. Output intent is not output write proof, vJoy detection is not output verification, fake/mock output is not real vJoy output, and real output verification requires guarded write success plus neutral restore. The output loop remains disabled by default, explicitly enabled, rate-limited, and safety-gated.
+
+Next prompt-book phase: Phase 16: Runtime End-to-End Live Mode. Phase 16 may build on Phase 14 physical input sampling, Phase 15 output intents, guarded output verification, controlled output loop state, diagnostics, and simulation fallback. Phase 16 must preserve simulation mode and must not claim Full Live Runtime Ready until both input and output are verified under the end-to-end runtime conditions.
+
+## Phase 16A Runtime Orchestrator Boundary
+
+Phase 16A begins Runtime End-to-End Live Mode with a contract-first orchestrator:
+
+- `shared_core/runtime/runtime_orchestrator.py` builds compact runtime frames from simulation or guarded physical samples.
+- The deterministic simulation path runs through mapping, tuning, filtering, modes, conditional rules, and final output intent generation.
+- The orchestrator can accept a fresh physical input snapshot but falls back to simulation for missing, stale, or error samples.
+- Output intent is not output write proof.
+- A fake output-loop handoff is available only when a fake backend is injected, verified, explicitly enabled, and the orchestrator is configured to tick it.
+- Real output remains governed by Phase 15 verification and output-loop gates.
+- Full Live Runtime Ready remains false in this slice.
+
+Phase 16A does not add Bridge lifecycle management, automatic output enablement, uncontrolled real vJoy output, service install, login auto-start, tray manager work, recorder capture, video encoding, game injection, graphics API hooking, cloud AI/LLM behavior, auto-save, or unsupported runtime activation.
+
+## Phase 16B Runtime Frame Telemetry Boundary
+
+Phase 16B adds Bridge telemetry integration for the Phase 16A runtime frame:
+
+- `runtime_frame` is a compact summary, not a full internal pipeline dump.
+- It includes schema version, frame sequence, generated time, input source/status, input sample age/stale truth, pipeline status, compact modes/rules summary, final output axes, output intent readiness, output backend, output verification status, output loop state, last output write status, output_verified, Full Live Runtime Ready, runtime truth, blocked reason, warnings, and errors.
+- Missing `runtime_frame` remains backward-compatible for older telemetry.
+- Malformed `runtime_frame` is parsed as unavailable/invalid in the UI client instead of crashing the UI.
+- Mapping, Live Monitor, Perf / Diagnostics, Copy Diagnostics, and Help / Docs can show runtime frame truth.
+
+Output intent is not output write proof. Runtime frame generation alone never writes vJoy, starts an output loop, or proves Full Live Runtime Ready.
+
+Phase 16B does not add Bridge lifecycle management, automatic output enablement, unsupported real vJoy writes, service install, login auto-start, tray manager work, recorder capture, video encoding, game injection, graphics API hooking, cloud AI/LLM behavior, auto-save, or unsupported runtime activation.
+
+## Phase 16C Verified Runtime Path Boundary
+
+Phase 16C connects verified input/output runtime path semantics without opening lifecycle authority:
+
+- physical input, pipeline success, output verification, and output-loop state are tracked as separate proofs;
+- `runtime_frame` includes input proof, pipeline proof, output proof, output-loop enabled/running/safety-stop state, runtime candidate, blocked reason, and proof summary;
+- fake/test output paths remain test-only and cannot set real output verified;
+- a fully proven real-path injection can report `verified_runtime_candidate`;
+- Full Live Runtime Ready remains false because Phase 16D owns the final readiness gate.
+
+Output intent is still not output write proof. Runtime frame generation does not start a loop, write vJoy, launch the Bridge, or manage lifecycle.
 
 Run one simulation tick:
 
@@ -65,6 +117,7 @@ Telemetry JSON includes:
 - `input_status`
 - `output_status`
 - `output_verified`
+- `runtime_frame`
 - `active_profile`
 - `raw_axes`
 - `final_axes`
@@ -371,6 +424,98 @@ Simulated export bundles are metadata/trace artifacts, not recordings. They do n
 Phase 13C reuses Phase 12 overlay trace concepts and shared axis colors. Telemetry hindsight can feed simulated overlay trace exports, but desktop video hindsight buffering remains unavailable/deferred.
 
 Phase 13C does not add real desktop capture, real screen capture APIs, video encoding, playable clip export, actual desktop video hindsight buffering, recorder global hotkey registration, screen capture, game injection, graphics API hooking, real HOTAS polling, live physical input streaming, vJoy writes, output verification, automatic Bridge launch, UI-launched child process, service install, login auto-start, tray manager, installer launch, StartBridge/StopBridge/RestartBridge behavior, real process scanner, cloud AI or LLM behavior, auto-save, or real runtime activation.
+
+## Phase 13D Flight Recorder Boundary Freeze
+
+Phase 13D completes Phase 13. It polishes simulated export indexing and metadata-only preview, keeps Play/timeline disabled for simulated/non-video artifacts, and documents the final recorder boundary.
+
+Phase 13D confirms that telemetry hindsight can support simulated overlay metadata, while video hindsight buffering is not implemented yet. Save Last Clip cannot save real video until capture buffering exists.
+
+The next prompt-book phase is Phase 14 Real HOTAS Input Integration. Phase 14 must preserve simulation mode and must not add vJoy writes/output verification unless a later output phase explicitly scopes that work.
+
+Phase 13D does not add real desktop capture, real screen capture APIs, video encoding, playable clip export, actual desktop video hindsight buffering, recorder global hotkey registration, screen capture, game injection, graphics API hooking, real HOTAS polling, live physical input streaming, vJoy writes, output verification, automatic Bridge launch, UI-launched child process, service install, login auto-start, tray manager, installer launch, StartBridge/StopBridge/RestartBridge behavior, real process scanner, cloud AI or LLM behavior, auto-save, or real runtime activation.
+
+## Phase 14A Physical Input Backend Boundary
+
+Phase 14A implements a physical input backend and device-selection foundation only. The shared-core seam can enumerate read-only device identities through a missing backend, deterministic fake backend, or Windows PnP discovery backend. It centralizes support matching for the Thrustmaster T-Flight / T.Flight HOTAS One, including VID/PID `044f:b68d`.
+
+The selection model is in-memory for Phase 14A. It can report backend unavailable, no device selected, selected device available, selected device missing, and unsupported selected device. Perf / Diagnostics can display those states, but the UI does not own runtime polling loops.
+
+Supported HOTAS detected means only that a matching input device identity is visible to discovery. Input sampling remains not active in Phase 14A. Output verified remains false. Full Live Runtime Ready remains false. Phase 15 remains the virtual output/vJoy phase.
+
+Phase 14A does not add vJoy writes, virtual output writes, output verification, Full Live Runtime Ready, end-to-end live runtime loops, automatic Bridge launch, UI-launched child processes, service install, login auto-start, tray manager work, installer launch, StartBridge/StopBridge/RestartBridge behavior, real process scanning, recorder screen capture, video encoding, game injection, graphics API hooking, cloud AI/LLM behavior, auto-save, or runtime activation.
+
+## Phase 14B Physical Input Sampling Boundary
+
+Phase 14B implements physical input sampling and normalization foundations only. Sample snapshots include device/backend/time/source metadata, axis/button/hat samples, normalized values, sampling status, warnings, and errors.
+
+The fake backend can return deterministic read-only samples and emulate disconnect/error states. Missing and Windows PnP discovery backends report sampling unavailable. This keeps simulation mode available and avoids fragile physical sampling dependencies.
+
+Physical input sampling is read-only and on-demand in Phase 14B. It does not write vJoy, verify output, start the Bridge, or create an end-to-end runtime loop. Output verified remains false. Full Live Runtime Ready remains false. Phase 15 remains the virtual output/vJoy phase.
+
+Phase 14B does not add vJoy writes, virtual output writes, output verification, Full Live Runtime Ready, end-to-end vJoy runtime loops, automatic Bridge launch, UI-launched child processes, service install, login auto-start, tray manager work, installer launch, StartBridge/StopBridge/RestartBridge behavior, real process scanning, recorder screen capture, video encoding, game injection, graphics API hooking, cloud AI/LLM behavior, auto-save, or runtime activation.
+
+## Phase 14C Physical Input UI Boundary
+
+Phase 14C implements UI integration for read-only physical input samples. Mapping, Live Monitor, Effective Response Stack preview, Perf / Diagnostics, Copy Diagnostics, and Help / Docs can show input source, selected device, sample status, sample source, sample counts, stale/error fallback, and physical input read-only truth.
+
+Physical samples are still input-only evidence. They do not make the UI the owner of a long-running Bridge polling loop, do not write vJoy, do not verify output, and do not make Full Live Runtime Ready true. Simulation mode remains available when samples are missing, stale, erroring, or unavailable.
+
+Phase 14C does not add vJoy writes, virtual output writes, output verification, Full Live Runtime Ready, end-to-end live output runtime loops, automatic Bridge launch, UI-launched child processes, service install, login auto-start, tray manager work, installer launch, StartBridge/StopBridge/RestartBridge behavior, real process scanning, recorder screen capture, video encoding, game injection, graphics API hooking, cloud AI/LLM behavior, auto-save, or runtime activation.
+
+## Phase 14D Physical Input Boundary Freeze
+
+Phase 14 is now complete.
+
+Phase 14D finalizes the physical input side before virtual output work begins. The Bridge/service boundary keeps physical input models and sampling seams read-only: device discovery and sample snapshots can inform UI diagnostics, Mapping, Live Monitor, and diagnostic previews, but they do not write virtual output or verify output.
+
+Simulation fallback remains available for no backend, no selected device, selected device missing, stale physical samples, sample errors, backend disconnects, and missing/stale/invalid Bridge telemetry. Output verified remains false. Full Live Runtime Ready remains false.
+
+## Phase 15A Virtual Output Backend Contract
+
+Phase 15A starts the virtual output side with contracts only:
+
+Phase 15: vJoy / Virtual Output Integration remains the active prompt-book phase. Phase 15A is the contract-only opening slice.
+
+Full Live Runtime Ready must remain false until both input and output are verified.
+
+- virtual output backend capabilities/status;
+- virtual output device info;
+- output intent, axis/button/hat output models, and recovered route intent;
+- write-result and verification-result models;
+- a safe default missing backend;
+- a deterministic fake backend for tests/dev injection.
+
+The missing backend does not enumerate devices, write output, or verify output. The fake backend can record an output intent in memory and report `fake_verified`, but that result is explicitly fake/mock and Not real vJoy. Real output verified remains false.
+
+The Bridge remains the future runtime owner for real output writes. Phase 15A does not create a live output loop, does not add real vJoy writes, and does not infer output verification from vJoy detection. output_verified remains false in normal runtime. Full Live Runtime Ready remains false.
+
+## Phase 15B Real vJoy Detection And Guarded Verification
+
+Phase 15B adds guarded real vJoy detection and write-path verification only. The real backend is optional and guarded, and app startup does not require the vJoy dependency.
+
+The backend can report:
+
+- vJoy dependency available/missing/unknown;
+- vJoy backend/driver detected or missing;
+- output device detected/missing/busy/unknown;
+- selected output device;
+- output write status;
+- verification status/source;
+- fake output verified;
+- real output verified;
+- last verification timestamp;
+- verification warnings/errors.
+
+Guarded verification is explicit. It does not run on app startup or passive page rendering. It uses a bounded verification intent, not arbitrary user profile output, and attempts neutral restore after a real verification write.
+
+Real output verified can become true only after guarded write success and neutral restore success. vJoy detected does not equal output verified. Fake/mock verification is not real vJoy verification. Full Live Runtime Ready remains false.
+
+Phase 15B does not add a continuous output loop, end-to-end live output runtime loop, automatic output enablement, automatic Bridge launch, UI-launched child processes, service install, login auto-start, tray manager work, installer launch, StartBridge/StopBridge/RestartBridge behavior, real process scanning, recorder screen capture, video encoding, game injection, graphics API hooking, cloud AI/LLM behavior, auto-save, or runtime activation.
+
+Next prompt-book slice: Phase 15C may add runtime output-loop integration only after the guarded verification layer is stable and simulation fallback is preserved.
+
+Phase 14D does not add vJoy writes, virtual output writes, output verification, Full Live Runtime Ready, end-to-end live output runtime loops, automatic Bridge launch, UI-launched child processes, service install, login auto-start, tray manager work, installer launch, StartBridge/StopBridge/RestartBridge behavior, real process scanning, recorder screen capture, video encoding, game injection, graphics API hooking, cloud AI/LLM behavior, auto-save, or runtime activation.
 
 ## Phase 9G Lifecycle Ownership Decision
 

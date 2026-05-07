@@ -8,6 +8,19 @@ from PySide6.QtWidgets import QCheckBox, QGridLayout, QHBoxLayout, QLabel, QPush
 from shared_core.models.runtime import RuntimePreflightStatus
 from shared_core.models.workspace import WorkspaceConfig
 from shared_core.runtime.device_discovery import build_runtime_preflight_status
+from shared_core.runtime.hotas_input import (
+    PhysicalInputBackend,
+    PhysicalInputSnapshot,
+    build_default_physical_input_backend,
+    build_physical_input_diagnostics,
+)
+from shared_core.runtime.vjoy_output import (
+    VirtualOutputBackend,
+    VirtualOutputLoopSnapshot,
+    VirtualOutputVerificationResult,
+    VirtualOutputWriteLoop,
+    build_virtual_output_diagnostics,
+)
 from v3_app.pages.page_helpers import card, card_header, card_layout, page_intro
 from v3_app.services.app_state import AppState, RuntimeUiState
 from v3_app.services.bridge_client import BridgeTelemetryClient, BridgeTelemetryReadResult
@@ -33,6 +46,12 @@ class PerfDiagnosticsPage(QWidget):
         workspace_path: str | Path | None = None,
         telemetry_client: BridgeTelemetryClient | None = None,
         diagnostics_collector: DiagnosticsCollector | None = None,
+        physical_input_backend: PhysicalInputBackend | None = None,
+        selected_physical_input_device_id: str | None = None,
+        physical_input_snapshot: PhysicalInputSnapshot | None = None,
+        virtual_output_backend: VirtualOutputBackend | None = None,
+        virtual_output_verification: VirtualOutputVerificationResult | None = None,
+        virtual_output_loop: VirtualOutputWriteLoop | VirtualOutputLoopSnapshot | None = None,
     ) -> None:
         super().__init__()
         self.setObjectName("perfDiagnosticsPage")
@@ -42,6 +61,12 @@ class PerfDiagnosticsPage(QWidget):
         self._workspace_path = Path(workspace_path or state.source_config)
         self._telemetry_client = telemetry_client or BridgeTelemetryClient()
         self._collector = diagnostics_collector or DiagnosticsCollector()
+        self._physical_input_backend = physical_input_backend or build_default_physical_input_backend()
+        self._selected_physical_input_device_id = selected_physical_input_device_id
+        self._physical_input_snapshot = physical_input_snapshot
+        self._virtual_output_backend = virtual_output_backend
+        self._virtual_output_verification = virtual_output_verification
+        self._virtual_output_loop = virtual_output_loop
         self._bridge_result: BridgeTelemetryReadResult | None = None
         self._last_preflight_message = "Runtime preflight has not been refreshed from this page yet."
         self._copy_text = ""
@@ -67,6 +92,7 @@ class PerfDiagnosticsPage(QWidget):
         grid.addWidget(self._timing_card(), 1, 1)
         grid.addWidget(self._hidden_skips_card(), 2, 0)
         grid.addWidget(self._commands_card(), 2, 1)
+        grid.addWidget(self._physical_input_card(), 3, 0, 1, 2)
         root.addLayout(grid)
         root.addWidget(self._actions_card())
         root.addStretch(1)
@@ -82,11 +108,74 @@ class PerfDiagnosticsPage(QWidget):
         frame = card("perfRuntimeTruthCard")
         layout = card_layout(frame)
         layout.addWidget(card_header("Runtime Truth", "Current runtime state without live-output claims."))
-        layout.addLayout(self._row_grid(("Runtime mode", "Runtime truth", "Input device status", "Output/vJoy status", "Output verified", "Full Live Runtime Ready", "Runtime setup/preflight status")))
+        layout.addLayout(
+            self._row_grid(
+                (
+                    "Runtime mode",
+                    "Runtime truth",
+                    "Input device status",
+                    "Output/vJoy status",
+                    "Virtual output backend",
+                    "Virtual output backend kind",
+                    "Virtual output backend status",
+                    "vJoy dependency",
+                    "vJoy device",
+                    "Selected output device",
+                    "Output device status",
+                    "Output write status",
+                    "Output verification status",
+                    "Output verification source",
+                    "Fake output verified",
+                    "Real output verified",
+                    "Last verification timestamp",
+                    "Last verification error",
+                    "Last verification warnings",
+                    "Output loop",
+                    "Output loop write rate",
+                    "Output loop write count",
+                    "Output loop failure count",
+                    "Last output write",
+                    "Last output write result",
+                    "Last output error",
+                    "Neutral restore status",
+                    "Output loop safety stop",
+                    "Runtime frame",
+                    "Runtime frame sequence",
+                    "Runtime frame source",
+                    "Runtime frame pipeline status",
+                    "Output intent ready",
+                    "Runtime frame output backend",
+                    "Runtime frame output loop state",
+                    "Runtime frame last output write",
+                    "Runtime frame output verified",
+                    "Runtime frame Full Live Runtime Ready",
+                    "Runtime frame truth",
+                    "Runtime frame blocked reason",
+                    "Input proof",
+                    "Pipeline proof",
+                    "Output proof",
+                    "Runtime candidate",
+                    "Proof summary",
+                    "Input verified for runtime",
+                    "Output verified for runtime",
+                    "Output loop enabled",
+                    "Output loop running",
+                    "Output loop safety stopped",
+                    "Pipeline ready",
+                    "Runtime frame warnings",
+                    "Runtime frame errors",
+                    "Output verified",
+                    "Full Live Runtime Ready",
+                    "Runtime setup/preflight status",
+                )
+            )
+        )
         layout.addWidget(
             _body(
-                "Telemetry remains the truth surface. vJoy detected; output writes unverified until a future verification phase proves writes. "
-                "vJoy detected does not mean output verified."
+                "Telemetry remains the truth surface. vJoy detected does not mean output verified. Output intent is not a write, "
+                "fake/mock verification is not real vJoy verification, and the output loop requires explicit enable plus a verified backend. "
+                "vJoy detected; output writes unverified until guarded output verification proves otherwise. "
+                "Phase 16C runtime path proof separates input, pipeline, output verification, and output-loop state."
             )
         )
         return frame
@@ -98,6 +187,37 @@ class PerfDiagnosticsPage(QWidget):
         layout.addLayout(self._row_grid(("Bridge lifecycle", "Bridge telemetry status", "Telemetry age", "Process hint", "HOTAS discovery", "Last command status", "Last command request_id")))
         layout.addWidget(_body("Process presence is a hint only. HOTAS discovery is discovery-only. Manual Bridge launch remains text guidance only."))
         layout.addWidget(status_chip(f"Manual Bridge launch: {DEFAULT_MANUAL_BRIDGE_COMMAND}", tone="warning", object_name="manualBridgeLaunchGuidance"))
+        return frame
+
+    def _physical_input_card(self) -> QWidget:
+        frame = card("perfPhysicalInputCard")
+        layout = card_layout(frame)
+        layout.addWidget(card_header("Physical Input", "Read-only Phase 14C device, source, and sample visibility truth."))
+        layout.addLayout(
+            self._row_grid(
+                (
+                    "Input source",
+                    "Physical input backend",
+                    "Physical input read-only",
+                    "Supported HOTAS",
+                    "Selected input device",
+                    "Input sampling",
+                    "Input selection status",
+                    "Simulation fallback state",
+                    "Last sample",
+                    "Sample source",
+                    "Axis/button/hat counts",
+                    "Sampling warnings",
+                    "Sampling errors",
+                )
+            )
+        )
+        layout.addWidget(
+            _body(
+                "Physical input sampling is read-only and on-demand. It does not write vJoy, verify output, or start the Bridge. "
+                "vJoy writes are not implemented in Phase 14A, Phase 14B, or Phase 14C; output_verified remains false, and Full Live Runtime Ready remains false."
+            )
+        )
         return frame
 
     def _workspace_card(self) -> QWidget:
@@ -197,7 +317,28 @@ class PerfDiagnosticsPage(QWidget):
             last_command_status=_last_command_value(last_command, "status"),
             last_command_request_id=_last_command_value(last_command, "request_id"),
             collector=self._collector,
+            physical_input=self._current_physical_input_diagnostics(),
+            virtual_output=build_virtual_output_diagnostics(
+                backend=self._virtual_output_backend,
+                verification=self._virtual_output_verification,
+            ),
+            virtual_output_loop=self._current_virtual_output_loop_snapshot(),
+            runtime_frame=telemetry.runtime_frame if telemetry is not None else None,
         )
+
+    def _current_physical_input_diagnostics(self):
+        return build_physical_input_diagnostics(
+            self._physical_input_backend,
+            selected_device_id=self._selected_physical_input_device_id,
+            latest_snapshot=self._physical_input_snapshot,
+        )
+
+    def _current_virtual_output_loop_snapshot(self) -> VirtualOutputLoopSnapshot | None:
+        if self._virtual_output_loop is None:
+            return None
+        if isinstance(self._virtual_output_loop, VirtualOutputLoopSnapshot):
+            return self._virtual_output_loop
+        return self._virtual_output_loop.snapshot()
 
     def _apply_snapshot(self, snapshot: DiagnosticsSnapshot) -> None:
         row_values = {
@@ -205,6 +346,55 @@ class PerfDiagnosticsPage(QWidget):
             "Runtime truth": snapshot.runtime_truth,
             "Input device status": snapshot.input_device_status,
             "Output/vJoy status": snapshot.output_status_detail,
+            "Virtual output backend": snapshot.virtual_output_backend,
+            "Virtual output backend kind": snapshot.virtual_output_backend_kind,
+            "Virtual output backend status": snapshot.virtual_output_backend_status,
+            "vJoy dependency": snapshot.vjoy_dependency_status,
+            "vJoy device": snapshot.vjoy_device_status,
+            "Selected output device": snapshot.selected_output_device,
+            "Output device status": snapshot.output_device_status,
+            "Output write status": snapshot.output_write_status,
+            "Output verification status": snapshot.output_verification_status,
+            "Output verification source": snapshot.output_verification_source,
+            "Fake output verified": str(snapshot.fake_output_verified).lower(),
+            "Real output verified": str(snapshot.real_output_verified).lower(),
+            "Last verification timestamp": snapshot.last_verification_timestamp,
+            "Last verification error": snapshot.last_verification_error,
+            "Last verification warnings": snapshot.last_verification_warnings,
+            "Output loop": snapshot.output_loop_state,
+            "Output loop write rate": snapshot.output_loop_write_rate,
+            "Output loop write count": str(snapshot.output_loop_write_count),
+            "Output loop failure count": str(snapshot.output_loop_failure_count),
+            "Last output write": snapshot.output_loop_last_write,
+            "Last output write result": snapshot.output_loop_last_result,
+            "Last output error": snapshot.output_loop_last_error,
+            "Neutral restore status": snapshot.output_loop_neutral_restore_status,
+            "Output loop safety stop": snapshot.output_loop_safety_stop_reason,
+            "Runtime frame": snapshot.runtime_frame_status,
+            "Runtime frame sequence": snapshot.runtime_frame_sequence,
+            "Runtime frame source": snapshot.runtime_frame_source,
+            "Runtime frame pipeline status": snapshot.runtime_frame_pipeline_status,
+            "Output intent ready": str(snapshot.runtime_frame_output_intent_ready).lower(),
+            "Runtime frame output backend": snapshot.runtime_frame_output_backend,
+            "Runtime frame output loop state": snapshot.runtime_frame_output_loop_state,
+            "Runtime frame last output write": snapshot.runtime_frame_last_output_write_status,
+            "Runtime frame output verified": str(snapshot.runtime_frame_output_verified).lower(),
+            "Runtime frame Full Live Runtime Ready": str(snapshot.runtime_frame_full_live_runtime_ready).lower(),
+            "Runtime frame truth": snapshot.runtime_frame_truth,
+            "Runtime frame blocked reason": snapshot.runtime_frame_blocked_reason or "None",
+            "Input proof": snapshot.runtime_frame_input_proof,
+            "Pipeline proof": snapshot.runtime_frame_pipeline_proof,
+            "Output proof": snapshot.runtime_frame_output_proof,
+            "Runtime candidate": snapshot.runtime_frame_candidate,
+            "Proof summary": snapshot.runtime_frame_proof_summary,
+            "Input verified for runtime": str(snapshot.runtime_frame_input_verified_for_runtime).lower(),
+            "Output verified for runtime": str(snapshot.runtime_frame_output_verified_for_runtime).lower(),
+            "Output loop enabled": str(snapshot.runtime_frame_output_loop_enabled).lower(),
+            "Output loop running": str(snapshot.runtime_frame_output_loop_running).lower(),
+            "Output loop safety stopped": str(snapshot.runtime_frame_output_loop_safety_stopped).lower(),
+            "Pipeline ready": str(snapshot.runtime_frame_pipeline_ready).lower(),
+            "Runtime frame warnings": snapshot.runtime_frame_warnings,
+            "Runtime frame errors": snapshot.runtime_frame_errors,
             "Output verified": str(snapshot.output_verified).lower(),
             "Full Live Runtime Ready": str(snapshot.full_live_runtime_ready).lower(),
             "Runtime setup/preflight status": self._last_preflight_message,
@@ -213,8 +403,21 @@ class PerfDiagnosticsPage(QWidget):
             "Telemetry age": _age_text(snapshot.telemetry_age_seconds),
             "Process hint": f"{snapshot.process_hint} - Process presence is a hint only",
             "HOTAS discovery": snapshot.hotas_discovery_status,
+            "Input source": snapshot.physical_input_source,
             "Last command status": snapshot.last_command_status,
             "Last command request_id": snapshot.last_command_request_id,
+            "Physical input backend": snapshot.physical_input_backend,
+            "Physical input read-only": str(snapshot.physical_input_read_only).lower(),
+            "Supported HOTAS": snapshot.supported_hotas,
+            "Selected input device": snapshot.selected_input_device,
+            "Input sampling": snapshot.input_sampling,
+            "Input selection status": snapshot.physical_input_selection_status,
+            "Simulation fallback state": snapshot.physical_input_simulation_fallback_state,
+            "Last sample": snapshot.physical_input_last_sample,
+            "Sample source": snapshot.physical_input_sample_source,
+            "Axis/button/hat counts": snapshot.physical_input_sample_counts,
+            "Sampling warnings": snapshot.physical_input_sampling_warnings,
+            "Sampling errors": snapshot.physical_input_sampling_errors,
             "Active page": snapshot.active_page,
             "Selected axis": snapshot.selected_axis,
             "Workspace/source file": snapshot.workspace_path,

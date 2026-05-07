@@ -121,8 +121,8 @@ def test_phase13a_clip_library_shell_is_read_only_and_empty_by_default(tmp_path)
 
     library = ClipLibrary(tmp_path / "hotas_recordings_v3")
     assert library.scan() == ()
-    assert library.empty_state_title == "No clips recorded yet."
-    assert "Recording backend is not active in this phase." in library.empty_state_detail
+    assert library.empty_state_title == "No recorder artifacts yet."
+    assert "Simulated exports will appear here as metadata-only artifacts." in library.empty_state_detail
 
     metadata = ClipMetadata.from_path(tmp_path / "demo.mp4")
     assert metadata.clip == "demo.mp4"
@@ -173,8 +173,8 @@ def test_phase13a_flight_recorder_page_constructs_with_truthful_ui(tmp_path):
     library = page.findChild(QTableWidget, "recordingLibraryTable")
     assert library is not None
     assert [library.horizontalHeaderItem(index).text() for index in range(library.columnCount())] == [
-        "Clip",
-        "Recorded",
+        "Artifact or Clip",
+        "Created/Recorded",
         "Duration",
         "Opened",
     ]

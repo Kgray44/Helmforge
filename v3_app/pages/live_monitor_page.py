@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from datetime import datetime
 from typing import Callable, Mapping
@@ -24,11 +25,20 @@ from shared_core.models.workspace import WorkspaceConfig, create_default_workspa
 from shared_core.rules.evaluator import RuleStatus, status_counts
 from shared_core.runtime.bridge_contracts import BridgeCommandType
 from shared_core.runtime.device_discovery import build_runtime_preflight_status
+from shared_core.runtime.hotas_input import MissingPhysicalInputBackend, PhysicalInputBackend, PhysicalInputSnapshot
 from shared_core.runtime.simulated_runtime import SimulatedRuntime
+from shared_core.runtime.vjoy_output import (
+    VirtualOutputBackend,
+    VirtualOutputLoopSnapshot,
+    VirtualOutputVerificationResult,
+    VirtualOutputWriteLoop,
+    build_virtual_output_diagnostics,
+)
 from v3_app.pages.graph_widgets import GraphPreview
 from v3_app.pages.live_monitor_data import (
     BoundedTelemetryHistory,
     OUTPUT_BUTTON_NAMES,
+    TelemetrySample,
     bridge_telemetry_from_runtime_snapshot,
     telemetry_sample_from_bridge_payload,
     telemetry_sample_from_runtime_snapshot,
@@ -45,6 +55,7 @@ from v3_app.services.bridge_client import (
     BridgeTelemetryClient,
     BridgeTelemetryReadResult,
     BridgeTelemetryStatus,
+    RuntimeFrameTelemetryPayload,
 )
 from v3_app.services.bridge_commands import (
     DEFAULT_BRIDGE_COMMAND_PATH,
@@ -56,6 +67,12 @@ from v3_app.services.bridge_presence import (
     UnavailableBridgeProcessPresenceProvider,
     build_live_monitor_diagnostic_rows,
     compose_bridge_lifecycle_diagnostics,
+)
+from v3_app.services.physical_input_ui import (
+    buttons_from_physical_snapshot,
+    build_input_source_status,
+    hat_from_physical_snapshot,
+    raw_axes_from_physical_snapshot,
 )
 from v3_app.ui.status_chips import action_button, status_chip
 
@@ -74,6 +91,14 @@ class LiveMonitorPage(QWidget):
         bridge_clock: Callable[[], datetime] | None = None,
         bridge_stale_after_seconds: float = 5.0,
         process_presence_provider: BridgeProcessPresenceProvider | None = None,
+        physical_input_backend: PhysicalInputBackend | None = None,
+        selected_physical_input_device_id: str | None = None,
+        physical_input_snapshot: PhysicalInputSnapshot | None = None,
+        physical_input_clock: Callable[[], datetime] | None = None,
+        physical_sample_stale_after_seconds: float = 2.0,
+        virtual_output_backend: VirtualOutputBackend | None = None,
+        virtual_output_verification: VirtualOutputVerificationResult | None = None,
+        virtual_output_loop: VirtualOutputWriteLoop | VirtualOutputLoopSnapshot | None = None,
     ) -> None:
         super().__init__()
         self.setObjectName("liveMonitorPage")
@@ -92,6 +117,23 @@ class LiveMonitorPage(QWidget):
             clock=command_clock,
         )
         self._process_presence_provider = process_presence_provider or UnavailableBridgeProcessPresenceProvider()
+        self._physical_input_backend = physical_input_backend or MissingPhysicalInputBackend()
+        self._selected_physical_input_device_id = selected_physical_input_device_id
+        self._physical_input_snapshot = physical_input_snapshot
+        self._physical_input_clock = physical_input_clock
+        self._physical_sample_stale_after_seconds = physical_sample_stale_after_seconds
+        self._physical_input_source_status = build_input_source_status(
+            backend=self._physical_input_backend,
+            selected_device_id=self._selected_physical_input_device_id,
+            latest_snapshot=self._physical_input_snapshot,
+            now=self._physical_input_now(),
+            stale_after_seconds=self._physical_sample_stale_after_seconds,
+        )
+        self._virtual_output_diagnostics = build_virtual_output_diagnostics(
+            backend=virtual_output_backend,
+            verification=virtual_output_verification,
+        )
+        self._virtual_output_loop_snapshot = _virtual_output_loop_snapshot(virtual_output_loop)
         self._pipeline = WorkspaceSignalPipeline(self._workspace)
         self._pipeline_state = self._pipeline.initial_state()
         self.selected_axis = state.selected_axis if state.selected_axis in AXIS_DISPLAY_NAMES else "Roll"
@@ -123,8 +165,8 @@ class LiveMonitorPage(QWidget):
         root.addWidget(
             page_intro(
                 "Live Monitor",
-                "Watch raw HOTAS input, final vJoy output, buttons, hats, and axis levels in one dedicated live workspace.",
-                "Current values are simulation-backed until the future Bridge verifies live output writes.",
+                "Watch raw HOTAS input, final processed output intent, buttons, hats, and axis levels in one dedicated live workspace.",
+                "Current values are simulation-backed or read-only input samples until a future Bridge phase verifies real output writes.",
             )
         )
         root.addWidget(self._build_controls_card())
@@ -187,9 +229,19 @@ class LiveMonitorPage(QWidget):
             object_name="liveMonitorTelemetrySourceChip",
         )
         output_chip = status_chip(
-            f"Output writes verified: {str(self._runtime_status.live_output_writes_verified).lower()}",
-            tone="success" if self._runtime_status.live_output_writes_verified else "warning",
+            f"Output writes verified: {str(self._output_verified()).lower()}",
+            tone="success" if self._output_verified() else "warning",
             object_name="liveMonitorOutputTruthChip",
+        )
+        virtual_output_chip = status_chip(
+            f"Virtual output backend: {self._virtual_output_diagnostics.virtual_output_backend}",
+            tone="warning",
+            object_name="liveMonitorVirtualOutputBackendChip",
+        )
+        output_loop_chip = status_chip(
+            f"Output loop: {_output_loop_state(self._virtual_output_loop_snapshot)}",
+            tone="warning",
+            object_name="liveMonitorOutputLoopChip",
         )
         row.addWidget(axis_label)
         row.addWidget(self.axis_selector)
@@ -198,6 +250,8 @@ class LiveMonitorPage(QWidget):
         row.addWidget(self.source_chip)
         row.addWidget(self.runtime_chip)
         row.addWidget(output_chip)
+        row.addWidget(virtual_output_chip)
+        row.addWidget(output_loop_chip)
         layout.addLayout(row)
         return frame
 
@@ -373,7 +427,7 @@ class LiveMonitorPage(QWidget):
     def _build_hotas_buttons_card(self) -> QWidget:
         frame = card("hotasButtonsCard")
         layout = card_layout(frame)
-        layout.addWidget(card_header("HOTAS Buttons", "Simulation-backed button states until Bridge polling is implemented."))
+        layout.addWidget(card_header("HOTAS Buttons", "Physical input samples when available; simulation fallback remains safe."))
         grid = QGridLayout()
         grid.setHorizontalSpacing(10)
         grid.setVerticalSpacing(10)
@@ -521,6 +575,7 @@ class LiveMonitorPage(QWidget):
 
     def refresh_snapshot(self, *, force_new: bool = False) -> None:
         self._sample_index += 1
+        self._refresh_physical_input_source_status()
         bridge_result = self._bridge_client.read()
         if bridge_result.status is BridgeTelemetryStatus.CONNECTED and bridge_result.telemetry is not None:
             sample = telemetry_sample_from_bridge_payload(bridge_result.telemetry, index=self._sample_index)
@@ -533,6 +588,7 @@ class LiveMonitorPage(QWidget):
                 active_profile=self._state.active_profile,
                 rule_summary=self._rule_summary(snapshot.raw_axis_values),
             )
+        sample = self._physical_sample_override(sample)
         self.history.append(sample)
         self._append_overlay_sample(sample)
         self._update_from_sample(sample, telemetry, bridge_result)
@@ -590,13 +646,14 @@ class LiveMonitorPage(QWidget):
             active_count = rule_summary.active_count
             blocked_count = rule_summary.blocked_count
             disabled_count = rule_summary.disabled_count
-        output_verified = bool(telemetry.output_verified)
+        output_verified = bool(telemetry.output_verified or self._virtual_output_diagnostics.output_verified)
         runtime_truth = telemetry.runtime_truth.value if hasattr(telemetry.runtime_truth, "value") else str(telemetry.runtime_truth)
         lifecycle_state = (
             telemetry.lifecycle_state.value
             if hasattr(telemetry.lifecycle_state, "value")
             else str(telemetry.lifecycle_state)
         )
+        runtime_frame = getattr(telemetry, "runtime_frame", None)
         self.live_state_label.setText(
             "Precision Off | Combat Off | Trigger Off | Zoom Off | Extra Off\n"
             f"Stack mode: {self._workspace.modes.precision_combat_stack_mode.value}. "
@@ -604,7 +661,37 @@ class LiveMonitorPage(QWidget):
             f"disabled: {disabled_count}.\n"
             f"Telemetry source: {self.telemetry_source_label}. Bridge lifecycle: {lifecycle_state}. "
             f"Runtime truth: {runtime_truth}. "
-            f"Output writes verified: {str(output_verified).lower()}."
+            f"Output writes verified: {str(output_verified).lower()}.\n"
+            f"Input source: {self._physical_input_source_status.source_label}. "
+            f"Sample status: {self._physical_input_source_status.source_status}. "
+            f"Selected device: {self._physical_input_source_status.selected_device_name}. "
+            f"Sample age: {self._physical_input_source_status.sample_age_text}. "
+            f"Sample source: {self._physical_input_source_status.sample_source}.\n"
+            f"Runtime frame: {_runtime_frame_status(runtime_frame)}. "
+            f"Runtime frame source: {_runtime_frame_source(runtime_frame)}. "
+            f"Pipeline status: {_runtime_frame_pipeline_status(runtime_frame)}. "
+            f"Output intent ready: {_runtime_frame_output_intent_ready(runtime_frame)}. "
+            f"Output loop state: {_runtime_frame_output_loop_state(runtime_frame)}. "
+            f"Last output write: {_runtime_frame_last_output_write(runtime_frame)}. "
+            f"Input proof: {_runtime_frame_input_proof(runtime_frame)}. "
+            f"Pipeline proof: {_runtime_frame_pipeline_proof(runtime_frame)}. "
+            f"Output proof: {_runtime_frame_output_proof(runtime_frame)}. "
+            f"Runtime candidate: {_runtime_frame_candidate(runtime_frame)}. "
+            f"Proof summary: {_runtime_frame_proof_summary(runtime_frame)}. "
+            "runtime_frame output intent is not output write proof.\n"
+            f"Physical input sample: read-only. {self._physical_input_source_status.fallback_behavior} "
+            f"Virtual output backend: {self._virtual_output_diagnostics.virtual_output_backend}. "
+            f"vJoy dependency: {self._virtual_output_diagnostics.vjoy_dependency_status}. "
+            f"vJoy device: {self._virtual_output_diagnostics.vjoy_device_status}. "
+            f"Output write status: {self._virtual_output_diagnostics.output_write_status}. "
+            f"Output verification status: {self._virtual_output_diagnostics.output_verification_status}. "
+            f"Real output verified: {str(self._virtual_output_diagnostics.real_output_verified).lower()}. "
+            f"Fake output verified: {str(self._virtual_output_diagnostics.fake_output_verified).lower()}. "
+            f"Output loop: {_output_loop_state(self._virtual_output_loop_snapshot)}. "
+            f"Last output write: {_output_loop_last_write(self._virtual_output_loop_snapshot)}. "
+            f"Neutral restore status: {_output_loop_neutral_restore(self._virtual_output_loop_snapshot)}. "
+            "Output path remains unverified. vJoy writes are not active unless the Phase 15C output loop is explicitly enabled with a verified backend. "
+            f"Full Live Runtime Ready {str(False).lower()}."
         )
         self.bridge_health_label.setText(
             self._bridge_health_text(
@@ -617,10 +704,37 @@ class LiveMonitorPage(QWidget):
         )
         self._update_command_status_from_telemetry(telemetry, bridge_result)
         self.buttons_hats_label.setText(
-            "In Simulation Mode, HOTAS buttons and hats are generated by the simulation runtime while mapped outputs "
-            "reflect the current workspace pipeline. No real vJoy button writes are verified in this phase."
+            "HOTAS buttons and hats show read-only physical input samples when available, otherwise simulation fallback. "
+            "Mapped outputs reflect the current workspace pipeline only; no vJoy button writes are verified in this phase."
         )
         self.runtime_chip.setText(self._state.runtime.header_truth_label)
+
+    def _physical_input_now(self) -> datetime | None:
+        if self._physical_input_clock is not None:
+            return self._physical_input_clock()
+        if self._physical_input_snapshot is not None:
+            return self._physical_input_snapshot.sampled_at
+        return None
+
+    def _refresh_physical_input_source_status(self) -> None:
+        self._physical_input_source_status = build_input_source_status(
+            backend=self._physical_input_backend,
+            selected_device_id=self._selected_physical_input_device_id,
+            latest_snapshot=self._physical_input_snapshot,
+            now=self._physical_input_now(),
+            stale_after_seconds=self._physical_sample_stale_after_seconds,
+        )
+
+    def _physical_sample_override(self, sample: TelemetrySample) -> TelemetrySample:
+        snapshot = self._physical_input_snapshot
+        if snapshot is None or not self._physical_input_source_status.is_fresh_physical_sample:
+            return sample
+        return replace(
+            sample,
+            raw_axes=raw_axes_from_physical_snapshot(snapshot),
+            buttons=buttons_from_physical_snapshot(snapshot),
+            hat_state=hat_from_physical_snapshot(snapshot),
+        )
 
     def _update_source_status(self, bridge_result: BridgeTelemetryReadResult) -> None:
         self.telemetry_source_status = bridge_result.status.value
@@ -694,6 +808,9 @@ class LiveMonitorPage(QWidget):
             f"Device discovery: {diagnostics.device_discovery_status}. "
             f"Diagnosis: {diagnostics.diagnostic_text}"
         )
+
+    def _output_verified(self) -> bool:
+        return bool(self._runtime_status.live_output_writes_verified or self._virtual_output_diagnostics.output_verified)
 
     def _render_diagnostic_rows(self, rows) -> None:
         existing_labels = set(self._diagnostic_row_labels)
@@ -812,6 +929,79 @@ def _level_bar(kind: str) -> QProgressBar:
 
 def _bar_value(value: float) -> int:
     return int(round((max(-1.0, min(1.0, float(value))) + 1.0) * 50.0))
+
+
+def _virtual_output_loop_snapshot(
+    loop: VirtualOutputWriteLoop | VirtualOutputLoopSnapshot | None,
+) -> VirtualOutputLoopSnapshot | None:
+    if loop is None:
+        return None
+    if isinstance(loop, VirtualOutputLoopSnapshot):
+        return loop
+    return loop.snapshot()
+
+
+def _output_loop_state(snapshot: VirtualOutputLoopSnapshot | None) -> str:
+    return snapshot.state.value if snapshot is not None else "disabled"
+
+
+def _output_loop_last_write(snapshot: VirtualOutputLoopSnapshot | None) -> str:
+    return snapshot.last_write_timestamp if snapshot is not None else "Unavailable"
+
+
+def _output_loop_neutral_restore(snapshot: VirtualOutputLoopSnapshot | None) -> str:
+    return snapshot.neutral_restore_status if snapshot is not None else "not_attempted"
+
+
+def _runtime_frame_status(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    if runtime_frame is None:
+        return "unavailable"
+    return "available" if runtime_frame.available else runtime_frame.parse_status
+
+
+def _runtime_frame_source(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    return runtime_frame.input_source if runtime_frame is not None else "unavailable"
+
+
+def _runtime_frame_pipeline_status(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    return runtime_frame.pipeline_status if runtime_frame is not None else "unavailable"
+
+
+def _runtime_frame_output_intent_ready(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    return str(bool(runtime_frame and runtime_frame.output_intent_ready)).lower()
+
+
+def _runtime_frame_output_loop_state(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    return runtime_frame.output_loop_state if runtime_frame is not None else "disabled"
+
+
+def _runtime_frame_last_output_write(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    return runtime_frame.last_output_write_status if runtime_frame is not None else "Not active"
+
+
+def _runtime_frame_input_proof(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    return runtime_frame.input_proof if runtime_frame is not None else "unavailable"
+
+
+def _runtime_frame_pipeline_proof(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    return runtime_frame.pipeline_proof if runtime_frame is not None else "unavailable"
+
+
+def _runtime_frame_output_proof(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    return runtime_frame.output_proof if runtime_frame is not None else "unavailable"
+
+
+def _runtime_frame_candidate(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    if runtime_frame is None:
+        return "unavailable"
+    if runtime_frame.verified_runtime_candidate:
+        return "candidate - Phase 16D final gate pending"
+    reason = runtime_frame.blocked_reason or "proof incomplete"
+    return f"blocked - {reason}"
+
+
+def _runtime_frame_proof_summary(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    return runtime_frame.proof_summary if runtime_frame is not None and runtime_frame.proof_summary else "unavailable"
 
 
 def _set_chip_state(chip: QLabel, text: str, active: bool) -> None:

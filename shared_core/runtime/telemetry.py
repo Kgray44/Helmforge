@@ -144,6 +144,7 @@ class BridgeTelemetrySnapshot:
     active_profile: str = "Current Workspace"
     rule_summary: RuleStateSummary = field(default_factory=RuleStateSummary)
     output_verification: OutputVerificationState = field(default_factory=OutputVerificationState)
+    runtime_frame: Mapping[str, object] | None = None
     last_command: BridgeCommandStatusSnapshot | None = None
     device_discovery: HotasDiscoveryResult | None = None
     warnings: tuple[str, ...] = ()
@@ -170,6 +171,7 @@ class BridgeTelemetrySnapshot:
             "rule_summary": self.rule_summary.to_dict(),
             "output_verification": self.output_verification.to_dict(),
             "output_verified": self.output_verified,
+            "runtime_frame": dict(self.runtime_frame) if self.runtime_frame is not None else None,
             "last_command": self.last_command.to_dict() if self.last_command else None,
             "device_discovery": self.device_discovery.to_dict() if self.device_discovery else None,
             "warnings": list(self.warnings),

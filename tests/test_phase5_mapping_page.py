@@ -143,7 +143,7 @@ def test_phase5_runtime_preflight_panel_is_truthful_for_missing_and_unverified_s
 
         assert expected in labels_text
         assert "Output writes verified: false" in labels_text
-        assert "Full Live Runtime Ready" not in labels_text
+        assert "Full Live Runtime Ready false" in labels_text
         assert "Output Verified" not in labels_text
 
 

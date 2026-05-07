@@ -21,6 +21,7 @@ from shared_core.runtime.hotas_discovery import (
     HotasDiscoveryResult,
     discover_supported_hotas,
 )
+from shared_core.runtime.runtime_orchestrator import RuntimeOrchestrator, RuntimeOrchestratorConfig
 from shared_core.runtime.simulated_runtime import SimulatedRuntime
 from shared_core.runtime.telemetry import (
     AxisTelemetrySnapshot,
@@ -55,6 +56,11 @@ class BridgeService:
             errors=self.config.errors,
         )
         self.simulation = SimulatedRuntime(deterministic=False, workspace=self.config.workspace)
+        self.runtime_orchestrator = RuntimeOrchestrator(
+            workspace=self.config.workspace,
+            runtime_status=self.runtime_status,
+            config=RuntimeOrchestratorConfig(deterministic_simulation=False),
+        )
         self.pipeline = WorkspaceSignalPipeline(self.config.workspace)
         self.pipeline_state = self.pipeline.initial_state()
         self._stop_requested = False
@@ -67,6 +73,11 @@ class BridgeService:
         requested_path = Path(config_path) if config_path else self.options.config_path
         self.config = load_bridge_workspace(requested_path)
         self.simulation = SimulatedRuntime(deterministic=False, workspace=self.config.workspace)
+        self.runtime_orchestrator = RuntimeOrchestrator(
+            workspace=self.config.workspace,
+            runtime_status=self.runtime_status,
+            config=RuntimeOrchestratorConfig(deterministic_simulation=False),
+        )
         self.pipeline = WorkspaceSignalPipeline(self.config.workspace)
         self.pipeline_state = self.pipeline.initial_state()
         self.state = self.state.with_messages(warnings=self.config.warnings, errors=self.config.errors)
@@ -199,6 +210,10 @@ class BridgeService:
             blocked_count=counts["blocked"],
             disabled_count=counts["disabled"],
         )
+        runtime_frame = self.runtime_orchestrator.build_frame_from_runtime_snapshot(
+            snapshot,
+            runtime_status=self.runtime_status,
+        )
         return BridgeTelemetrySnapshot(
             runtime_truth=self.runtime_status.truth,
             lifecycle_state=lifecycle_state,
@@ -218,6 +233,7 @@ class BridgeService:
                 backend_name=self.runtime_status.detected_output_backend_name,
                 message="Live output writes are not verified.",
             ),
+            runtime_frame=runtime_frame.to_telemetry_dict(sequence=self.state.tick_count + 1),
             last_command=self._last_command,
             device_discovery=self.device_discovery,
             warnings=(*self.runtime_status.warnings, *self.state.warnings),

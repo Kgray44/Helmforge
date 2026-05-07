@@ -38,6 +38,63 @@ class BridgeTelemetryStatus(str, Enum):
 
 
 @dataclass(frozen=True)
+class RuntimeFrameTelemetryPayload:
+    available: bool
+    parse_status: str
+    schema_version: str = ""
+    frame_id: str = ""
+    sequence: int | None = None
+    generated_at: datetime | None = None
+    input_source: str = "unavailable"
+    input_status: str = "unavailable"
+    input_device: str = "None"
+    input_sample_age_ms: int | None = None
+    input_stale: bool = False
+    pipeline_status: str = "unavailable"
+    active_modes: tuple[str, ...] = ()
+    active_rule_count: int = 0
+    active_rule_names: tuple[str, ...] = ()
+    final_output_axes: Mapping[str, float] = field(default_factory=dict)
+    output_intent_ready: bool = False
+    output_backend: str = "Unavailable"
+    output_verification_status: str = "not_attempted"
+    output_loop_state: str = "disabled"
+    last_output_write_status: str = "Not active"
+    output_verified: bool = False
+    full_live_runtime_ready: bool = False
+    runtime_truth: str = "unavailable"
+    blocked_reason: str = ""
+    input_verified_for_runtime: bool = False
+    output_verified_for_runtime: bool = False
+    output_loop_enabled: bool = False
+    output_loop_running: bool = False
+    output_loop_safety_stopped: bool = False
+    pipeline_ready: bool = False
+    verified_runtime_candidate: bool = False
+    input_proof: str = "unavailable"
+    pipeline_proof: str = "unavailable"
+    output_proof: str = "unavailable"
+    proof_summary: str = ""
+    warnings: tuple[str, ...] = ()
+    errors: tuple[str, ...] = ()
+
+    @classmethod
+    def unavailable(
+        cls,
+        *,
+        parse_status: str = "missing",
+        errors: tuple[str, ...] = (),
+        warnings: tuple[str, ...] = (),
+    ) -> "RuntimeFrameTelemetryPayload":
+        return cls(
+            available=False,
+            parse_status=parse_status,
+            warnings=warnings,
+            errors=errors,
+        )
+
+
+@dataclass(frozen=True)
 class BridgeTelemetryPayload:
     path: Path
     timestamp: datetime
@@ -53,6 +110,7 @@ class BridgeTelemetryPayload:
     hats: Mapping[str, str]
     active_modes: Mapping[str, Any]
     rule_summary: Mapping[str, int]
+    runtime_frame: RuntimeFrameTelemetryPayload | None = None
     last_command: Mapping[str, Any] | None = None
     device_discovery: Mapping[str, Any] | None = None
     warnings: tuple[str, ...] = ()
@@ -238,6 +296,7 @@ def _parse_payload(path: Path, payload: Mapping[str, Any]) -> BridgeTelemetryPay
         hats={str(key): str(value) for key, value in _mapping(payload["hats"], "hats").items()},
         active_modes=dict(_mapping(payload["active_modes"], "active_modes")),
         rule_summary=_int_mapping(payload["rule_summary"], field_name="rule_summary"),
+        runtime_frame=_parse_runtime_frame(payload.get("runtime_frame")),
         last_command=_optional_mapping(payload.get("last_command"), "last_command"),
         device_discovery=_optional_mapping(payload.get("device_discovery"), "device_discovery"),
         warnings=tuple(str(item) for item in payload.get("warnings", ()) or ()),
@@ -256,6 +315,86 @@ def _parse_timestamp(value: object) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
+def _parse_optional_timestamp(value: object) -> datetime | None:
+    if value in (None, ""):
+        return None
+    if not isinstance(value, str):
+        return None
+    try:
+        return _parse_timestamp(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_runtime_frame(value: object) -> RuntimeFrameTelemetryPayload | None:
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        return RuntimeFrameTelemetryPayload.unavailable(
+            parse_status="invalid",
+            errors=("runtime_frame must be an object",),
+        )
+
+    errors: list[str] = []
+    final_output_axes: dict[str, float] = {}
+    axes_value = value.get("final_output_axes", {})
+    if isinstance(axes_value, Mapping):
+        for key, item in axes_value.items():
+            try:
+                final_output_axes[str(key)] = float(item)
+            except (TypeError, ValueError):
+                errors.append(f"runtime_frame final_output_axes.{key} must be numeric")
+    elif axes_value not in (None, {}):
+        errors.append("runtime_frame final_output_axes must be an object")
+
+    sequence = _optional_int(value.get("sequence"))
+    generated_at = _parse_optional_timestamp(value.get("generated_at"))
+    if value.get("generated_at") and generated_at is None:
+        errors.append("runtime_frame generated_at must be an ISO string")
+
+    parse_status = "invalid" if errors else "ok"
+    return RuntimeFrameTelemetryPayload(
+        available=not errors,
+        parse_status=parse_status,
+        schema_version=str(value.get("schema_version") or ""),
+        frame_id=str(value.get("frame_id") or ""),
+        sequence=sequence,
+        generated_at=generated_at,
+        input_source=str(value.get("input_source") or "unavailable"),
+        input_status=str(value.get("input_status") or "unavailable"),
+        input_device=str(value.get("input_device") or "None"),
+        input_sample_age_ms=_optional_int(value.get("input_sample_age_ms")),
+        input_stale=bool(value.get("input_stale", False)),
+        pipeline_status=str(value.get("pipeline_status") or "unavailable"),
+        active_modes=tuple(str(item) for item in value.get("active_modes", ()) or ()),
+        active_rule_count=_optional_int(value.get("active_rule_count")) or 0,
+        active_rule_names=tuple(str(item) for item in value.get("active_rule_names", ()) or ()),
+        final_output_axes=final_output_axes,
+        output_intent_ready=bool(value.get("output_intent_ready", False)),
+        output_backend=str(value.get("output_backend") or "Unavailable"),
+        output_verification_status=str(value.get("output_verification_status") or "not_attempted"),
+        output_loop_state=str(value.get("output_loop_state") or "disabled"),
+        last_output_write_status=str(value.get("last_output_write_status") or "Not active"),
+        output_verified=bool(value.get("output_verified", False)),
+        full_live_runtime_ready=bool(value.get("full_live_runtime_ready", False)),
+        runtime_truth=str(value.get("runtime_truth") or "unavailable"),
+        blocked_reason=str(value.get("blocked_reason") or ""),
+        input_verified_for_runtime=bool(value.get("input_verified_for_runtime", False)),
+        output_verified_for_runtime=bool(value.get("output_verified_for_runtime", False)),
+        output_loop_enabled=bool(value.get("output_loop_enabled", False)),
+        output_loop_running=bool(value.get("output_loop_running", False)),
+        output_loop_safety_stopped=bool(value.get("output_loop_safety_stopped", False)),
+        pipeline_ready=bool(value.get("pipeline_ready", False)),
+        verified_runtime_candidate=bool(value.get("verified_runtime_candidate", False)),
+        input_proof=str(value.get("input_proof") or "unavailable"),
+        pipeline_proof=str(value.get("pipeline_proof") or "unavailable"),
+        output_proof=str(value.get("output_proof") or "unavailable"),
+        proof_summary=str(value.get("proof_summary") or ""),
+        warnings=tuple(str(item) for item in value.get("warnings", ()) or ()),
+        errors=tuple(errors or tuple(str(item) for item in value.get("errors", ()) or ())),
+    )
+
+
 def _mapping(value: object, field_name: str) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
         raise TypeError(f"{field_name} must be an object")
@@ -266,6 +405,15 @@ def _optional_mapping(value: object, field_name: str) -> Mapping[str, Any] | Non
     if value is None:
         return None
     return dict(_mapping(value, field_name))
+
+
+def _optional_int(value: object) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _float_mapping(value: object, *, field_name: str) -> dict[str, float]:

@@ -24,6 +24,10 @@ class ClipMetadata:
     is_simulated: bool = False
     has_video: bool = False
     telemetry_sample_count: int = 0
+    artifact_kind: str = "unknown"
+    display_name: str = ""
+    manifest_path: Path | None = None
+    export_metadata: RecorderExportMetadata | None = None
 
     @classmethod
     def from_path(cls, path: Path) -> "ClipMetadata":
@@ -43,13 +47,16 @@ class ClipMetadata:
             is_simulated=artifact.is_simulated,
             has_video=artifact.has_video,
             telemetry_sample_count=telemetry_sample_count,
+            artifact_kind=artifact.status,
+            display_name="Simulated artifact" if artifact.is_simulated else artifact.filename,
+            manifest_path=artifact.path,
         )
 
     @classmethod
     def from_export(cls, export: RecorderExportMetadata) -> "ClipMetadata":
         return cls(
             path=export.path,
-            clip=f"{export.path.name} (Simulated export / No video)",
+            clip=f"{export.display_name}: {export.path.name} (Simulated export / No video / Metadata only)",
             recorded=export.created_at or "Unavailable",
             duration=f"{export.duration_seconds:.0f} s" if export.duration_seconds else "Unavailable",
             opened="Metadata only",
@@ -59,6 +66,10 @@ class ClipMetadata:
             is_simulated=export.is_simulated,
             has_video=export.has_video,
             telemetry_sample_count=export.telemetry_sample_count,
+            artifact_kind=export.artifact_kind,
+            display_name=export.display_name,
+            manifest_path=export.manifest_path,
+            export_metadata=export,
         )
 
 
@@ -68,20 +79,16 @@ class ClipLibrary:
 
     @property
     def empty_state_title(self) -> str:
-        return "No clips recorded yet."
+        return "No recorder artifacts yet."
 
     @property
     def empty_state_detail(self) -> str:
-        return "Recording backend is not active in this phase. Simulated artifacts are labeled as non-video manifests."
+        return "Simulated exports will appear here as metadata-only artifacts. Real capture and encoding are not active."
 
     def scan(self) -> tuple[ClipMetadata, ...]:
         if not self.destination_folder.exists():
             return ()
-        clips: list[ClipMetadata] = [
-            ClipMetadata.from_path(path)
-            for path in sorted(self.destination_folder.glob("*.mp4"), key=lambda item: item.name.lower())
-            if path.is_file()
-        ]
+        clips: list[ClipMetadata] = []
         for path in sorted(self.destination_folder.glob("simulated*_*.json"), key=lambda item: item.name.lower()):
             if not path.is_file():
                 continue
@@ -97,7 +104,7 @@ class ClipLibrary:
             if export is None:
                 continue
             clips.append(ClipMetadata.from_export(export))
-        return tuple(reversed(clips))
+        return tuple(sorted(clips, key=lambda clip: clip.recorded, reverse=True))
 
 
 def _telemetry_count(path: Path) -> int:

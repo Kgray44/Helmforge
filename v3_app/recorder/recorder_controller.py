@@ -80,7 +80,7 @@ class FlightRecorderController:
         status = self.refresh_status()
         if not status.capabilities.simulated_artifact_available:
             return self._failed(
-                "Hindsight video buffer unavailable; Save Last Clip cannot save real video until capture buffering exists."
+                "Video hindsight buffering unavailable. Hindsight video buffer unavailable; Save Last Clip cannot save real video until capture buffering exists."
             )
         return self._write_simulated_artifact(now=now, created_at=created_at)
 

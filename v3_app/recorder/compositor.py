@@ -155,6 +155,8 @@ class SimulatedRecorderCompositor:
                 "output verified: false",
                 "Full Live Runtime Ready: false",
             ),
+            display_name="Simulated export",
+            opened=False,
         )
         trace_payload = {
             "source": traces.source,

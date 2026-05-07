@@ -132,6 +132,8 @@ class RecorderExportMetadata:
     compositor_backend: str
     capture_backend: str
     warnings: tuple[str, ...] = ()
+    display_name: str = "Simulated export"
+    opened: bool = False
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -155,13 +157,15 @@ class RecorderExportMetadata:
             "compositor_backend": self.compositor_backend,
             "capture_backend": self.capture_backend,
             "warnings": list(self.warnings),
+            "display_name": self.display_name,
+            "opened": self.opened,
         }
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, object]) -> "RecorderExportMetadata":
         return cls(
             export_id=str(payload.get("export_id") or ""),
-            clip_id=str(payload.get("clip_id") or ""),
+            clip_id=str(payload.get("clip_id") or payload.get("export_id") or ""),
             created_at=str(payload.get("created_at") or ""),
             artifact_kind=str(payload.get("artifact_kind") or "simulated_export"),
             path=Path(str(payload.get("path") or "")),
@@ -180,6 +184,8 @@ class RecorderExportMetadata:
             compositor_backend=str(payload.get("compositor_backend") or "unknown"),
             capture_backend=str(payload.get("capture_backend") or "unknown"),
             warnings=_tuple(payload.get("warnings")),
+            display_name=str(payload.get("display_name") or "Simulated export"),
+            opened=bool(payload.get("opened", False)),
         )
 
     def to_json(self) -> str:
