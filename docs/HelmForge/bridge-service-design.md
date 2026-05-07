@@ -2,13 +2,13 @@
 
 Product: HelmForge  
 Technical subtitle: HOTAS Control Panel V3  
-Status: Phase 9K boundary freeze; no polling, output, process control, or lifecycle implementation added
+Status: Phase 11B Perf / Diagnostics and Phase 9K runtime boundary freeze; no polling, output, process control, or lifecycle implementation added
 
 ## Purpose
 
 The Bridge is the background/runtime side of HelmForge. It is intended to own real-time HOTAS input, workspace processing, virtual output, and telemetry. The PySide6 UI owns configuration, visualization, diagnostics, and user interaction.
 
-Phase 9B created the separate process skeleton so future real HOTAS and vJoy work lands outside `v3_app`. Phase 9C added UI-side telemetry reading without moving Bridge processing into the UI. Phase 9D added a safe UI command writer for status/config/preflight requests only. Phase 9E added per-command acknowledgement/status telemetry while keeping telemetry as the truth source. Phase 9F refined telemetry health and timing details for UI-visible lifecycle presence. Phase 9G records lifecycle ownership options, wording rules, and safety gates; it adds no lifecycle implementation. Phase 9H adds a Bridge-owned, read-only HOTAS discovery dry-run and publishes discovery truth through telemetry. Phase 9I adds UI-side process presence hints and diagnostic wording while keeping telemetry as the truth surface. Phase 9J polishes the Live Monitor diagnostic UX and edge-state wording without changing Bridge authority. Phase 9K freezes the Phase 9 boundary with regression tests and documentation consistency checks.
+Phase 9B created the separate process skeleton so future real HOTAS and vJoy work lands outside `v3_app`. Phase 9C added UI-side telemetry reading without moving Bridge processing into the UI. Phase 9D added a safe UI command writer for status/config/preflight requests only. Phase 9E added per-command acknowledgement/status telemetry while keeping telemetry as the truth source. Phase 9F refined telemetry health and timing details for UI-visible lifecycle presence. Phase 9G records lifecycle ownership options, wording rules, and safety gates; it adds no lifecycle implementation. Phase 9H adds a Bridge-owned, read-only HOTAS discovery dry-run and publishes discovery truth through telemetry. Phase 9I adds UI-side process presence hints and diagnostic wording while keeping telemetry as the truth surface. Phase 9J polishes the Live Monitor diagnostic UX and edge-state wording without changing Bridge authority. Phase 9K freezes the Phase 9 boundary with regression tests and documentation consistency checks. Phase 10E finalizes the Helm overlay without adding any Bridge runtime authority. Phase 11B adds an observational Perf / Diagnostics page without adding any Bridge runtime authority.
 
 ## Current Entry Points
 
@@ -283,6 +283,34 @@ Current development paths:
 - Manual Bridge launch: `python -m bridge_app.main --run-for-ms 250`
 
 Safe UI command requests remain limited to `Status`, `RunPreflight`, `ReloadConfig`, `SwitchToSimulation`, and `ClearError`. `StartBridge`, `StopBridge`, `RestartBridge`, `SuspendBridge`, and `VerifyOutput` remain rejected/out of scope.
+
+## Phase 10E Helm Boundary
+
+Phase 10E finalizes Helm for Phase 10 while preserving this Bridge service boundary:
+
+- Helm remains overlay/modal from the ASSISTANT cluster.
+- Helm remains deterministic/local and recommendation-only.
+- Helm can read workspace, mode, read-only rule, optional stack, and runtime diagnostic context.
+- Helm may display Bridge telemetry truth, blocked runtime truth, output verification false, and discovery-only status as evidence labels.
+- Apply Selected Changes modifies only the in-memory workspace draft.
+- Save Workspace remains the only persistence action.
+- Helm does not start, stop, restart, spawn, install, or manage the Bridge.
+- Helm does not mutate conditional rules, does not use cloud AI or LLM behavior, and does not perform live hardware analysis.
+- Phase 10E does not add Help / Docs implementation, Perf / Diagnostics page work, Live Overlay, Flight Recorder, hardware polling, live physical input streaming, vJoy writes, output verification, automatic Bridge launch, UI-launched child process, service install, login auto-start, tray manager work, installer launch, auto-save, or real runtime activation.
+
+The next prompt-book phase is Phase 11: Help / Docs and Perf / Diagnostics. Phase 11 still must not treat documentation or diagnostics UI as proof of live runtime readiness.
+
+## Phase 11B Perf / Diagnostics Boundary
+
+Phase 11B implements Perf / Diagnostics page only. The page is observational:
+
+- telemetry remains the truth surface;
+- process presence remains a hint;
+- Run Runtime Preflight remains safe and does not prove output verification;
+- timing metrics are UI/app diagnostics, not live hardware proof;
+- copy diagnostics text is a local summary, not a runtime command.
+
+Phase 11B does not add hardware polling, live physical input streaming, vJoy writes, output verification, Bridge lifecycle control, process spawning, installer launch, service install, login auto-start, tray manager work, cloud AI/LLM behavior, auto-save, or runtime activation.
 
 ## Phase 9G Lifecycle Ownership Decision
 

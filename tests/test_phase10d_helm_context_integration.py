@@ -151,7 +151,7 @@ def test_phase10d_engine_groups_findings_by_source_and_adds_context_cautions():
     text = "\n".join((*result.findings, *(finding.text for finding in result.analysis_findings), *result.warnings))
     assert "Precision and combat stack by multiplication" in text
     assert "disabled yaw rule targets output scale" in text.casefold()
-    assert "output_verified false" in text
+    assert "Output verification is false, so these are draft tuning changes only." in text
     assert "No physical HOTAS is currently available for live validation" in text
     assert "live hardware analysis is not active" in text
     assert "output verified true" not in text.casefold()

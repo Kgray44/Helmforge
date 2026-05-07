@@ -363,6 +363,11 @@ class HelmOverlay(QDialog):
         else:
             if result.follow_up_questions:
                 self._render_follow_ups(result)
+            elif result.status == "idle":
+                self._clear_diffs(
+                    "Tell me what feels wrong and I'll compare it against the current workspace. "
+                    "I'll propose draft-only changes before anything is applied."
+                )
             else:
                 self._clear_diffs("I do not have safe diffs for that symptom yet.")
             self.review_summary.setText("Nothing has been applied yet. Selected changes are staged only after analysis.")
@@ -613,7 +618,12 @@ def _findings_text(result: HelmRecommendationResult) -> str:
     lines.append("I'm using workspace values only; live hardware analysis is not active.")
     if result.analysis_findings:
         lines.append("")
-        lines.extend(f"{finding.title}: {finding.text}" for finding in result.analysis_findings)
+        grouped: dict[str, list[str]] = {}
+        for finding in result.analysis_findings:
+            grouped.setdefault(finding.source_group, []).append(f"- {finding.title}: {finding.text}")
+        for group, entries in grouped.items():
+            lines.append(group)
+            lines.extend(entries)
     if result.follow_up_questions:
         lines.append("")
         lines.extend(f"Question: {question.prompt}" for question in result.follow_up_questions)

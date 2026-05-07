@@ -272,6 +272,16 @@ def analyze_context(context: HelmContext) -> tuple[tuple[HelmFinding, ...], tupl
                     "Rule findings",
                 )
             )
+    elif context.rules.total_count == 0:
+        findings.append(
+            HelmFinding(
+                "Rule context",
+                "No conditional rules are configured; I am keeping this as tuning-only context.",
+                "info",
+                "Conditional rules",
+                "Rule findings",
+            )
+        )
 
     if context.stack.available:
         findings.append(
@@ -299,7 +309,11 @@ def analyze_context(context: HelmContext) -> tuple[tuple[HelmFinding, ...], tupl
 
     runtime_lines = [
         f"Bridge telemetry says runtime truth is {context.runtime.runtime_truth}.",
-        f"output_verified {str(context.runtime.output_verified).lower()}; changes are draft tuning only.",
+        (
+            "Output verification is true; I still keep Helm changes staged until you save."
+            if context.runtime.output_verified
+            else "Output verification is false, so these are draft tuning changes only."
+        ),
     ]
     if context.runtime.device_discovery_status == "no_supported_device":
         runtime_lines.append("No physical HOTAS is currently available for live validation.")

@@ -215,6 +215,24 @@ def app_qss() -> str:
         font-weight: 600;
     }
 
+    QListWidget {
+        background: #07111d;
+        border: 1px solid #203a55;
+        border-radius: 10px;
+        color: #f5f9ff;
+        padding: 8px;
+    }
+
+    QListWidget::item {
+        padding: 9px 10px;
+        border-radius: 8px;
+    }
+
+    QListWidget::item:selected {
+        background: #143d5f;
+        color: #ffffff;
+    }
+
     QCheckBox {
         background: transparent;
         color: #f5f9ff;

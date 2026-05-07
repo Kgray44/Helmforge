@@ -14,10 +14,12 @@ from v3_app.pages.combat_profile_page import CombatProfilePage
 from v3_app.pages.conditional_rules_page import ConditionalRulesPage
 from v3_app.pages.effective_response_stack_page import EffectiveResponseStackPage
 from v3_app.pages.filtering_page import FilteringPage
+from v3_app.pages.help_docs_page import HelpDocsPage
 from v3_app.pages.live_monitor_page import LiveMonitorPage
 from v3_app.pages.mapping_page import MappingPage
 from v3_app.pages.modes_page import ModesPage
 from v3_app.pages.placeholders import PAGE_DEFINITIONS, create_placeholder_page, page_definition_by_id
+from v3_app.pages.perf_diagnostics_page import PerfDiagnosticsPage
 from v3_app.pages.profiles_page import ProfilesPage
 from v3_app.helm.helm_overlay import HelmOverlay
 from v3_app.services.app_state import AppState, build_initial_app_state
@@ -88,13 +90,17 @@ class HelmForgeShell(QWidget):
 
     def _build_pages(self) -> None:
         for page in PAGE_DEFINITIONS:
-            scroll = QScrollArea()
+            if page.page_id == "perf_diagnostics":
+                scroll = _LazyPageScrollArea(lambda page=page: self._create_page_content(page.page_id, page))
+            else:
+                scroll = QScrollArea()
             scroll.setObjectName("pageScrollArea")
             scroll.setWidgetResizable(True)
             scroll.setFrameShape(QScrollArea.Shape.NoFrame)
             scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-            content = self._create_page_content(page.page_id, page)
-            scroll.setWidget(content)
+            if not isinstance(scroll, _LazyPageScrollArea):
+                content = self._create_page_content(page.page_id, page)
+                scroll.setWidget(content)
             self.stack.addWidget(scroll)
             self.page_widgets[page.page_id] = scroll
 
@@ -141,6 +147,13 @@ class HelmForgeShell(QWidget):
             return EffectiveResponseStackPage(**common)
         if page_id == "live_monitor":
             return LiveMonitorPage(**common)
+        if page_id == "help_docs":
+            return HelpDocsPage(**common)
+        if page_id == "perf_diagnostics":
+            return PerfDiagnosticsPage(
+                **common,
+                workspace_path=self.workspace_path,
+            )
         return create_placeholder_page(page, runtime_label=self.state.runtime.runtime_card_label)
 
     def mark_workspace_dirty(self, message: str) -> None:
@@ -217,3 +230,23 @@ class HelmForgeShell(QWidget):
         self.footer.update_state(self.state, page_definition_by_id(page_id))
         if record_timing:
             self.state.page_switch_timings_ms[page_id] = (time.perf_counter() - start) * 1000.0
+        content = self.page_widgets[page_id].widget()
+        if hasattr(content, "refresh_diagnostics"):
+            content.refresh_diagnostics()
+
+
+class _LazyPageScrollArea(QScrollArea):
+    def __init__(self, content_factory) -> None:
+        super().__init__()
+        self._content_factory = content_factory
+        self._content_built = False
+
+    def widget(self) -> QWidget | None:  # type: ignore[override]
+        self._ensure_content()
+        return super().widget()
+
+    def _ensure_content(self) -> None:
+        if self._content_built:
+            return
+        super().setWidget(self._content_factory())
+        self._content_built = True

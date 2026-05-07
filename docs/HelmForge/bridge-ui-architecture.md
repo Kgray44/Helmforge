@@ -1,6 +1,6 @@
 # Bridge/UI Architecture
 
-Status: Phase 10D adds read-only Helm context integration after Phase 10C polished guided review/apply/revert workflow, Phase 10B expanded the deterministic intelligence layer, Phase 10A added the overlay foundation, and Phase 9K froze the Bridge/UI boundary. Shared contracts exist, `bridge_app` can run as a separate simulation-only Python process, the PySide6 Live Monitor can consume fresh Bridge telemetry JSON with safe simulation fallback, and the UI can request safe Bridge commands through a JSON command file. The Bridge echoes the most recently consumed command request in telemetry, and the UI shows compact Bridge health/timing details, device discovery truth, process-presence hints, and a stable diagnostic hierarchy. Helm now launches from the top-right ASSISTANT cluster as an overlay/modal assistant, analyzes local workspace values through deterministic symptom paths, reads mode/rule/stack/runtime context without mutating it, labels evidence sources, groups recommendations, asks deterministic follow-up questions when a symptom is ambiguous, shows staged-review counts and risk/outcome copy, and only mutates the in-memory workspace draft when the user applies selected changes. Continuous real HOTAS polling, live physical input streaming, vJoy writes, output verification, automatic Bridge launch, process spawning from the UI, Windows Service install, tray manager work, and login auto-start are not implemented yet.
+Status: Phase 11B implements the Perf / Diagnostics page after Phase 11A added Help / Docs, Phase 10E finalized Helm for Phase 10, and Phase 9K froze the Bridge/UI boundary. Shared contracts exist, `bridge_app` can run as a separate simulation-only Python process, the PySide6 Live Monitor can consume fresh Bridge telemetry JSON with safe simulation fallback, and the UI can request safe Bridge commands through a JSON command file. The Bridge echoes the most recently consumed command request in telemetry, and the UI shows compact Bridge health/timing details, device discovery truth, process-presence hints, and a stable diagnostic hierarchy. Helm remains overlay/modal from the ASSISTANT cluster, analyzes local workspace values through deterministic/local symptom paths, reads mode/rule/stack/runtime context without mutating it, labels evidence sources, groups recommendations, asks deterministic follow-up questions when a symptom is ambiguous, shows staged-review counts and risk/outcome copy, and only mutates the in-memory workspace draft when the user applies selected changes. Help / Docs adds local built-in documentation, category browsing, and deterministic search. Perf / Diagnostics adds observational runtime, telemetry, timing, hidden-skip, preflight, and copy-summary visibility. Continuous real HOTAS polling, live physical input streaming, vJoy writes, output verification, automatic Bridge launch, process spawning from the UI, Windows Service install, tray manager work, and login auto-start are not implemented yet.
 
 ## Core Rule
 
@@ -43,8 +43,9 @@ The UI App owns the human-facing surface:
 - request future Bridge lifecycle actions only after later safety gates are implemented;
 - request current safe Bridge status/config/preflight commands through the Phase 9D command seam;
 - display Bridge telemetry in Live Monitor and Effective Response Stack views;
-- display runtime setup, help/docs, performance, and diagnostics;
-- host future Helm assistant, Flight Recorder, and Live Overlay UI;
+- display runtime setup and Help / Docs guidance;
+- display performance and diagnostics as observational UI/app truth;
+- host Helm assistant overlay plus future Flight Recorder and Live Overlay UI;
 - show truthful runtime state rather than fake live claims.
 
 The UI may run Bridge-like adapters in-process during early development, but real-time processing should remain behind shared-core contracts so it can move to a background component later.
@@ -219,6 +220,48 @@ Phase 10D adds read-only context integration:
 - context-aware recommendations can add caution when mode stacking compounds scale changes or rules target the same axis.
 
 Phase 10D is read-only context integration. It does not mutate rules, does not perform live hardware analysis, does not use cloud AI or an LLM, does not poll hardware, does not write vJoy, does not verify output, and does not change Bridge lifecycle ownership.
+
+Phase 10E finalizes Helm for Phase 10:
+
+- Helm remains overlay/modal from the ASSISTANT cluster and is not a sidebar page.
+- Helm remains deterministic/local.
+- Helm uses evidence labels and context summaries for workspace values, mode settings, conditional rules, optional stack snapshots, runtime diagnostics, discovery-only status, and unavailable evidence.
+- Empty, ambiguous, staged, applied, reverted, no-rule, disabled-rule, stack-unavailable, runtime-blocked, and output-unverified states use calm safety-aware copy.
+- Apply Selected Changes modifies only the in-memory workspace draft.
+- Save Workspace remains the only persistence action.
+- Revert Last Helm Changes restores the last Helm batch.
+- Helm does not mutate conditional rules.
+- Helm does not use cloud AI or LLM behavior.
+- Helm does not perform live hardware analysis.
+- Phase 10E does not add Help / Docs implementation, Perf / Diagnostics page work, Live Overlay, Flight Recorder, hardware polling, live physical input streaming, vJoy writes, output verification, Bridge lifecycle control, process spawning, service install, login auto-start, tray manager work, installer launch, auto-save, or real runtime activation.
+
+The next prompt-book phase is Phase 11: Help / Docs and Perf / Diagnostics. Phase 11 should preserve the Phase 9K runtime freeze and the Phase 10E Helm boundary.
+
+## Help / Docs Foundation
+
+Phase 11A implements Help / Docs foundation only:
+
+- `v3_app/services/help_docs.py` stores local built-in articles and deterministic search.
+- `v3_app/pages/help_docs_page.py` renders category browsing, a search field, a By Category dropdown, a topic list, and a scrollable guide pane.
+- The Runtime Setup / vJoy Setup article is local built-in documentation and explains simulation mode, Bridge telemetry truth, manual Bridge launch, missing HOTAS, vJoy detection, output verification false, Full Live Runtime Ready false, safe command requests, and request_id command acknowledgement.
+- The Helm article documents Phase 10 behavior: overlay/modal, deterministic/local, in-memory apply/revert, evidence labels, no conditional-rule mutation, no cloud AI or LLM behavior, and no live hardware analysis.
+- Runtime Indicators, Saving and Importing, and Tuning Glossary articles define the app vocabulary.
+
+Perf / Diagnostics page work is deferred to Phase 11B. Help / Docs does not add runtime authority, hardware polling, vJoy writes, output verification, Bridge lifecycle control, process spawning, auto-start, cloud AI or LLM behavior, auto-save, or runtime activation.
+
+## Perf / Diagnostics Page
+
+Phase 11B implements Perf / Diagnostics page only:
+
+- `v3_app/services/perf_diagnostics.py` stores lightweight timing summaries, hidden-page skip counters, diagnostics snapshots, and pure copy diagnostics text building.
+- `v3_app/pages/perf_diagnostics_page.py` displays Runtime Truth, Bridge / Telemetry, Workspace / UI State, Performance Timings, Hidden Page Skips, Commands / Preflight, and Diagnostic Actions.
+- Run Runtime Preflight remains safe and does not prove output verification.
+- Timing metrics are UI/app diagnostics, not live hardware proof.
+- Process presence remains a hint.
+- Telemetry remains the truth surface.
+- Copy Diagnostics prepares text locally; clipboard integration is not required for Phase 11B.
+
+Diagnostics are observational and do not add runtime authority. Phase 11B does not add hardware polling, vJoy writes, output verification, Bridge lifecycle control, process spawning, installer launch, cloud AI/LLM behavior, auto-save, or runtime activation.
 
 ## Phase 9K Boundary Freeze
 
