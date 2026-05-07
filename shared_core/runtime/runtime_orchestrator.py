@@ -61,6 +61,8 @@ class RuntimeFrameStatus(Enum):
     BLOCKED_OUTPUT_LOOP_DISABLED = "blocked_output_loop_disabled"
     BLOCKED_OUTPUT_SAFETY_STOP = "blocked_output_safety_stop"
     BLOCKED_PIPELINE_ERROR = "blocked_pipeline_error"
+    BLOCKED_TELEMETRY_STALE = "blocked_telemetry_stale"
+    BLOCKED_FAKE_PATH_ONLY = "blocked_fake_path_only"
     BLOCKED_ERROR = "blocked_error"
 
 
@@ -159,6 +161,23 @@ class RuntimeSafetyState:
 
 
 @dataclass(frozen=True)
+class RuntimeReadinessGateResult:
+    full_live_runtime_ready: bool
+    ready_state: str
+    blocked_reason: str
+    input_proof: str
+    pipeline_proof: str
+    output_proof: str
+    telemetry_proof: str
+    safety_proof: str
+    fake_or_real_path: str
+    proof_summary: str
+    warnings: tuple[str, ...] = ()
+    errors: tuple[str, ...] = ()
+    evaluated_at: datetime | None = None
+
+
+@dataclass(frozen=True)
 class RuntimeFrame:
     created_at: datetime
     status: RuntimeFrameStatus
@@ -168,6 +187,7 @@ class RuntimeFrame:
     output: RuntimeOutputTruth
     proof: RuntimeProofState
     safety: RuntimeSafetyState
+    readiness: RuntimeReadinessGateResult
 
     def to_summary_dict(self) -> dict[str, object]:
         return {
@@ -187,9 +207,10 @@ class RuntimeFrame:
             "output_verified": self.output.output_verified,
             "real_output_verified": self.output.real_output_verified,
             "fake_output_verified": self.output.fake_output_verified,
-            "full_live_runtime_ready": self.safety.full_live_runtime_ready,
+            "full_live_runtime_ready": self.readiness.full_live_runtime_ready,
+            "ready_state": self.readiness.ready_state,
             "runtime_truth": self.safety.runtime_truth,
-            "blocked_reason": self.safety.blocked_reason,
+            "blocked_reason": self.readiness.blocked_reason,
             "fallback_reason": self.safety.fallback_reason,
             "input_verified_for_runtime": self.proof.input_verified_for_runtime,
             "pipeline_ready": self.proof.pipeline_ready,
@@ -198,10 +219,14 @@ class RuntimeFrame:
             "output_loop_running": self.proof.output_loop_running,
             "output_loop_safety_stopped": self.proof.output_loop_safety_stopped,
             "verified_runtime_candidate": self.proof.verified_runtime_candidate,
-            "input_proof": self.proof.input_proof,
-            "pipeline_proof": self.proof.pipeline_proof,
-            "output_proof": self.proof.output_proof,
-            "proof_summary": self.proof.proof_summary,
+            "input_proof": self.readiness.input_proof,
+            "pipeline_proof": self.readiness.pipeline_proof,
+            "output_proof": self.readiness.output_proof,
+            "telemetry_proof": self.readiness.telemetry_proof,
+            "safety_proof": self.readiness.safety_proof,
+            "fake_or_real_path": self.readiness.fake_or_real_path,
+            "proof_summary": self.readiness.proof_summary,
+            "evaluated_at": self.readiness.evaluated_at.isoformat() if self.readiness.evaluated_at else None,
             "warnings": self.safety.warnings,
             "errors": self.safety.errors,
         }
@@ -254,9 +279,10 @@ class RuntimeFrame:
             "output_loop_state": self.output.output_loop_state,
             "last_output_write_status": self.output.last_write_status,
             "output_verified": self.output.output_verified,
-            "full_live_runtime_ready": self.safety.full_live_runtime_ready,
+            "full_live_runtime_ready": self.readiness.full_live_runtime_ready,
+            "ready_state": self.readiness.ready_state,
             "runtime_truth": self.safety.runtime_truth,
-            "blocked_reason": self.safety.blocked_reason,
+            "blocked_reason": self.readiness.blocked_reason,
             "input_verified_for_runtime": self.proof.input_verified_for_runtime,
             "output_verified_for_runtime": self.proof.output_verified_for_runtime,
             "output_loop_enabled": self.proof.output_loop_enabled,
@@ -264,13 +290,98 @@ class RuntimeFrame:
             "output_loop_safety_stopped": self.proof.output_loop_safety_stopped,
             "pipeline_ready": self.proof.pipeline_ready,
             "verified_runtime_candidate": self.proof.verified_runtime_candidate,
-            "input_proof": self.proof.input_proof,
-            "pipeline_proof": self.proof.pipeline_proof,
-            "output_proof": self.proof.output_proof,
-            "proof_summary": self.proof.proof_summary,
+            "input_proof": self.readiness.input_proof,
+            "pipeline_proof": self.readiness.pipeline_proof,
+            "output_proof": self.readiness.output_proof,
+            "telemetry_proof": self.readiness.telemetry_proof,
+            "safety_proof": self.readiness.safety_proof,
+            "fake_or_real_path": self.readiness.fake_or_real_path,
+            "evaluated_at": self.readiness.evaluated_at.isoformat() if self.readiness.evaluated_at else None,
+            "proof_summary": self.readiness.proof_summary,
             "warnings": list(warnings),
             "errors": list(errors),
         }
+
+
+class FullLiveRuntimeReadyEvaluator:
+    """Central deterministic gate for the final Phase 16 readiness truth."""
+
+    def evaluate(
+        self,
+        *,
+        input_summary: RuntimeInputSummary,
+        pipeline_summary: RuntimePipelineResult,
+        output_truth: RuntimeOutputTruth,
+        proof: RuntimeProofState,
+        output_intent_ready: bool,
+        telemetry_fresh: bool = True,
+        evaluated_at: datetime | None = None,
+    ) -> RuntimeReadinessGateResult:
+        input_proof = _input_proof(input_summary, proof.input_verified_for_runtime)
+        pipeline_proof = "ok" if proof.pipeline_ready else "blocked_pipeline_error"
+        output_proof = _output_proof(output_truth)
+        telemetry_proof = "fresh" if telemetry_fresh else "stale"
+        fake_or_real_path = _fake_or_real_path(input_summary, output_truth)
+        safety_proof = _safety_proof(input_summary, pipeline_summary, output_truth)
+        blocked_reason = _readiness_blocked_reason(
+            input_summary=input_summary,
+            pipeline_summary=pipeline_summary,
+            output_truth=output_truth,
+            proof=proof,
+            output_intent_ready=output_intent_ready,
+            telemetry_fresh=telemetry_fresh,
+            fake_or_real_path=fake_or_real_path,
+        )
+        full_ready = not blocked_reason
+        ready_state = _ready_state(full_ready, blocked_reason, input_summary, fake_or_real_path)
+        errors = tuple(item for item in (*input_summary.errors, *pipeline_summary.errors, *output_truth.errors) if item)
+        warnings = tuple(item for item in (*input_summary.warnings, *pipeline_summary.warnings, *output_truth.warnings) if item)
+        return RuntimeReadinessGateResult(
+            full_live_runtime_ready=full_ready,
+            ready_state=ready_state,
+            blocked_reason=blocked_reason,
+            input_proof=input_proof,
+            pipeline_proof=pipeline_proof,
+            output_proof=output_proof,
+            telemetry_proof=telemetry_proof,
+            safety_proof=safety_proof,
+            fake_or_real_path=fake_or_real_path,
+            proof_summary=_readiness_summary(
+                input_proof=input_proof,
+                pipeline_proof=pipeline_proof,
+                output_proof=output_proof,
+                output_loop_state=output_truth.output_loop_state,
+                telemetry_proof=telemetry_proof,
+                safety_proof=safety_proof,
+                full_ready=full_ready,
+                blocked_reason=blocked_reason,
+                legacy_summary=proof.proof_summary,
+            ),
+            warnings=warnings,
+            errors=errors,
+            evaluated_at=evaluated_at,
+        )
+
+
+def evaluate_full_live_runtime_ready(
+    *,
+    input_summary: RuntimeInputSummary,
+    pipeline_summary: RuntimePipelineResult,
+    output_truth: RuntimeOutputTruth,
+    proof: RuntimeProofState,
+    output_intent_ready: bool,
+    telemetry_fresh: bool = True,
+    evaluated_at: datetime | None = None,
+) -> RuntimeReadinessGateResult:
+    return FullLiveRuntimeReadyEvaluator().evaluate(
+        input_summary=input_summary,
+        pipeline_summary=pipeline_summary,
+        output_truth=output_truth,
+        proof=proof,
+        output_intent_ready=output_intent_ready,
+        telemetry_fresh=telemetry_fresh,
+        evaluated_at=evaluated_at,
+    )
 
 
 class RuntimeOrchestrator:
@@ -388,15 +499,24 @@ class RuntimeOrchestrator:
         )
         output_truth = _output_truth(diagnostics, loop_snapshot)
         proof = _proof_state(input_summary, pipeline_summary, output_truth, pipeline_blocked_reason)
-        status = _frame_status(input_summary, pipeline_summary, output_truth, proof, pipeline_blocked_reason)
+        readiness = evaluate_full_live_runtime_ready(
+            input_summary=input_summary,
+            pipeline_summary=pipeline_summary,
+            output_truth=output_truth,
+            proof=proof,
+            output_intent_ready=bool(output_intent.axes),
+            telemetry_fresh=True,
+            evaluated_at=now,
+        )
+        status = _frame_status(input_summary, pipeline_summary, output_truth, proof, pipeline_blocked_reason, readiness)
         safety = _safety_state(
             status=status,
             runtime_status=runtime_status,
-            blocked_reason=_runtime_blocked_reason(input_summary, pipeline_summary, output_truth, pipeline_blocked_reason),
             fallback_reason=fallback_reason,
             input_summary=input_summary,
             output_truth=output_truth,
             proof=proof,
+            readiness=readiness,
         )
         return RuntimeFrame(
             created_at=now,
@@ -407,6 +527,7 @@ class RuntimeOrchestrator:
             output=output_truth,
             proof=proof,
             safety=safety,
+            readiness=readiness,
         )
 
     def _resolve_input(
@@ -650,7 +771,14 @@ def _frame_status(
     output_truth: RuntimeOutputTruth,
     proof: RuntimeProofState,
     blocked_reason: str,
+    readiness: RuntimeReadinessGateResult,
 ) -> RuntimeFrameStatus:
+    if readiness.full_live_runtime_ready:
+        return RuntimeFrameStatus.FULL_LIVE_RUNTIME_READY
+    if readiness.blocked_reason == RuntimeFrameStatus.BLOCKED_FAKE_PATH_ONLY.value:
+        return RuntimeFrameStatus.BLOCKED_FAKE_PATH_ONLY
+    if readiness.blocked_reason == RuntimeFrameStatus.BLOCKED_TELEMETRY_STALE.value:
+        return RuntimeFrameStatus.BLOCKED_TELEMETRY_STALE
     runtime_block = _runtime_blocked_reason(input_summary, pipeline_summary, output_truth, blocked_reason)
     if proof.verified_runtime_candidate:
         return RuntimeFrameStatus.VERIFIED_RUNTIME_CANDIDATE
@@ -691,16 +819,23 @@ def _safety_state(
     *,
     status: RuntimeFrameStatus,
     runtime_status: RuntimePreflightStatus,
-    blocked_reason: str,
     fallback_reason: str,
     input_summary: RuntimeInputSummary,
     output_truth: RuntimeOutputTruth,
     proof: RuntimeProofState,
+    readiness: RuntimeReadinessGateResult,
 ) -> RuntimeSafetyState:
-    warnings = tuple(item for item in (*input_summary.warnings,) if item)
-    errors = tuple(item for item in (*input_summary.errors, *(() if proof.pipeline_ready else ("blocked_pipeline_error",))) if item)
+    warnings = tuple(item for item in (*input_summary.warnings, *readiness.warnings) if item)
+    errors = tuple(
+        item
+        for item in (*input_summary.errors, *(() if proof.pipeline_ready else ("blocked_pipeline_error",)), *readiness.errors)
+        if item
+    )
+    blocked_reason = readiness.blocked_reason
     runtime_truth = blocked_reason or status.value
-    if proof.verified_runtime_candidate:
+    if readiness.full_live_runtime_ready:
+        runtime_truth = RuntimeFrameStatus.FULL_LIVE_RUNTIME_READY.value
+    elif proof.verified_runtime_candidate and readiness.ready_state == "candidate":
         runtime_truth = RuntimeFrameStatus.VERIFIED_RUNTIME_CANDIDATE.value
     elif output_truth.output_verified and input_summary.source is RuntimeFrameSource.PHYSICAL and not blocked_reason:
         runtime_truth = RuntimeFrameStatus.OUTPUT_VERIFIED_RUNTIME_NOT_ENABLED.value
@@ -712,7 +847,7 @@ def _safety_state(
         fallback_reason=fallback_reason,
         warnings=warnings,
         errors=errors,
-        full_live_runtime_ready=False,
+        full_live_runtime_ready=readiness.full_live_runtime_ready,
     )
 
 
@@ -739,6 +874,119 @@ def _runtime_blocked_reason(
     if _input_verified_for_runtime(input_summary) and output_truth.real_output_verified and not output_truth.output_loop_running:
         return "blocked_output_loop_disabled"
     return ""
+
+
+def _readiness_blocked_reason(
+    *,
+    input_summary: RuntimeInputSummary,
+    pipeline_summary: RuntimePipelineResult,
+    output_truth: RuntimeOutputTruth,
+    proof: RuntimeProofState,
+    output_intent_ready: bool,
+    telemetry_fresh: bool,
+    fake_or_real_path: str,
+) -> str:
+    if not telemetry_fresh:
+        return RuntimeFrameStatus.BLOCKED_TELEMETRY_STALE.value
+    if input_summary.stale:
+        return RuntimeFrameStatus.BLOCKED_STALE_INPUT.value
+    if input_summary.error:
+        return RuntimeFrameStatus.BLOCKED_INPUT_ERROR.value
+    if input_summary.source is RuntimeFrameSource.SIMULATION:
+        return "simulation_pipeline_only"
+    if not proof.input_verified_for_runtime:
+        return RuntimeFrameStatus.BLOCKED_MISSING_INPUT.value
+    if pipeline_summary.errors or not proof.pipeline_ready:
+        return RuntimeFrameStatus.BLOCKED_PIPELINE_ERROR.value
+    if not output_intent_ready:
+        return RuntimeFrameStatus.BLOCKED_PIPELINE_ERROR.value
+    if output_truth.output_loop_safety_stopped:
+        return RuntimeFrameStatus.BLOCKED_OUTPUT_SAFETY_STOP.value
+    if fake_or_real_path == "fake_test":
+        return RuntimeFrameStatus.BLOCKED_FAKE_PATH_ONLY.value
+    if _output_backend_missing(output_truth):
+        return RuntimeFrameStatus.BLOCKED_MISSING_OUTPUT.value
+    if not output_truth.real_output_verified:
+        return RuntimeFrameStatus.BLOCKED_UNVERIFIED_OUTPUT.value
+    if not output_truth.output_loop_enabled or not output_truth.output_loop_running or output_truth.write_count <= 0:
+        return RuntimeFrameStatus.BLOCKED_OUTPUT_LOOP_DISABLED.value
+    if output_truth.errors:
+        return RuntimeFrameStatus.BLOCKED_ERROR.value
+    return ""
+
+
+def _output_backend_missing(output_truth: RuntimeOutputTruth) -> bool:
+    backend = output_truth.virtual_output_backend.lower()
+    status = output_truth.output_verification_status.lower()
+    return (
+        "missing" in backend
+        or status in {"backend_missing", "dependency_missing", "device_missing", "device_busy", "acquisition_failed"}
+    )
+
+
+def _fake_or_real_path(input_summary: RuntimeInputSummary, output_truth: RuntimeOutputTruth) -> str:
+    backend = output_truth.virtual_output_backend.lower()
+    if input_summary.sample_source == "fake" or output_truth.fake_output_verified or "fake" in backend:
+        return "fake_test"
+    if input_summary.source is RuntimeFrameSource.PHYSICAL or output_truth.real_output_verified:
+        return "real"
+    if input_summary.source is RuntimeFrameSource.SIMULATION:
+        return "simulation"
+    return "unavailable"
+
+
+def _safety_proof(
+    input_summary: RuntimeInputSummary,
+    pipeline_summary: RuntimePipelineResult,
+    output_truth: RuntimeOutputTruth,
+) -> str:
+    if output_truth.output_loop_safety_stopped:
+        return "safety_stop"
+    if input_summary.error or pipeline_summary.errors or output_truth.errors:
+        return "error"
+    if input_summary.stale:
+        return "stale_input"
+    return "ok"
+
+
+def _ready_state(full_ready: bool, blocked_reason: str, input_summary: RuntimeInputSummary, fake_or_real_path: str) -> str:
+    if full_ready:
+        return "ready"
+    if fake_or_real_path == "fake_test":
+        return "fake_test"
+    if blocked_reason == "simulation_pipeline_only" or input_summary.source is RuntimeFrameSource.SIMULATION:
+        return "simulated"
+    if blocked_reason:
+        return "blocked"
+    return "candidate"
+
+
+def _readiness_summary(
+    *,
+    input_proof: str,
+    pipeline_proof: str,
+    output_proof: str,
+    output_loop_state: str,
+    telemetry_proof: str,
+    safety_proof: str,
+    full_ready: bool,
+    blocked_reason: str,
+    legacy_summary: str,
+) -> str:
+    parts = [
+        f"Input: {input_proof}",
+        f"Pipeline: {pipeline_proof}",
+        f"Output: {output_proof}",
+        f"Output loop: {output_loop_state}",
+        f"Telemetry: {telemetry_proof}",
+        f"Safety: {safety_proof}",
+        f"Ready: {str(full_ready).lower()}",
+    ]
+    if blocked_reason:
+        parts.append(f"Blocked: {blocked_reason}")
+    if legacy_summary:
+        parts.append(legacy_summary)
+    return "; ".join(parts)
 
 
 def _input_verified_for_runtime(input_summary: RuntimeInputSummary) -> bool:

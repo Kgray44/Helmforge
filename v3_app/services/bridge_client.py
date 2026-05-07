@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import tempfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -74,6 +74,11 @@ class RuntimeFrameTelemetryPayload:
     input_proof: str = "unavailable"
     pipeline_proof: str = "unavailable"
     output_proof: str = "unavailable"
+    ready_state: str = "unavailable"
+    telemetry_proof: str = "unavailable"
+    safety_proof: str = "unavailable"
+    fake_or_real_path: str = "unavailable"
+    evaluated_at: datetime | None = None
     proof_summary: str = ""
     warnings: tuple[str, ...] = ()
     errors: tuple[str, ...] = ()
@@ -240,6 +245,7 @@ class BridgeTelemetryClient:
 
         age_seconds = max(0.0, (read_at - telemetry.timestamp).total_seconds())
         if age_seconds > self.stale_after_seconds:
+            telemetry = _with_stale_runtime_frame(telemetry)
             return BridgeTelemetryReadResult(
                 status=BridgeTelemetryStatus.STALE,
                 path=path,
@@ -352,6 +358,25 @@ def _parse_runtime_frame(value: object) -> RuntimeFrameTelemetryPayload | None:
     if value.get("generated_at") and generated_at is None:
         errors.append("runtime_frame generated_at must be an ISO string")
 
+    evaluated_at = _parse_optional_timestamp(value.get("evaluated_at"))
+    if value.get("evaluated_at") and evaluated_at is None:
+        errors.append("runtime_frame evaluated_at must be an ISO string")
+
+    has_readiness_proof = any(
+        key in value
+        for key in (
+            "ready_state",
+            "telemetry_proof",
+            "safety_proof",
+            "fake_or_real_path",
+            "evaluated_at",
+        )
+    )
+    ready_state = str(value.get("ready_state") or "unavailable") if has_readiness_proof else "unavailable"
+    blocked_reason = str(value.get("blocked_reason") or "")
+    if not has_readiness_proof:
+        blocked_reason = "readiness_proof_missing"
+
     parse_status = "invalid" if errors else "ok"
     return RuntimeFrameTelemetryPayload(
         available=not errors,
@@ -376,9 +401,9 @@ def _parse_runtime_frame(value: object) -> RuntimeFrameTelemetryPayload | None:
         output_loop_state=str(value.get("output_loop_state") or "disabled"),
         last_output_write_status=str(value.get("last_output_write_status") or "Not active"),
         output_verified=bool(value.get("output_verified", False)),
-        full_live_runtime_ready=bool(value.get("full_live_runtime_ready", False)),
+        full_live_runtime_ready=bool(value.get("full_live_runtime_ready", False)) if has_readiness_proof else False,
         runtime_truth=str(value.get("runtime_truth") or "unavailable"),
-        blocked_reason=str(value.get("blocked_reason") or ""),
+        blocked_reason=blocked_reason,
         input_verified_for_runtime=bool(value.get("input_verified_for_runtime", False)),
         output_verified_for_runtime=bool(value.get("output_verified_for_runtime", False)),
         output_loop_enabled=bool(value.get("output_loop_enabled", False)),
@@ -389,9 +414,42 @@ def _parse_runtime_frame(value: object) -> RuntimeFrameTelemetryPayload | None:
         input_proof=str(value.get("input_proof") or "unavailable"),
         pipeline_proof=str(value.get("pipeline_proof") or "unavailable"),
         output_proof=str(value.get("output_proof") or "unavailable"),
+        ready_state=ready_state,
+        telemetry_proof=str(value.get("telemetry_proof") or "unavailable") if has_readiness_proof else "unavailable",
+        safety_proof=str(value.get("safety_proof") or "unavailable") if has_readiness_proof else "unavailable",
+        fake_or_real_path=str(value.get("fake_or_real_path") or "unavailable") if has_readiness_proof else "unavailable",
+        evaluated_at=evaluated_at if has_readiness_proof else None,
         proof_summary=str(value.get("proof_summary") or ""),
         warnings=tuple(str(item) for item in value.get("warnings", ()) or ()),
         errors=tuple(errors or tuple(str(item) for item in value.get("errors", ()) or ())),
+    )
+
+
+def _with_stale_runtime_frame(telemetry: BridgeTelemetryPayload) -> BridgeTelemetryPayload:
+    runtime_frame = telemetry.runtime_frame
+    if runtime_frame is None:
+        return telemetry
+    stale_summary = "Telemetry: stale; Ready: false; Blocked: blocked_telemetry_stale"
+    summary = runtime_frame.proof_summary
+    if summary:
+        summary = f"{summary}; {stale_summary}"
+    else:
+        summary = stale_summary
+    return replace(
+        telemetry,
+        runtime_frame=replace(
+            runtime_frame,
+            output_verified=False,
+            full_live_runtime_ready=False,
+            runtime_truth="blocked_telemetry_stale",
+            blocked_reason="blocked_telemetry_stale",
+            output_verified_for_runtime=False,
+            verified_runtime_candidate=False,
+            ready_state="blocked",
+            telemetry_proof="stale",
+            safety_proof="blocked",
+            proof_summary=summary,
+        ),
     )
 
 

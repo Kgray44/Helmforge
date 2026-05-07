@@ -330,6 +330,12 @@ class MappingPage(QWidget):
             ("Input proof", _runtime_frame_input_proof(self._runtime_frame)),
             ("Pipeline proof", _runtime_frame_pipeline_proof(self._runtime_frame)),
             ("Output proof", _runtime_frame_output_proof(self._runtime_frame)),
+            ("Full Live Runtime Ready gate", _runtime_frame_ready_gate(self._runtime_frame)),
+            ("Ready state", _runtime_frame_ready_state(self._runtime_frame)),
+            ("Telemetry proof", _runtime_frame_telemetry_proof(self._runtime_frame)),
+            ("Safety proof", _runtime_frame_safety_proof(self._runtime_frame)),
+            ("Fake/real path", _runtime_frame_fake_or_real_path(self._runtime_frame)),
+            ("Readiness evaluated", _runtime_frame_evaluated_at(self._runtime_frame)),
             ("Runtime candidate", _runtime_frame_candidate(self._runtime_frame)),
             ("Proof summary", _runtime_frame_proof_summary(self._runtime_frame)),
             ("Input device status", self._input_status_label()),
@@ -365,8 +371,9 @@ class MappingPage(QWidget):
         caution = QLabel(
             "Physical input samples are read-only when present. The UI can edit the mapping workspace while the "
             "future Bridge owns real-time processing. Phase 15C output loops require explicit enable and a verified backend; "
-            "Phase 16C shows input, pipeline, output, and output-loop proof separately. vJoy detection alone is not enough, "
-            "runtime_frame output intent is not a vJoy write, and Full Live Runtime Ready remains false until the final readiness gate."
+            "Phase 16D shows input, pipeline, output, telemetry, and safety proof separately. vJoy detection alone is not enough, "
+            "runtime_frame output intent is not a vJoy write, fake/test paths are not real readiness, and Full Live Runtime Ready "
+            "opens only when the central readiness gate has every required proof."
         )
         caution.setObjectName("cardBody")
         caution.setWordWrap(True)
@@ -918,11 +925,45 @@ def _runtime_frame_output_proof(runtime_frame: RuntimeFrameTelemetryPayload | No
     return runtime_frame.output_proof if runtime_frame is not None else "unavailable"
 
 
+def _runtime_frame_ready_gate(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    if runtime_frame is None:
+        return "unavailable"
+    if runtime_frame.full_live_runtime_ready:
+        return "ready"
+    return runtime_frame.ready_state or "blocked"
+
+
+def _runtime_frame_ready_state(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    return runtime_frame.ready_state if runtime_frame is not None else "unavailable"
+
+
+def _runtime_frame_telemetry_proof(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    return runtime_frame.telemetry_proof if runtime_frame is not None else "unavailable"
+
+
+def _runtime_frame_safety_proof(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    return runtime_frame.safety_proof if runtime_frame is not None else "unavailable"
+
+
+def _runtime_frame_fake_or_real_path(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    return runtime_frame.fake_or_real_path if runtime_frame is not None else "unavailable"
+
+
+def _runtime_frame_evaluated_at(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    if runtime_frame is None or runtime_frame.evaluated_at is None:
+        return "Unavailable"
+    return runtime_frame.evaluated_at.isoformat()
+
+
 def _runtime_frame_candidate(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
     if runtime_frame is None:
         return "unavailable"
+    if runtime_frame.full_live_runtime_ready:
+        return "ready - full gate open"
+    if runtime_frame.ready_state == "fake_test":
+        return "fake/test only - not real readiness"
     if runtime_frame.verified_runtime_candidate:
-        return "candidate - Phase 16D final gate pending"
+        return "candidate - final gate proof incomplete"
     reason = runtime_frame.blocked_reason or "proof incomplete"
     return f"blocked - {reason}"
 

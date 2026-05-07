@@ -100,8 +100,9 @@ def test_phase11c_runtime_perf_articles_use_consistent_boundary_language():
     assert "hidden-page skip counters show skipped expensive updates where instrumented" in perf
     assert "Run Runtime Preflight is safe and does not verify output" in perf
     assert "Copy Diagnostics creates local diagnostic text" in perf
-    assert "output_verified remains false until a future verification phase proves writes" in perf
-    assert "Full Live Runtime Ready remains false until future phases prove both input and output" in perf
+    assert "output_verified remains false until guarded verification proves writes" in perf
+    assert "Full Live Runtime Ready opens only when the final proof chain passes" in perf
+    assert "Full Live Runtime Ready gate" in perf
 
 
 def test_phase11c_perf_page_boundary_copy_and_actions_remain_safe(tmp_path):

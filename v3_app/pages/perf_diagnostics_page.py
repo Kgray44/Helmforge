@@ -154,6 +154,12 @@ class PerfDiagnosticsPage(QWidget):
                     "Input proof",
                     "Pipeline proof",
                     "Output proof",
+                    "Full Live Runtime Ready gate",
+                    "Ready state",
+                    "Telemetry proof",
+                    "Safety proof",
+                    "Fake/real path",
+                    "Readiness evaluated",
                     "Runtime candidate",
                     "Proof summary",
                     "Input verified for runtime",
@@ -176,6 +182,7 @@ class PerfDiagnosticsPage(QWidget):
                 "fake/mock verification is not real vJoy verification, and the output loop requires explicit enable plus a verified backend. "
                 "vJoy detected; output writes unverified until guarded output verification proves otherwise. "
                 "Phase 16C runtime path proof separates input, pipeline, output verification, and output-loop state."
+                " Phase 16D adds the central Full Live Runtime Ready gate; stale telemetry and fake/test paths keep the gate blocked."
             )
         )
         return frame
@@ -385,6 +392,12 @@ class PerfDiagnosticsPage(QWidget):
             "Input proof": snapshot.runtime_frame_input_proof,
             "Pipeline proof": snapshot.runtime_frame_pipeline_proof,
             "Output proof": snapshot.runtime_frame_output_proof,
+            "Full Live Runtime Ready gate": snapshot.runtime_frame_full_live_gate,
+            "Ready state": snapshot.runtime_frame_ready_state,
+            "Telemetry proof": snapshot.runtime_frame_telemetry_proof,
+            "Safety proof": snapshot.runtime_frame_safety_proof,
+            "Fake/real path": snapshot.runtime_frame_fake_or_real_path,
+            "Readiness evaluated": snapshot.runtime_frame_readiness_evaluated_at,
             "Runtime candidate": snapshot.runtime_frame_candidate,
             "Proof summary": snapshot.runtime_frame_proof_summary,
             "Input verified for runtime": str(snapshot.runtime_frame_input_verified_for_runtime).lower(),

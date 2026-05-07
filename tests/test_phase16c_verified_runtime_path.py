@@ -139,7 +139,7 @@ def test_phase16c_verified_path_blocks_until_real_output_loop_is_enabled_and_ver
 
     telemetry = frame.to_telemetry_dict(sequence=1)
     assert frame.input.source is RuntimeFrameSource.PHYSICAL
-    assert frame.safety.blocked_reason == "blocked_unverified_output"
+    assert frame.safety.blocked_reason == "blocked_missing_output"
     assert telemetry["input_verified_for_runtime"] is True
     assert telemetry["pipeline_ready"] is True
     assert telemetry["output_verified_for_runtime"] is False
@@ -270,9 +270,10 @@ def test_phase16c_fake_path_is_test_only_and_injected_real_proof_becomes_candida
     assert real_telemetry["output_loop_enabled"] is True
     assert real_telemetry["output_loop_running"] is True
     assert real_telemetry["verified_runtime_candidate"] is True
-    assert real_telemetry["runtime_truth"] == "verified_runtime_candidate"
-    assert real_telemetry["full_live_runtime_ready"] is False
-    assert "policy=phase16d_final_gate" in real_telemetry["proof_summary"]
+    assert real_telemetry["runtime_truth"] == "full_live_runtime_ready"
+    assert real_telemetry["full_live_runtime_ready"] is True
+    assert real_telemetry["ready_state"] == "ready"
+    assert "Ready: true" in real_telemetry["proof_summary"]
 
 
 def test_phase16c_ui_docs_and_boundary_text_show_runtime_proof_fields(tmp_path):
@@ -320,6 +321,11 @@ def test_phase16c_ui_docs_and_boundary_text_show_runtime_proof_fields(tmp_path):
         "input_proof": "fresh physical sample",
         "pipeline_proof": "ok",
         "output_proof": "guarded real verification",
+        "ready_state": "blocked",
+        "telemetry_proof": "fresh",
+        "safety_proof": "ok",
+        "fake_or_real_path": "real",
+        "evaluated_at": fresh_now.isoformat(),
         "proof_summary": "input=fresh_physical_sample; pipeline=ok; output=real_verified; loop=disabled; ready=false; blocked=blocked_output_loop_disabled",
         "warnings": [],
         "errors": [],

@@ -214,7 +214,8 @@ def test_phase14a_help_docs_explain_input_selection_without_output_authority():
     assert "Physical input backend" in indicators
     assert "Input sampling" in indicators
     assert "output_verified remains false" in indicators
-    assert "Full Live Runtime Ready remains false" in diagnostics
+    assert "Full Live Runtime Ready gate" in diagnostics
+    assert "Full Live Runtime Ready opens only when the final proof chain passes" in diagnostics
 
 
 def test_phase14a_boundary_scans_find_no_output_or_capture_authority():

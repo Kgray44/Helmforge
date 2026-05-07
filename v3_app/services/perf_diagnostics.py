@@ -145,6 +145,12 @@ class DiagnosticsSnapshot:
     runtime_frame_input_proof: str = "unavailable"
     runtime_frame_pipeline_proof: str = "unavailable"
     runtime_frame_output_proof: str = "unavailable"
+    runtime_frame_full_live_gate: str = "unavailable"
+    runtime_frame_ready_state: str = "unavailable"
+    runtime_frame_telemetry_proof: str = "unavailable"
+    runtime_frame_safety_proof: str = "unavailable"
+    runtime_frame_fake_or_real_path: str = "unavailable"
+    runtime_frame_readiness_evaluated_at: str = "Unavailable"
     runtime_frame_candidate: str = "unavailable"
     runtime_frame_proof_summary: str = "unavailable"
     runtime_frame_input_verified_for_runtime: bool = False
@@ -327,6 +333,12 @@ def build_diagnostics_text(snapshot: DiagnosticsSnapshot) -> str:
         f"Input proof: {snapshot.runtime_frame_input_proof}",
         f"Pipeline proof: {snapshot.runtime_frame_pipeline_proof}",
         f"Output proof: {snapshot.runtime_frame_output_proof}",
+        f"Full Live Runtime Ready gate: {snapshot.runtime_frame_full_live_gate}",
+        f"Ready state: {snapshot.runtime_frame_ready_state}",
+        f"Telemetry proof: {snapshot.runtime_frame_telemetry_proof}",
+        f"Safety proof: {snapshot.runtime_frame_safety_proof}",
+        f"Fake/real path: {snapshot.runtime_frame_fake_or_real_path}",
+        f"Readiness evaluated: {snapshot.runtime_frame_readiness_evaluated_at}",
         f"Runtime candidate: {snapshot.runtime_frame_candidate}",
         f"Proof summary: {snapshot.runtime_frame_proof_summary}",
         f"Input verified for runtime: {str(snapshot.runtime_frame_input_verified_for_runtime).lower()}",
@@ -417,6 +429,12 @@ def _runtime_frame_fields(runtime_frame: RuntimeFrameTelemetryPayload | None) ->
         "runtime_frame_input_proof": runtime_frame.input_proof,
         "runtime_frame_pipeline_proof": runtime_frame.pipeline_proof,
         "runtime_frame_output_proof": runtime_frame.output_proof,
+        "runtime_frame_full_live_gate": _runtime_frame_full_live_gate(runtime_frame),
+        "runtime_frame_ready_state": runtime_frame.ready_state,
+        "runtime_frame_telemetry_proof": runtime_frame.telemetry_proof,
+        "runtime_frame_safety_proof": runtime_frame.safety_proof,
+        "runtime_frame_fake_or_real_path": runtime_frame.fake_or_real_path,
+        "runtime_frame_readiness_evaluated_at": runtime_frame.evaluated_at.isoformat() if runtime_frame.evaluated_at else "Unavailable",
         "runtime_frame_candidate": _runtime_frame_candidate(runtime_frame),
         "runtime_frame_proof_summary": runtime_frame.proof_summary or "unavailable",
         "runtime_frame_input_verified_for_runtime": runtime_frame.input_verified_for_runtime,
@@ -431,10 +449,20 @@ def _runtime_frame_fields(runtime_frame: RuntimeFrameTelemetryPayload | None) ->
 
 
 def _runtime_frame_candidate(runtime_frame: RuntimeFrameTelemetryPayload) -> str:
+    if runtime_frame.full_live_runtime_ready:
+        return "ready - full gate open"
+    if runtime_frame.ready_state == "fake_test":
+        return "fake/test only - not real readiness"
     if runtime_frame.verified_runtime_candidate:
-        return "candidate - Phase 16D final gate pending"
+        return "candidate - final gate proof incomplete"
     reason = runtime_frame.blocked_reason or "proof incomplete"
     return f"blocked - {reason}"
+
+
+def _runtime_frame_full_live_gate(runtime_frame: RuntimeFrameTelemetryPayload) -> str:
+    if runtime_frame.full_live_runtime_ready:
+        return "ready"
+    return runtime_frame.ready_state or "blocked"
 
 
 def _joined(values: tuple[str, ...]) -> str:

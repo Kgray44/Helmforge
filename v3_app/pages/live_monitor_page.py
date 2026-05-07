@@ -676,6 +676,11 @@ class LiveMonitorPage(QWidget):
             f"Input proof: {_runtime_frame_input_proof(runtime_frame)}. "
             f"Pipeline proof: {_runtime_frame_pipeline_proof(runtime_frame)}. "
             f"Output proof: {_runtime_frame_output_proof(runtime_frame)}. "
+            f"Ready state: {_runtime_frame_ready_state(runtime_frame)}. "
+            f"Telemetry proof: {_runtime_frame_telemetry_proof(runtime_frame)}. "
+            f"Safety proof: {_runtime_frame_safety_proof(runtime_frame)}. "
+            f"Fake/real path: {_runtime_frame_fake_or_real_path(runtime_frame)}. "
+            f"Readiness evaluated: {_runtime_frame_evaluated_at(runtime_frame)}. "
             f"Runtime candidate: {_runtime_frame_candidate(runtime_frame)}. "
             f"Proof summary: {_runtime_frame_proof_summary(runtime_frame)}. "
             "runtime_frame output intent is not output write proof.\n"
@@ -691,7 +696,7 @@ class LiveMonitorPage(QWidget):
             f"Last output write: {_output_loop_last_write(self._virtual_output_loop_snapshot)}. "
             f"Neutral restore status: {_output_loop_neutral_restore(self._virtual_output_loop_snapshot)}. "
             "Output path remains unverified. vJoy writes are not active unless the Phase 15C output loop is explicitly enabled with a verified backend. "
-            f"Full Live Runtime Ready {str(False).lower()}."
+            f"Full Live Runtime Ready {_runtime_frame_full_ready(runtime_frame)}."
         )
         self.bridge_health_label.setText(
             self._bridge_health_text(
@@ -991,11 +996,41 @@ def _runtime_frame_output_proof(runtime_frame: RuntimeFrameTelemetryPayload | No
     return runtime_frame.output_proof if runtime_frame is not None else "unavailable"
 
 
+def _runtime_frame_ready_state(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    return runtime_frame.ready_state if runtime_frame is not None else "unavailable"
+
+
+def _runtime_frame_telemetry_proof(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    return runtime_frame.telemetry_proof if runtime_frame is not None else "unavailable"
+
+
+def _runtime_frame_safety_proof(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    return runtime_frame.safety_proof if runtime_frame is not None else "unavailable"
+
+
+def _runtime_frame_fake_or_real_path(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    return runtime_frame.fake_or_real_path if runtime_frame is not None else "unavailable"
+
+
+def _runtime_frame_evaluated_at(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    if runtime_frame is None or runtime_frame.evaluated_at is None:
+        return "Unavailable"
+    return runtime_frame.evaluated_at.isoformat()
+
+
+def _runtime_frame_full_ready(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
+    return str(bool(runtime_frame and runtime_frame.full_live_runtime_ready)).lower()
+
+
 def _runtime_frame_candidate(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
     if runtime_frame is None:
         return "unavailable"
+    if runtime_frame.full_live_runtime_ready:
+        return "ready - full gate open"
+    if runtime_frame.ready_state == "fake_test":
+        return "fake/test only - not real readiness"
     if runtime_frame.verified_runtime_candidate:
-        return "candidate - Phase 16D final gate pending"
+        return "candidate - final gate proof incomplete"
     reason = runtime_frame.blocked_reason or "proof incomplete"
     return f"blocked - {reason}"
 

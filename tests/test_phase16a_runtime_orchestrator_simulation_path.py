@@ -154,7 +154,7 @@ def test_phase16a_physical_input_can_feed_pipeline_but_stale_or_error_input_fall
 
     assert error_frame.input.source is RuntimeFrameSource.SIMULATION
     assert error_frame.input.error is True
-    assert error_frame.safety.blocked_reason == "blocked_error"
+    assert error_frame.safety.blocked_reason == "blocked_input_error"
     assert "fake read failure" in error_frame.safety.errors
 
 
