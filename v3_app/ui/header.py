@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from PySide6.QtWidgets import QLabel, QHBoxLayout, QVBoxLayout, QWidget
 
 from v3_app.services.app_state import AppState
@@ -10,10 +12,11 @@ HEADER_SUBTITLE = "HOTAS Control Panel V3, professional tuning, live inspection,
 
 
 class Header(QWidget):
-    def __init__(self, state: AppState) -> None:
+    def __init__(self, state: AppState, *, on_helm: Callable[[], None] | None = None) -> None:
         super().__init__()
         self.setObjectName("appHeader")
         self._state = state
+        self._on_helm = on_helm
         self._runtime_chip: QLabel | None = None
         self._saved_chip: QLabel | None = None
 
@@ -69,6 +72,8 @@ class Header(QWidget):
         label = QLabel("ASSISTANT")
         label.setObjectName("clusterLabel")
         helm = action_button("Helm", object_name="helmButton")
+        if self._on_helm is not None:
+            helm.clicked.connect(self._on_helm)
         layout.addWidget(label, 1)
         layout.addWidget(helm)
         return cluster

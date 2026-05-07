@@ -19,6 +19,7 @@ from v3_app.pages.mapping_page import MappingPage
 from v3_app.pages.modes_page import ModesPage
 from v3_app.pages.placeholders import PAGE_DEFINITIONS, create_placeholder_page, page_definition_by_id
 from v3_app.pages.profiles_page import ProfilesPage
+from v3_app.helm.helm_overlay import HelmOverlay
 from v3_app.services.app_state import AppState, build_initial_app_state
 from v3_app.ui.footer import Footer
 from v3_app.ui.header import Header
@@ -43,13 +44,14 @@ class HelmForgeShell(QWidget):
         self.runtime_status = build_runtime_preflight_status()
         self.active_page_id = self.state.active_page_id
         self.page_widgets: dict[str, QScrollArea] = {}
+        self.helm_overlay: HelmOverlay | None = None
 
         root = QHBoxLayout(self)
         root.setContentsMargins(18, 18, 18, 18)
         root.setSpacing(18)
 
         self.sidebar = Sidebar(PAGE_DEFINITIONS, self.state, self.switch_page)
-        self.header = Header(self.state)
+        self.header = Header(self.state, on_helm=self.open_helm_overlay)
         self.stack = QStackedWidget()
         self.stack.setObjectName("pageStack")
         self.footer = Footer(
@@ -157,6 +159,19 @@ class HelmForgeShell(QWidget):
 
     def import_profile_placeholder(self) -> None:
         self.set_status_message("Import Profile is reserved for a later import phase; no workspace file was changed.")
+
+    def open_helm_overlay(self) -> None:
+        if self.helm_overlay is None:
+            self.helm_overlay = HelmOverlay(
+                workspace=self.workspace,
+                runtime_status=self.runtime_status,
+                on_workspace_changed=self.update_workspace_draft,
+                on_status=self.set_status_message,
+                parent=self,
+            )
+        else:
+            self.helm_overlay._workspace = self.workspace
+        self.helm_overlay.open_for_parent()
 
     def save_workspace(self) -> None:
         try:

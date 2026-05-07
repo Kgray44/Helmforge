@@ -13,6 +13,7 @@ def app_qss() -> str:
     QWidget#appSidebar,
     QWidget#appHeader,
     QWidget#appFooter,
+    QDialog#helmOverlay,
     QWidget#runtimeCard,
     QWidget#placeholderCard,
     QFrame[cardRole="pageCard"],
@@ -28,7 +29,9 @@ def app_qss() -> str:
     }
 
     QWidget#contentViewport,
+    QWidget#helmOverlayContent,
     QScrollArea#pageScrollArea,
+    QScrollArea#helmOverlayScrollArea,
     QStackedWidget#pageStack {
         background: #07111d;
         border: none;
@@ -249,7 +252,8 @@ def app_qss() -> str:
     }
 
     QLineEdit,
-    QComboBox {
+    QComboBox,
+    QPlainTextEdit {
         background: #07111d;
         border: 1px solid #28496a;
         border-radius: 10px;
@@ -259,8 +263,27 @@ def app_qss() -> str:
     }
 
     QLineEdit:focus,
-    QComboBox:focus {
+    QComboBox:focus,
+    QPlainTextEdit:focus {
         border-color: #53b7ff;
+    }
+
+    QPushButton[uiRole="symptomChip"] {
+        background: #0c1a27;
+        border-color: #2d4d6f;
+        padding: 7px 12px;
+        font-weight: 500;
+    }
+
+    QPushButton[uiRole="symptomChip"]:hover {
+        background: #12314b;
+        border-color: #53b7ff;
+    }
+
+    QLabel#helmPulseIndicator {
+        background: #72e2a0;
+        border: 6px solid #5f9f86;
+        border-radius: 12px;
     }
 
     QTreeWidget {

@@ -1,6 +1,6 @@
 # Bridge/UI Architecture
 
-Status: Phase 9K freezes the Phase 9 Bridge/UI boundary after Live Monitor diagnostic UX polish and edge-state cleanup. Shared contracts exist, `bridge_app` can run as a separate simulation-only Python process, the PySide6 Live Monitor can consume fresh Bridge telemetry JSON with safe simulation fallback, and the UI can request safe Bridge commands through a JSON command file. The Bridge echoes the most recently consumed command request in telemetry, and the UI shows compact Bridge health/timing details, device discovery truth, process-presence hints, and a stable diagnostic hierarchy. Continuous real HOTAS polling, live physical input streaming, vJoy writes, output verification, automatic Bridge launch, process spawning from the UI, Windows Service install, tray manager work, and login auto-start are not implemented yet.
+Status: Phase 10B expands Helm's deterministic intelligence layer after Phase 10A added the overlay foundation and Phase 9K froze the Bridge/UI boundary. Shared contracts exist, `bridge_app` can run as a separate simulation-only Python process, the PySide6 Live Monitor can consume fresh Bridge telemetry JSON with safe simulation fallback, and the UI can request safe Bridge commands through a JSON command file. The Bridge echoes the most recently consumed command request in telemetry, and the UI shows compact Bridge health/timing details, device discovery truth, process-presence hints, and a stable diagnostic hierarchy. Helm now launches from the top-right ASSISTANT cluster as an overlay/modal assistant, analyzes local workspace values through deterministic symptom paths, groups recommendations, asks deterministic follow-up questions when a symptom is ambiguous, and only mutates the in-memory workspace draft when the user applies selected changes. Continuous real HOTAS polling, live physical input streaming, vJoy writes, output verification, automatic Bridge launch, process spawning from the UI, Windows Service install, tray manager work, and login auto-start are not implemented yet.
 
 ## Core Rule
 
@@ -173,6 +173,29 @@ python -m bridge_app.main --run-for-ms 250
 ```
 
 The UI does not add a button or background process launch path for that command.
+
+## Helm Assistant Overlay
+
+Phase 10 is Helm Assistant Overlay according to the prompt book. Phase 10A establishes the foundation:
+
+- Helm launches from the top-right `ASSISTANT` cluster.
+- Helm is overlay/modal behavior, not a sidebar page.
+- Helm applies changes only to the in-memory workspace/draft.
+- Helm never auto-saves.
+- Helm v1 does not auto-edit conditional rules.
+- Phase 10A does not add real HOTAS polling, vJoy writes, output verification, Bridge lifecycle control, or real runtime activation.
+
+The first deterministic symptom path is `Combat mode feels sluggish`. It produces combat-profile diffs with exact before/after values, applies selected diffs only in memory, marks the workspace unsaved through the existing shell dirty-state path, and can revert the last Helm-applied batch. The helper engine and diff model live under `v3_app/helm/` so Helm logic stays out of the shell file and remains testable without PySide6 where practical.
+
+Phase 10B expands that foundation without adding runtime authority:
+
+- symptom definitions live in `v3_app/helm/symptom_library.py`;
+- recommendation tables live in `v3_app/helm/recommendation_library.py`;
+- analysis, confidence, follow-up, grouping, and finding models live in `v3_app/helm/helm_engine.py`;
+- exact before/after diffs and in-memory apply/revert behavior live in `v3_app/helm/diff_model.py`;
+- the overlay renders grouped recommendations, confidence labels, expected outcomes, risk notes, and small "Why?" sections.
+
+Helm remains deterministic, local, and recommendation-only. It does not use cloud AI, an LLM, runtime control, live telemetry authority, real HOTAS polling, vJoy writes, output verification, Bridge launch, or process management. Helm also does not create, edit, enable, disable, or delete conditional rules in Phase 10B.
 
 ## Phase 9K Boundary Freeze
 
