@@ -21,5 +21,7 @@ class Colors:
 
 class Layout:
     sidebar_width = 288
-    window_width = 1500
-    window_height = 920
+    window_width = 1440
+    window_height = 840
+    window_min_width = 1120
+    window_min_height = 680

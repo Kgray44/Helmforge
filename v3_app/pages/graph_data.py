@@ -53,19 +53,7 @@ def base_response_preview_data(tuning: AxisTuning, *, sample_count: int = 101) -
     linear = linear_reference_points(sample_count=sample_count)
     adjusted: list[tuple[float, float]] = []
     for raw in _sample_values(sample_count):
-        centered = apply_center_deadzone(
-            -raw if tuning.invert else raw,
-            deadzone=tuning.deadzone,
-            anti_deadzone=tuning.anti_deadzone,
-            hysteresis=tuning.hysteresis,
-        ).output
-        curved = s_curve_centered(centered, curve_strength=tuning.curve_strength)
-        limited = apply_output_limits(
-            curved,
-            output_scale=tuning.output_scale,
-            max_output=tuning.max_output,
-        )
-        adjusted.append((raw, limited))
+        adjusted.append((raw, base_adjusted_value(tuning, raw)))
     return BaseResponsePreviewData(linear=linear, adjusted=tuple(adjusted))
 
 
@@ -99,10 +87,35 @@ def combat_response_preview_data(
     combat_points: list[tuple[float, float]] = []
     base = base_response_preview_data(tuning, sample_count=sample_count).adjusted
     for raw, base_y in base:
-        combat_y = s_curve_centered(base_y, curve_strength=combat.combat_curve) * combat.combat_scale
-        combat_points.append((raw, apply_output_limits(combat_y, output_scale=1.0, max_output=tuning.max_output)))
+        combat_points.append((raw, combat_adjusted_value(tuning, combat, raw)))
         baseline.append((raw, base_y))
     return CombatPreviewData(linear=linear, baseline=tuple(baseline), combat=tuple(combat_points))
+
+
+def base_adjusted_value(tuning: AxisTuning, raw: float) -> float:
+    centered = apply_center_deadzone(
+        -raw if tuning.invert else raw,
+        deadzone=tuning.deadzone,
+        anti_deadzone=tuning.anti_deadzone,
+        hysteresis=tuning.hysteresis,
+    ).output
+    curved = s_curve_centered(centered, curve_strength=tuning.curve_strength)
+    return apply_output_limits(
+        curved,
+        output_scale=tuning.output_scale,
+        max_output=tuning.max_output,
+    )
+
+
+def filtering_adjusted_value(settings: AxisFiltering, raw: float) -> float:
+    result = step_filter(target_value=raw, state=FilterState(), settings=settings)
+    return result.output
+
+
+def combat_adjusted_value(tuning: AxisTuning, combat: AxisCombatProfile, raw: float) -> float:
+    baseline = base_adjusted_value(tuning, raw)
+    combat_y = s_curve_centered(baseline, curve_strength=combat.combat_curve) * combat.combat_scale
+    return apply_output_limits(combat_y, output_scale=1.0, max_output=tuning.max_output)
 
 
 def effective_response_stack_graph_data(

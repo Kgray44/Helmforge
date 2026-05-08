@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 from shared_core.models.runtime import RuntimePreflightStatus
 from shared_core.models.workspace import WorkspaceConfig
 from shared_core.runtime.device_discovery import build_runtime_preflight_status
-from v3_app.pages.page_helpers import card, card_header, card_layout, page_intro
+from v3_app.pages.page_helpers import add_card_to_grid, card, card_header, card_layout, page_intro
 from v3_app.recorder.clip_library import ClipLibrary
 from v3_app.recorder.recorder_controller import FlightRecorderController
 from v3_app.recorder.recorder_settings import FlightRecorderSettings
@@ -69,10 +69,10 @@ class FlightRecorderPage(QWidget):
         grid = QGridLayout()
         grid.setHorizontalSpacing(18)
         grid.setVerticalSpacing(18)
-        grid.addWidget(self._recorder_settings_card(), 0, 0)
-        grid.addWidget(self._axis_overlay_card(), 0, 1)
-        grid.addWidget(self._recording_library_card(), 1, 0)
-        grid.addWidget(self._clip_preview_card(), 1, 1)
+        add_card_to_grid(grid, self._recorder_settings_card(), 0, 0)
+        add_card_to_grid(grid, self._axis_overlay_card(), 0, 1)
+        add_card_to_grid(grid, self._recording_library_card(), 1, 0)
+        add_card_to_grid(grid, self._clip_preview_card(), 1, 1)
         root.addLayout(grid)
         root.addStretch(1)
 
@@ -83,7 +83,8 @@ class FlightRecorderPage(QWidget):
         row = QHBoxLayout()
         row.setSpacing(8)
         row.addWidget(status_chip("UI Ready", tone="success", object_name="recorderUiReadyChip"))
-        backend_label = "Simulated backend" if self._backend_status.capabilities.simulated_artifact_available else "Capture backend missing"
+        capabilities = self._backend_status.capabilities
+        backend_label = _capture_backend_chip_label(capabilities)
         row.addWidget(status_chip(backend_label, tone="warning", object_name="recorderBackendChip"))
         row.addWidget(status_chip("Hotkey not registered", tone="warning", object_name="recorderHotkeyChip"))
         row.addWidget(status_chip(f"{self.settings.overlay_source} source", tone="neutral", object_name="recorderOverlaySourceChip"))
@@ -100,17 +101,25 @@ class FlightRecorderPage(QWidget):
                     "Output verified": str(self._runtime_status.live_output_writes_verified).lower(),
                     "Full Live Runtime Ready": str(_full_live_runtime_ready(self._runtime_status)).lower(),
                     "Capture backend": summary["Capture backend"],
+                    "Dependency status": summary["Dependency status"],
+                    "Real capture supported": summary["Real capture supported"],
+                    "Frame capture": summary["Frame capture"],
+                    "Cursor capture": summary["Cursor capture"],
+                    "Display enumeration": summary["Display enumeration"],
+                    "Video encoding": summary["Video encoding"],
                     "Compositor": summary["Compositor"],
                     "Recorder mode": summary["Recorder mode"],
                     "Hotkey status": summary["Hotkey status"],
                     "Telemetry hindsight": summary["Telemetry hindsight"],
-                    "Hindsight video buffering": summary["Video hindsight"],
+                    "Video hindsight": summary["Video hindsight"],
+                    "Hindsight video buffering": "unavailable",
                 }
             )
         )
         layout.addWidget(
             _body(
                 "Telemetry hindsight buffer available. Video hindsight buffering is not implemented yet. "
+                "Video hindsight unavailable. Video encoding unavailable. "
                 "Save Last Clip cannot save real video until capture and buffer backends exist. "
                 "Simulated exports contain telemetry and overlay metadata only."
             )
@@ -150,12 +159,12 @@ class FlightRecorderPage(QWidget):
         browse.setEnabled(False)
         open_folder = action_button("Open Folder", object_name="recorderOpenFolderButton")
         open_folder.setEnabled(False)
-        simulated_available = self._backend_status.capabilities.simulated_artifact_available
+        real_capture_supported = self._backend_status.capabilities.real_capture_supported
         self.record_now_button = action_button("Record Now", object_name="recordNowButton")
-        self.record_now_button.setEnabled(simulated_available)
+        self.record_now_button.setEnabled(real_capture_supported)
         self.record_now_button.clicked.connect(self.record_now)
         self.save_last_clip_button = action_button("Save Last Clip", object_name="saveLastClipButton")
-        self.save_last_clip_button.setEnabled(simulated_available)
+        self.save_last_clip_button.setEnabled(real_capture_supported and self.settings.hindsight_video_buffer_available)
         self.save_last_clip_button.clicked.connect(self.save_last_clip)
         for button in (browse, open_folder, self.record_now_button, self.save_last_clip_button):
             button_row.addWidget(button)
@@ -163,7 +172,7 @@ class FlightRecorderPage(QWidget):
         layout.addLayout(button_row)
         layout.addWidget(
             _body(
-                "Capture backend missing. Video hindsight buffer not implemented yet. "
+                f"{_capture_backend_chip_label(self._backend_status.capabilities)}. Video hindsight buffer not implemented yet. "
                 "Recording backend is not active in this phase. Recording backend unavailable. "
                 "Injected simulated backends can write metadata-only manifests or simulated export bundles for tests."
             )
@@ -399,6 +408,14 @@ def _body(text: str) -> QLabel:
 
 def _key(axis_name: str) -> str:
     return axis_name.replace(" ", "_")
+
+
+def _capture_backend_chip_label(capabilities) -> str:
+    if capabilities.backend_kind == "simulated":
+        return "Simulated backend"
+    if capabilities.backend_kind == "candidate":
+        return "Candidate available" if capabilities.dependency_available else "Candidate unavailable"
+    return "Capture backend missing"
 
 
 def _full_live_runtime_ready(runtime_status: RuntimePreflightStatus) -> bool:

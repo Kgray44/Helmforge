@@ -29,7 +29,7 @@ from shared_core.runtime.runtime_bridge import RuntimeBridge
 from shared_core.rules.evaluator import RuleStatus
 from v3_app.pages.graph_data import effective_response_stack_graph_data
 from v3_app.pages.graph_widgets import GraphPreview
-from v3_app.pages.page_helpers import card, card_header, card_layout, page_intro, signed, value_grid
+from v3_app.pages.page_helpers import add_card_to_grid, card, card_header, card_layout, page_intro, signed, value_grid
 from v3_app.services.app_state import AppState
 from v3_app.services.perf_diagnostics import DiagnosticsCollector
 from v3_app.services.physical_input_ui import build_input_source_status, raw_axes_from_physical_snapshot
@@ -223,10 +223,10 @@ class EffectiveResponseStackPage(QWidget):
         lower = QGridLayout()
         lower.setHorizontalSpacing(18)
         lower.setVerticalSpacing(18)
-        lower.addWidget(self._build_mode_state_card(), 0, 0)
-        lower.addWidget(self._build_summary_card(), 0, 1)
-        lower.addWidget(self._build_selected_stage_card(), 1, 0)
-        lower.addWidget(self._build_rule_driver_card(), 1, 1)
+        add_card_to_grid(lower, self._build_mode_state_card(), 0, 0)
+        add_card_to_grid(lower, self._build_summary_card(), 0, 1)
+        add_card_to_grid(lower, self._build_selected_stage_card(), 1, 0)
+        add_card_to_grid(lower, self._build_rule_driver_card(), 1, 1)
         side.addLayout(lower, 2)
         return side
 

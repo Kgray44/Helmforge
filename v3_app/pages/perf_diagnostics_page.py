@@ -21,7 +21,7 @@ from shared_core.runtime.vjoy_output import (
     VirtualOutputWriteLoop,
     build_virtual_output_diagnostics,
 )
-from v3_app.pages.page_helpers import card, card_header, card_layout, page_intro
+from v3_app.pages.page_helpers import add_card_to_grid, card, card_header, card_layout, page_intro
 from v3_app.services.app_state import AppState, RuntimeUiState
 from v3_app.services.bridge_client import BridgeTelemetryClient, BridgeTelemetryReadResult
 from v3_app.services.perf_diagnostics import (
@@ -86,13 +86,13 @@ class PerfDiagnosticsPage(QWidget):
         grid = QGridLayout()
         grid.setHorizontalSpacing(18)
         grid.setVerticalSpacing(18)
-        grid.addWidget(self._runtime_truth_card(), 0, 0)
-        grid.addWidget(self._bridge_card(), 0, 1)
-        grid.addWidget(self._workspace_card(), 1, 0)
-        grid.addWidget(self._timing_card(), 1, 1)
-        grid.addWidget(self._hidden_skips_card(), 2, 0)
-        grid.addWidget(self._commands_card(), 2, 1)
-        grid.addWidget(self._physical_input_card(), 3, 0, 1, 2)
+        add_card_to_grid(grid, self._runtime_truth_card(), 0, 0)
+        add_card_to_grid(grid, self._bridge_card(), 0, 1)
+        add_card_to_grid(grid, self._workspace_card(), 1, 0)
+        add_card_to_grid(grid, self._timing_card(), 1, 1)
+        add_card_to_grid(grid, self._hidden_skips_card(), 2, 0)
+        add_card_to_grid(grid, self._commands_card(), 2, 1)
+        add_card_to_grid(grid, self._physical_input_card(), 3, 0, 1, 2)
         root.addLayout(grid)
         root.addWidget(self._actions_card())
         root.addStretch(1)

@@ -136,11 +136,23 @@ class HelmForgeShell(QWidget):
         if page_id == "modes":
             return ModesPage(**common, on_dirty=self.mark_workspace_dirty)
         if page_id == "base_tuning":
-            return BaseTuningPage(**common, on_dirty=self.mark_workspace_dirty)
+            return BaseTuningPage(
+                **common,
+                on_dirty=self.mark_workspace_dirty,
+                on_workspace_changed=self.update_workspace_draft,
+            )
         if page_id == "filtering":
-            return FilteringPage(**common, on_dirty=self.mark_workspace_dirty)
+            return FilteringPage(
+                **common,
+                on_dirty=self.mark_workspace_dirty,
+                on_workspace_changed=self.update_workspace_draft,
+            )
         if page_id == "combat_profile":
-            return CombatProfilePage(**common, on_dirty=self.mark_workspace_dirty)
+            return CombatProfilePage(
+                **common,
+                on_dirty=self.mark_workspace_dirty,
+                on_workspace_changed=self.update_workspace_draft,
+            )
         if page_id == "profiles":
             return ProfilesPage(**common, on_status=self.set_status_message)
         if page_id == "conditional_rules":

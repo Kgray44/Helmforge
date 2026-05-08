@@ -11,6 +11,7 @@ class GraphPreview(QWidget):
         self.setObjectName(object_name)
         self._series_items: dict[str, pg.PlotDataItem] = {}
         self._marker_item: pg.PlotDataItem | None = None
+        self._named_marker_items: dict[str, pg.PlotDataItem] = {}
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         self.plot = pg.PlotWidget()
@@ -23,6 +24,10 @@ class GraphPreview(QWidget):
         self.plot.setMinimumHeight(330)
         self.plot.setMouseEnabled(x=False, y=False)
         layout.addWidget(self.plot)
+
+    @property
+    def live_marker_items(self) -> dict[str, pg.PlotDataItem]:
+        return self._named_marker_items
 
     def plot_series(self, series: tuple[tuple[str, tuple[tuple[float, float], ...], str], ...]) -> None:
         active_names: set[str] = set()
@@ -62,3 +67,38 @@ class GraphPreview(QWidget):
                 symbolSize=11,
             )
         self._marker_item.setData([marker[0]], [marker[1]])
+
+    def plot_series_with_markers(
+        self,
+        series: tuple[tuple[str, tuple[tuple[float, float], ...], str], ...],
+        *,
+        markers: dict[str, tuple[float, float]],
+        marker_colors: dict[str, str] | None = None,
+    ) -> None:
+        self.plot_series(series)
+        self.update_markers(markers, marker_colors=marker_colors)
+
+    def update_markers(
+        self,
+        markers: dict[str, tuple[float, float]],
+        *,
+        marker_colors: dict[str, str] | None = None,
+    ) -> None:
+        marker_colors = marker_colors or {}
+        for name, marker in markers.items():
+            item = self._named_marker_items.get(name)
+            if item is None:
+                item = self.plot.plot(
+                    [],
+                    [],
+                    pen=None,
+                    symbol="o",
+                    symbolBrush=marker_colors.get(name, "#b9ecff"),
+                    symbolPen="#ffffff",
+                    symbolSize=12,
+                )
+                self._named_marker_items[name] = item
+            item.setData([marker[0]], [marker[1]])
+
+        for stale_name in set(self._named_marker_items) - set(markers):
+            self._named_marker_items[stale_name].setData([], [])
