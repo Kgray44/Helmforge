@@ -8,6 +8,8 @@ from v3_app.recorder.capture_backend import (
     CaptureBackend,
     CaptureBackendResult,
     CaptureBackendStatus,
+    CaptureDisplaySource,
+    FrameCaptureResult,
     MissingCaptureBackend,
 )
 from v3_app.recorder.compositor import MissingRecorderCompositor, RecorderCompositor
@@ -33,6 +35,16 @@ class RecorderOperationResult:
     export_metadata: RecorderExportMetadata | None = None
 
 
+@dataclass(frozen=True)
+class OneFrameProofAvailability:
+    available: bool
+    message: str
+    status_label: str
+    source: CaptureDisplaySource
+    warnings: tuple[str, ...] = ()
+    errors: tuple[str, ...] = ()
+
+
 class FlightRecorderController:
     def __init__(
         self,
@@ -52,6 +64,7 @@ class FlightRecorderController:
         self.last_artifact: RecorderArtifact | None = None
         self.last_export_metadata: RecorderExportMetadata | None = None
         self.reviewed_session: RecorderReviewSession | None = None
+        self.last_frame_capture_result: FrameCaptureResult | None = None
 
     def refresh_status(self) -> CaptureBackendStatus:
         status = self.capture_backend.refresh_status()
@@ -100,6 +113,7 @@ class FlightRecorderController:
             "Dependency status": "available" if capabilities.dependency_available else "unavailable",
             "Real capture supported": str(capabilities.real_capture_supported).lower(),
             "Frame capture": "available" if capabilities.frame_capture_available else "unavailable",
+            "One-frame proof": "available" if capabilities.one_frame_capture_available else "unavailable",
             "Cursor capture": "available" if capabilities.cursor_capture_available else "unavailable",
             "Display enumeration": "available" if capabilities.display_enumeration_available else "unavailable",
             "Video encoding": "available" if capabilities.video_encoding_available else "unavailable",
@@ -119,6 +133,67 @@ class FlightRecorderController:
             "Telemetry hindsight": self.telemetry_buffer.status_label,
             "Video hindsight": self.telemetry_buffer.video_hindsight_status,
         }
+
+    def one_frame_proof_availability(self) -> OneFrameProofAvailability:
+        status = self.refresh_status()
+        capabilities = status.capabilities
+        source = _first_display_source(self.capture_backend)
+        warnings = _dedupe((*capabilities.warnings, *source.warnings))
+        errors = _dedupe((*capabilities.errors, *source.errors))
+        reasons: list[str] = []
+        if not capabilities.dependency_available:
+            reasons.append("backend dependency unavailable")
+        if not capabilities.one_frame_capture_available:
+            reasons.append("one-frame proof unsupported")
+        if source.errors:
+            reasons.append("display/source unavailable")
+        available = not reasons
+        if available:
+            label = "available"
+            message = "One-frame proof can be tried explicitly. This is not recording, encoding, or runtime readiness."
+        else:
+            label = "unavailable"
+            message = f"One-frame proof unavailable: {', '.join(reasons)}."
+        return OneFrameProofAvailability(
+            available=available,
+            message=message,
+            status_label=label,
+            source=source,
+            warnings=warnings,
+            errors=errors,
+        )
+
+    def try_one_frame_capture(self, *, now: float | None = None) -> FrameCaptureResult:
+        availability = self.one_frame_proof_availability()
+        timestamp = time() if now is None else float(now)
+        if not availability.available:
+            capabilities = self.capture_backend.capabilities()
+            result = FrameCaptureResult(
+                succeeded=False,
+                message=availability.message,
+                backend_name=capabilities.backend_name,
+                backend_kind=capabilities.backend_kind,
+                source=availability.source,
+                timestamp=timestamp,
+                width=None,
+                height=None,
+                pixel_format="unavailable",
+                artifact_path=None,
+                warnings=availability.warnings,
+                errors=availability.errors,
+                truth_label="One-frame capture unavailable",
+                real_capture=False,
+                simulated_capture=False,
+            )
+            self.last_frame_capture_result = result
+            return result
+        result = self.capture_backend.capture_one_frame(
+            source=availability.source,
+            artifact_folder=self.settings.destination_folder,
+            now=timestamp,
+        )
+        self.last_frame_capture_result = result
+        return result
 
     def review_current_session(
         self,
@@ -241,6 +316,8 @@ def _capture_backend_label(capabilities) -> str:
         return "Simulated"
     if capabilities.backend_kind == "candidate":
         return "Candidate available" if capabilities.dependency_available else "Candidate unavailable"
+    if capabilities.backend_kind == "test":
+        return "Test backend"
     return "Missing"
 
 
@@ -254,3 +331,37 @@ def _review_source_type(artifact: RecorderArtifact | None, metadata: RecorderExp
     ):
         return "simulated"
     return "workspace"
+
+
+def _first_display_source(capture_backend: CaptureBackend) -> CaptureDisplaySource:
+    try:
+        sources = capture_backend.display_sources()
+    except Exception as exc:
+        return CaptureDisplaySource(
+            display_id="current",
+            display_label="Current display",
+            capture_source="current display",
+            warnings=("Display/source enumeration failed safely.",),
+            errors=(f"Display/source enumeration failed: {exc}",),
+        )
+    if sources:
+        return sources[0]
+    return CaptureDisplaySource(
+        display_id="current",
+        display_label="Current display",
+        capture_source="current display",
+        warnings=("Display/source enumeration returned no displays.",),
+        errors=("Display/source unavailable.",),
+    )
+
+
+def _dedupe(values: tuple[str, ...]) -> tuple[str, ...]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        text = str(value)
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        result.append(text)
+    return tuple(result)

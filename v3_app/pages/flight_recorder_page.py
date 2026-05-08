@@ -60,6 +60,7 @@ class FlightRecorderPage(QWidget):
         self.recorder_state = recorder_state or self.controller.state
         self.clip_library = ClipLibrary(self.settings.destination_folder)
         self._backend_status = self.controller.refresh_status()
+        self._proof_availability = self.controller.one_frame_proof_availability()
         self._last_action_text = self.recorder_state.message
 
         root = QVBoxLayout(self)
@@ -73,6 +74,7 @@ class FlightRecorderPage(QWidget):
             )
         )
         root.addWidget(self._status_card())
+        root.addWidget(self._capture_proof_card())
         root.addWidget(self._review_card())
 
         grid = QGridLayout()
@@ -113,6 +115,7 @@ class FlightRecorderPage(QWidget):
                     "Dependency status": summary["Dependency status"],
                     "Real capture supported": summary["Real capture supported"],
                     "Frame capture": summary["Frame capture"],
+                    "One-frame proof": summary["One-frame proof"],
                     "Cursor capture": summary["Cursor capture"],
                     "Display enumeration": summary["Display enumeration"],
                     "Video encoding": summary["Video encoding"],
@@ -177,6 +180,32 @@ class FlightRecorderPage(QWidget):
             )
         )
         self._update_review_widgets()
+        return frame
+
+    def _capture_proof_card(self) -> QWidget:
+        frame = card("recorderCaptureProofCard")
+        layout = card_layout(frame)
+        layout.addWidget(card_header("Capture Proof", "Explicit one-frame diagnostic only; no recording or encoder path is started."))
+        self.capture_proof_summary = QLabel("")
+        self.capture_proof_summary.setObjectName("recorderCaptureProofSummary")
+        self.capture_proof_summary.setWordWrap(True)
+        layout.addWidget(self.capture_proof_summary)
+        controls = QHBoxLayout()
+        self.try_one_frame_capture_button = action_button(
+            "Try One-Frame Capture",
+            object_name="tryOneFrameCaptureButton",
+        )
+        self.try_one_frame_capture_button.clicked.connect(self.try_one_frame_capture)
+        controls.addWidget(self.try_one_frame_capture_button)
+        controls.addStretch(1)
+        layout.addLayout(controls)
+        layout.addWidget(
+            _body(
+                "Still-frame proof. Not video recording. Not encoded. Not previewable video. "
+                "No global hotkey registered. Capture proof is not Full Live Runtime Ready."
+            )
+        )
+        self._update_capture_proof_widgets()
         return frame
 
     def _recorder_settings_card(self) -> QWidget:
@@ -368,6 +397,11 @@ class FlightRecorderPage(QWidget):
         elif result.artifact is not None:
             self._show_artifact_preview(result.artifact)
 
+    def try_one_frame_capture(self) -> None:
+        result = self.controller.try_one_frame_capture()
+        self.action_status.setText(result.message)
+        self._update_capture_proof_widgets()
+
     def _apply_operation_result(self, message: str) -> None:
         self.action_status.setText(message)
         self._populate_library()
@@ -443,6 +477,61 @@ class FlightRecorderPage(QWidget):
             )
             for column, value in enumerate(values):
                 self.timeline_table.setItem(row, column, QTableWidgetItem(value))
+
+    def _update_capture_proof_widgets(self) -> None:
+        self._proof_availability = self.controller.one_frame_proof_availability()
+        availability = self._proof_availability
+        result = self.controller.last_frame_capture_result
+        capabilities = self._backend_status.capabilities
+        artifact = "None"
+        dimensions = "Unavailable"
+        pixel_format = "Unavailable"
+        truth = "No proof attempted"
+        real_capture = "false"
+        simulated_capture = "false"
+        warnings = "; ".join(availability.warnings) if availability.warnings else "None"
+        errors = "; ".join(availability.errors) if availability.errors else "None"
+        last_result = "No one-frame proof attempted"
+        if result is not None:
+            last_result = result.message
+            artifact = str(result.artifact_path) if result.artifact_path is not None else "None"
+            if result.width is not None and result.height is not None:
+                dimensions = f"{result.width} x {result.height}"
+            pixel_format = result.pixel_format
+            truth = result.truth_label
+            real_capture = str(result.real_capture).lower()
+            simulated_capture = str(result.simulated_capture).lower()
+            warnings = "; ".join(result.warnings) if result.warnings else "None"
+            errors = "; ".join(result.errors) if result.errors else "None"
+        self.capture_proof_summary.setText(
+            "Backend status\n"
+            f"{_capture_backend_chip_label(capabilities)}\n"
+            "Dependency status\n"
+            f"{'available' if capabilities.dependency_available else 'unavailable'}\n"
+            "Display/source\n"
+            f"{availability.source.display_label} ({availability.source.capture_source})\n"
+            "One-frame proof availability\n"
+            f"{availability.status_label}\n"
+            "Last proof result\n"
+            f"{last_result}\n"
+            "Frame dimensions\n"
+            f"{dimensions}\n"
+            "Pixel format\n"
+            f"{pixel_format}\n"
+            "Artifact path\n"
+            f"{artifact}\n"
+            "Truth label\n"
+            f"{truth}\n"
+            "Real capture\n"
+            f"{real_capture}\n"
+            "Simulated capture\n"
+            f"{simulated_capture}\n"
+            "Warnings\n"
+            f"{warnings}\n"
+            "Errors\n"
+            f"{errors}"
+        )
+        self.try_one_frame_capture_button.setEnabled(availability.available)
 
     def _show_artifact_preview(self, artifact) -> None:
         sample_count = _telemetry_sample_count(artifact.path)
@@ -550,6 +639,8 @@ def _capture_backend_chip_label(capabilities) -> str:
         return "Simulated backend"
     if capabilities.backend_kind == "candidate":
         return "Candidate available" if capabilities.dependency_available else "Candidate unavailable"
+    if capabilities.backend_kind == "test":
+        return "Test backend"
     return "Capture backend missing"
 
 

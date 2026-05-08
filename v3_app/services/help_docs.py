@@ -357,6 +357,7 @@ AUXILIARY_ARTICLES = (
         paragraphs=(
             "Flight Recorder is currently a recorder shell with settings, shared axis overlay colors, a recording library, and a metadata-only clip preview. Simulated exports and simulated artifact manifests are clearly labeled as non-video metadata.",
             "Post-RC 3A adds a real backend design seam and a guarded capture backend capability model. The seam can report Missing, Simulated, Candidate unavailable, or Candidate available, but real capture is still not fully active unless a backend explicitly reports real capture support.",
+            "Post-RC 3C adds a manually triggered one-frame proof surface. It is a diagnostic still-frame proof step only: no real video recording yet, no encoding yet, no hindsight frame buffer yet, no global recorder hotkey yet, and no game injection or graphics hooks.",
             "The rule is simple: simulated artifacts are not real recordings. They are metadata-only artifacts or simulated export bundles; they do not contain desktop frames, playable clips, output verification, or Full Live Runtime Ready proof.",
             "The recorder does not inject into games and does not use graphics hooks. It does not add admin-level capture, hardware polling, vJoy writes, Bridge lifecycle management, cloud AI behavior, or auto-save.",
             "For now, video encoding and hindsight video buffering remain later phases. Record Now and Save Last Clip stay unavailable for real video until a verified capture backend and video buffer exist.",
