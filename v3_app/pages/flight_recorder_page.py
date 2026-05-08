@@ -75,6 +75,7 @@ class FlightRecorderPage(QWidget):
         )
         root.addWidget(self._status_card())
         root.addWidget(self._capture_proof_card())
+        root.addWidget(self._frame_buffer_card())
         root.addWidget(self._review_card())
 
         grid = QGridLayout()
@@ -116,6 +117,7 @@ class FlightRecorderPage(QWidget):
                     "Real capture supported": summary["Real capture supported"],
                     "Frame capture": summary["Frame capture"],
                     "One-frame proof": summary["One-frame proof"],
+                    "Frame buffer": summary["Frame buffer"],
                     "Cursor capture": summary["Cursor capture"],
                     "Display enumeration": summary["Display enumeration"],
                     "Video encoding": summary["Video encoding"],
@@ -208,6 +210,32 @@ class FlightRecorderPage(QWidget):
         self._update_capture_proof_widgets()
         return frame
 
+    def _frame_buffer_card(self) -> QWidget:
+        frame = card("recorderFrameBufferCard")
+        layout = card_layout(frame)
+        layout.addWidget(card_header("Frame Buffer", "Explicit-start hindsight frame metadata buffer; not encoded video."))
+        self.frame_buffer_summary = QLabel("")
+        self.frame_buffer_summary.setObjectName("recorderFrameBufferSummary")
+        self.frame_buffer_summary.setWordWrap(True)
+        layout.addWidget(self.frame_buffer_summary)
+        controls = QHBoxLayout()
+        self.start_frame_buffer_button = action_button("Start Buffer", object_name="startFrameBufferButton")
+        self.start_frame_buffer_button.clicked.connect(self.start_frame_buffer)
+        self.stop_frame_buffer_button = action_button("Stop Buffer", object_name="stopFrameBufferButton")
+        self.stop_frame_buffer_button.clicked.connect(self.stop_frame_buffer)
+        controls.addWidget(self.start_frame_buffer_button)
+        controls.addWidget(self.stop_frame_buffer_button)
+        controls.addStretch(1)
+        layout.addLayout(controls)
+        layout.addWidget(
+            _body(
+                "Not encoded / not playable. Buffered frame entries are metadata/reference proof only, "
+                "and capture buffer state is not Full Live Runtime Ready."
+            )
+        )
+        self.refresh_frame_buffer_status()
+        return frame
+
     def _recorder_settings_card(self) -> QWidget:
         frame = card("recorderSettingsCard")
         layout = card_layout(frame)
@@ -240,7 +268,10 @@ class FlightRecorderPage(QWidget):
         self.record_now_button.setEnabled(real_capture_supported)
         self.record_now_button.clicked.connect(self.record_now)
         self.save_last_clip_button = action_button("Save Last Clip", object_name="saveLastClipButton")
-        self.save_last_clip_button.setEnabled(real_capture_supported and self.settings.hindsight_video_buffer_available)
+        self.save_last_clip_button.setEnabled(
+            self.controller.frame_buffer_status().stored_frame_count > 0
+            or (real_capture_supported and self.settings.hindsight_video_buffer_available)
+        )
         self.save_last_clip_button.clicked.connect(self.save_last_clip)
         for button in (browse, open_folder, self.record_now_button, self.save_last_clip_button):
             button_row.addWidget(button)
@@ -387,11 +418,12 @@ class FlightRecorderPage(QWidget):
 
     def save_last_clip(self) -> None:
         previous = self.action_status.text()
-        result = self.controller.save_last_clip()
+        result = self.controller.save_last_clip(runtime_status=self._runtime_status)
         message = result.message
         if not result.succeeded and previous and previous != self._last_action_text and previous != message:
             message = f"{previous} {message}"
         self._apply_operation_result(message)
+        self.refresh_frame_buffer_status()
         if result.export_metadata is not None:
             self._show_export_preview(result.export_metadata)
         elif result.artifact is not None:
@@ -401,6 +433,73 @@ class FlightRecorderPage(QWidget):
         result = self.controller.try_one_frame_capture()
         self.action_status.setText(result.message)
         self._update_capture_proof_widgets()
+
+    def start_frame_buffer(self) -> None:
+        result = self.controller.start_frame_buffer()
+        self.action_status.setText(result.message)
+        self.refresh_frame_buffer_status()
+
+    def stop_frame_buffer(self) -> None:
+        result = self.controller.stop_frame_buffer()
+        self.action_status.setText(result.message)
+        self.refresh_frame_buffer_status()
+
+    def refresh_frame_buffer_status(self) -> None:
+        if not hasattr(self, "frame_buffer_summary"):
+            return
+        availability = self.controller.frame_buffer_availability()
+        status = self.controller.frame_buffer_status()
+        warnings = "; ".join(status.warnings or availability.warnings) if (status.warnings or availability.warnings) else "None"
+        errors = "; ".join(status.errors or availability.errors) if (status.errors or availability.errors) else "None"
+        dimensions = (
+            f"{status.frame_width} x {status.frame_height}"
+            if status.frame_width is not None and status.frame_height is not None
+            else "Unavailable"
+        )
+        interval = (
+            f"{status.oldest_timestamp:.3f} - {status.newest_timestamp:.3f}"
+            if status.oldest_timestamp is not None and status.newest_timestamp is not None
+            else "Unavailable"
+        )
+        aligned_samples = len(self.controller.aligned_telemetry_for_frame_buffer())
+        self.frame_buffer_summary.setText(
+            "Buffer state\n"
+            f"{'active' if status.active else 'inactive'}\n"
+            "Buffer health\n"
+            f"{status.health}\n"
+            "Availability\n"
+            f"{'available' if availability.available else 'unavailable'}\n"
+            "Display/source\n"
+            f"{availability.source.display_label} ({availability.source.capture_source})\n"
+            "Buffer duration\n"
+            f"{status.buffer_duration_seconds:.2f} s\n"
+            "Stored frames\n"
+            f"{status.stored_frame_count}\n"
+            "Dropped frames\n"
+            f"{status.dropped_frame_count}\n"
+            "Frame budget\n"
+            f"{status.max_frame_count} frames at {status.target_fps} fps for {status.max_duration_seconds:.2f} s\n"
+            "Frame interval\n"
+            f"{interval}\n"
+            "Frame dimensions\n"
+            f"{dimensions}\n"
+            "Pixel format\n"
+            f"{status.pixel_format}\n"
+            "Telemetry samples aligned\n"
+            f"{aligned_samples}\n"
+            "Last intermediate save state\n"
+            f"{self.controller.last_artifact.status if self.controller.last_artifact is not None else 'none'}\n"
+            "Encode/playback\n"
+            "Not encoded / not playable\n"
+            "Warnings\n"
+            f"{warnings}\n"
+            "Errors\n"
+            f"{errors}"
+        )
+        self.start_frame_buffer_button.setEnabled(availability.available and not status.active)
+        self.stop_frame_buffer_button.setEnabled(status.active)
+        if hasattr(self, "save_last_clip_button"):
+            self.save_last_clip_button.setEnabled(status.stored_frame_count > 0)
 
     def _apply_operation_result(self, message: str) -> None:
         self.action_status.setText(message)
@@ -535,6 +634,21 @@ class FlightRecorderPage(QWidget):
 
     def _show_artifact_preview(self, artifact) -> None:
         sample_count = _telemetry_sample_count(artifact.path)
+        if artifact.status == "intermediate_frame_buffer":
+            self.preview_status.setText(
+                "Intermediate frame buffer artifact\n"
+                "Metadata/reference frames only\n"
+                "No video preview available\n"
+                "Not encoded\n"
+                "Not playable\n"
+                f"Telemetry samples: {sample_count}"
+            )
+            self.preview_metadata.setText(
+                f"Filename: {artifact.filename} | Overlay source: {artifact.overlay_source} | "
+                "Resolution: No video | "
+                f"Length: {artifact.duration_seconds:.2f} s"
+            )
+            return
         if artifact.is_simulated:
             self.preview_status.setText(f"Simulated artifact\nNo video preview available\nTelemetry samples: {sample_count}")
         else:
