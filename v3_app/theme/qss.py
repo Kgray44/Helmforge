@@ -577,6 +577,84 @@ def app_qss() -> str:
         background: #153b5a;
     }
 
+    QTreeWidget#helpDocsTopicTree {
+        background: #07111d;
+        border: 1px solid #315577;
+        border-radius: 12px;
+        color: #dceeff;
+        padding: 8px;
+        alternate-background-color: #0a1521;
+    }
+
+    QTreeWidget#helpDocsTopicTree::item {
+        min-height: 24px;
+        padding: 5px 8px;
+        border-radius: 8px;
+    }
+
+    QTreeWidget#helpDocsTopicTree::item:selected {
+        background: #143d5f;
+        color: #f5f9ff;
+    }
+
+    QTreeWidget#helpDocsTopicTree::item:hover {
+        background: #10283d;
+        color: #f5f9ff;
+    }
+
+    QFrame#helpArticleSurface {
+        background: #091622;
+        border: 1px solid #254766;
+        border-radius: 14px;
+    }
+
+    QFrame#helpArticleSection {
+        background: transparent;
+        border: none;
+        border-bottom: 1px solid #173149;
+        border-radius: 0px;
+        padding-bottom: 8px;
+    }
+
+    QLabel#helpArticleSectionTitle {
+        color: #dceeff;
+        font-size: 16px;
+        font-weight: 750;
+    }
+
+    QLabel#helpArticleParagraph {
+        color: #b9d4ec;
+        font-size: 13px;
+        line-height: 1.35;
+    }
+
+    QLabel#helpArticleRelated {
+        color: #8fb4d0;
+        border-top: 1px solid #173149;
+        padding-top: 9px;
+    }
+
+    QFrame#helpParameterReferenceBlock {
+        background: #0d1d2c;
+        border: 1px solid #315577;
+        border-radius: 10px;
+    }
+
+    QLabel#helpParameterName {
+        color: #e7f3ff;
+        font-weight: 750;
+    }
+
+    QLabel#helpParameterValue {
+        color: #c6ddef;
+        font-weight: 550;
+    }
+
+    QLabel#helpParameterWarning {
+        color: #f0c46a;
+        font-weight: 600;
+    }
+
     QPushButton#saveWorkspaceButton {
         background: #12314b;
         border-color: #4f91c0;

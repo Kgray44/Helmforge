@@ -169,7 +169,7 @@ class HelmForgeShell(QWidget):
         if page_id == "flight_recorder":
             return FlightRecorderPage(**common)
         if page_id == "help_docs":
-            return HelpDocsPage(**common)
+            return HelpDocsPage(**common, on_open_page=self.switch_page, on_open_helm=self.open_helm_overlay)
         if page_id == "perf_diagnostics":
             return PerfDiagnosticsPage(
                 **common,

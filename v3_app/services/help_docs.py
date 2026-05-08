@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from v3_app.services.parameter_metadata import PARAMETER_HELP, ParameterMetadata
+
 
 HELP_CATEGORY_ORDER = (
     "Advanced Pages",
@@ -13,6 +15,45 @@ HELP_CATEGORY_ORDER = (
     "Workflow",
 )
 
+HELP_TOPIC_TREE_ORDER = (
+    "Getting Started",
+    "Runtime Truth",
+    "Mapping",
+    "Tuning",
+    "Filtering",
+    "Combat Profile",
+    "Modes",
+    "Conditional Rules",
+    "Effective Response Stack",
+    "Live Monitor",
+    "Live Overlay",
+    "Flight Recorder",
+    "Helm Assistant",
+    "Profiles",
+    "Perf / Diagnostics",
+    "Packaging / Setup",
+    "Troubleshooting",
+    "Parameter Reference",
+)
+
+HELP_SORT_OPTIONS = (
+    "By Category",
+    "By Last Opened",
+    "Alphabetical A-Z",
+    "Alphabetical Z-A",
+    "By Importance",
+)
+
+
+@dataclass(frozen=True)
+class HelpArticleSection:
+    heading: str
+    body: tuple[str, ...]
+
+    @property
+    def text(self) -> str:
+        return "\n".join((self.heading, *self.body))
+
 
 @dataclass(frozen=True)
 class HelpArticle:
@@ -22,14 +63,25 @@ class HelpArticle:
     paragraphs: tuple[str, ...]
     keywords: tuple[str, ...] = ()
     related_topics: tuple[str, ...] = ()
+    sections: tuple[HelpArticleSection, ...] = ()
+    topic_category: str | None = None
+    open_page_id: str | None = None
+    parameter_ids: tuple[str, ...] = ()
+    importance: int = 50
 
     @property
     def body(self) -> str:
-        return "\n\n".join(self.paragraphs)
+        section_text = tuple(section.text for section in self.sections)
+        return "\n\n".join((*self.paragraphs, *section_text))
 
     @property
     def search_text(self) -> str:
-        return " ".join((self.title, self.category, self.summary, " ".join(self.keywords), self.body))
+        parameter_text = " ".join(
+            PARAMETER_HELP.require(parameter_id).display_name
+            for parameter_id in self.parameter_ids
+            if PARAMETER_HELP.get(parameter_id) is not None
+        )
+        return " ".join((self.title, self.category, self.summary, " ".join(self.keywords), parameter_text, self.body))
 
 
 @dataclass(frozen=True)
@@ -39,7 +91,7 @@ class HelpSearchResult:
 
 
 def all_articles() -> tuple[HelpArticle, ...]:
-    return (*ARTICLES, *AUXILIARY_ARTICLES)
+    return (*ARTICLES, *AUXILIARY_ARTICLES, *POST_RC_1D_ARTICLES)
 
 
 def articles_by_category() -> dict[str, tuple[HelpArticle, ...]]:
@@ -51,7 +103,7 @@ def articles_by_category() -> dict[str, tuple[HelpArticle, ...]]:
 
 def get_article(title: str) -> HelpArticle:
     normalized = _normalize(title)
-    for article in (*ARTICLES, *AUXILIARY_ARTICLES):
+    for article in all_articles():
         if _normalize(article.title) == normalized:
             return article
     raise KeyError(title)
@@ -63,7 +115,7 @@ def search_articles(query: str) -> tuple[HelpSearchResult, ...]:
         return tuple(HelpSearchResult(article=article, score=0) for article in ARTICLES)
 
     results: list[HelpSearchResult] = []
-    for article in (*ARTICLES, *AUXILIARY_ARTICLES):
+    for article in all_articles():
         haystack = _normalize(article.search_text)
         if not all(term in haystack for term in terms):
             continue
@@ -81,11 +133,111 @@ def search_articles(query: str) -> tuple[HelpSearchResult, ...]:
             results,
             key=lambda result: (
                 -result.score,
-                HELP_CATEGORY_ORDER.index(result.article.category),
+                _category_sort_index(result.article.category),
                 result.article.title,
             ),
         )
     )
+
+
+def topic_tree_by_category(
+    articles: tuple[HelpArticle, ...] | None = None,
+    *,
+    sort_mode: str = "By Category",
+    last_opened: dict[str, int] | None = None,
+) -> dict[str, tuple[HelpArticle, ...]]:
+    grouped: dict[str, list[HelpArticle]] = {category: [] for category in HELP_TOPIC_TREE_ORDER}
+    for article in articles or all_articles():
+        grouped.setdefault(topic_category_for(article), []).append(article)
+    return {
+        category: tuple(sort_help_articles(tuple(grouped.get(category, ())), sort_mode, last_opened=last_opened))
+        for category in HELP_TOPIC_TREE_ORDER
+        if grouped.get(category)
+    }
+
+
+def sort_help_articles(
+    articles: tuple[HelpArticle, ...],
+    sort_mode: str,
+    *,
+    last_opened: dict[str, int] | None = None,
+) -> tuple[HelpArticle, ...]:
+    if sort_mode == "Alphabetical Z-A":
+        return tuple(sorted(articles, key=lambda article: article.title.casefold(), reverse=True))
+    if sort_mode == "Alphabetical A-Z":
+        return tuple(sorted(articles, key=lambda article: article.title.casefold()))
+    if sort_mode == "By Importance":
+        return tuple(sorted(articles, key=lambda article: (-article.importance, article.title.casefold())))
+    if sort_mode == "By Last Opened":
+        opened = last_opened or {}
+        return tuple(sorted(articles, key=lambda article: (-opened.get(article.title, -1), article.title.casefold())))
+    return tuple(sorted(articles, key=lambda article: (-article.importance, article.title.casefold())))
+
+
+def topic_category_for(article: HelpArticle) -> str:
+    if article.topic_category:
+        return article.topic_category
+    if article.title in {"Quick Start", "Simulation mode", "HelmForge overview"}:
+        return "Getting Started"
+    if article.title in {
+        "Runtime Setup / vJoy Setup",
+        "Runtime Indicators",
+        "Full Live Runtime Ready",
+        "vJoy/output verification",
+        "Bridge telemetry",
+    }:
+        return "Runtime Truth"
+    if article.title in {"Mapping", "HOTAS diagram", "Mapping Route Inspector", "Mapping edit workflow", "Axis routing", "Button routing", "Hat routing"}:
+        return "Mapping"
+    if article.title in {"Base Tuning", "Tuning Glossary", "Curve modes", "Deadzone / anti-deadzone", "Hysteresis", "Output scale / max output"}:
+        return "Tuning"
+    if article.title in {"Filtering", "Slew limits"}:
+        return "Filtering"
+    if article.title == "Combat Profile":
+        return "Combat Profile"
+    if article.title in {"Modes", "Precision mode", "Combat mode", "Stack mode"}:
+        return "Modes"
+    if article.title in {"Conditional Rules", "Rule stages", "Comparators"}:
+        return "Conditional Rules"
+    if article.title == "Effective Response Stack":
+        return "Effective Response Stack"
+    if article.title == "Live Monitor":
+        return "Live Monitor"
+    if article.title == "Live Overlay":
+        return "Live Overlay"
+    if article.title.startswith("Flight Recorder") or article.title in {
+        "Recorder review/export diagnostics",
+        "One-frame capture proof",
+        "Real capture limitations",
+    }:
+        return "Flight Recorder"
+    if article.title == "Helm":
+        return "Helm Assistant"
+    if article.title == "Profiles":
+        return "Profiles"
+    if article.title == "Performance / Diagnostics":
+        return "Perf / Diagnostics"
+    if article.title.startswith("Packaging"):
+        return "Packaging / Setup"
+    if article.title == "Troubleshooting":
+        return "Troubleshooting"
+    if article.title == "Parameter Reference":
+        return "Parameter Reference"
+    return "Getting Started"
+
+
+def parameter_reference_entries(*, category: str | None = None) -> tuple[ParameterMetadata, ...]:
+    entries = PARAMETER_HELP.all()
+    if category is not None:
+        entries = tuple(entry for entry in entries if entry.category == category)
+    return tuple(sorted(entries, key=lambda entry: (entry.category, entry.section, entry.display_name)))
+
+
+def _category_sort_index(category: str) -> int:
+    try:
+        return HELP_CATEGORY_ORDER.index(category)
+    except ValueError:
+        return len(HELP_CATEGORY_ORDER)
 
 
 def _normalize(value: str) -> str:
@@ -358,6 +510,7 @@ AUXILIARY_ARTICLES = (
             "Flight Recorder is currently a recorder shell with settings, shared axis overlay colors, a recording library, and a metadata-only clip preview. Simulated exports and simulated artifact manifests are clearly labeled as non-video metadata.",
             "Post-RC 3A adds a real backend design seam and a guarded capture backend capability model. The seam can report Missing, Simulated, Candidate unavailable, or Candidate available, but real capture is still not fully active unless a backend explicitly reports real capture support.",
             "Post-RC 3C adds a manually triggered one-frame proof surface. It is a diagnostic still-frame proof step only: no real video recording yet, no encoding yet, no hindsight frame buffer yet, no global recorder hotkey yet, and no game injection or graphics hooks.",
+            "Post-RC 3D adds an explicit-start hindsight frame buffer and intermediate metadata artifact. Buffered frame entries are still metadata/reference proof, not encoded video, not playable preview, and not runtime readiness.",
             "The rule is simple: simulated artifacts are not real recordings. They are metadata-only artifacts or simulated export bundles; they do not contain desktop frames, playable clips, output verification, or Full Live Runtime Ready proof.",
             "The recorder does not inject into games and does not use graphics hooks. It does not add admin-level capture, hardware polling, vJoy writes, Bridge lifecycle management, cloud AI behavior, or auto-save.",
             "For now, video encoding and hindsight video buffering remain later phases. Record Now and Save Last Clip stay unavailable for real video until a verified capture backend and video buffer exist.",
@@ -389,6 +542,445 @@ AUXILIARY_ARTICLES = (
             "Phase 16D adds ready state, telemetry proof, safety proof, fake/real path, and the Full Live Runtime Ready gate to Live Monitor context. stale telemetry blocks readiness, fake/test paths stay labeled test-only, and a blocked reason is shown instead of a generic ready claim.",
             "runtime_frame values are truth-labeled telemetry summaries. A simulation-backed runtime_frame proves the simulation pipeline and output intent path, not live hardware output. output intent is not necessarily an output write, and output loop state must be read separately from output intent readiness.",
             "If runtime_frame is missing, stale, or malformed, Live Monitor keeps its existing simulation or Bridge telemetry fallback behavior. It must not claim output_verified or Full Live Runtime Ready unless telemetry explicitly proves those fields under the documented runtime rules.",
+        ),
+    ),
+)
+
+
+def _structured_article(
+    title: str,
+    *,
+    topic_category: str,
+    category: str,
+    summary: str,
+    sections: tuple[tuple[str, tuple[str, ...]], ...],
+    keywords: tuple[str, ...] = (),
+    related_topics: tuple[str, ...] = (),
+    open_page_id: str | None = None,
+    parameter_ids: tuple[str, ...] = (),
+    importance: int = 50,
+) -> HelpArticle:
+    article_sections = tuple(HelpArticleSection(heading=heading, body=body) for heading, body in sections)
+    paragraphs = tuple(sentence for _heading, body in sections for sentence in body)
+    return HelpArticle(
+        title=title,
+        category=category,
+        summary=summary,
+        paragraphs=paragraphs,
+        keywords=keywords,
+        related_topics=related_topics,
+        sections=article_sections,
+        topic_category=topic_category,
+        open_page_id=open_page_id,
+        parameter_ids=parameter_ids,
+        importance=importance,
+    )
+
+
+POST_RC_1D_ARTICLES = (
+    _structured_article(
+        "HelmForge overview",
+        topic_category="Getting Started",
+        category="Getting Started",
+        summary="A concise orientation to the local HOTAS tuning workspace.",
+        keywords=("overview", "manual", "workspace", "simulation"),
+        related_topics=("Quick Start", "Simulation mode", "Runtime truth model"),
+        open_page_id="mapping",
+        importance=100,
+        sections=(
+            ("What this is", ("HelmForge is a local HOTAS tuning workspace for mapping, tuning, diagnostics, and conservative runtime truth.",)),
+            ("What it does", ("It lets you edit a workspace draft, inspect simulated or telemetry-backed response behavior, and save intentionally when the draft is ready.",)),
+            ("When to use it", ("Start here when you need the mental model before changing Mapping, Tuning, Rules, Live Monitor, Recorder, or Diagnostics pages.",)),
+            ("Runtime truth notes", ("Telemetry remains the truth surface. Simulation mode remains available and does not claim live hardware readiness.",)),
+        ),
+    ),
+    _structured_article(
+        "Simulation mode",
+        topic_category="Getting Started",
+        category="Getting Started",
+        summary="Use HelmForge safely without HOTAS hardware or verified output.",
+        keywords=("simulation", "fallback", "missing device"),
+        related_topics=("Runtime truth model", "Quick Start"),
+        importance=96,
+        sections=(
+            ("What this is", ("Simulation mode is the safe default path when hardware, telemetry, or output verification is unavailable.",)),
+            ("What it does", ("It keeps Mapping, tuning previews, response stack inspection, Helm recommendations, and docs usable without writing output.",)),
+            ("Common mistakes", ("Do not treat simulated graphs, output intent, or packaged app smoke as runtime readiness.",)),
+            ("Runtime truth notes", ("vJoy detected is not output verification, physical input alone is not full readiness, and fake/test paths are not real readiness.",)),
+        ),
+    ),
+    _structured_article(
+        "Runtime truth model",
+        topic_category="Runtime Truth",
+        category="Analysis",
+        summary="The shared vocabulary for telemetry, intent, verification, and readiness.",
+        keywords=("runtime truth", "telemetry", "intent", "verification"),
+        related_topics=("Runtime Indicators", "Full Live Runtime Ready", "Bridge telemetry"),
+        importance=98,
+        sections=(
+            ("What this is", ("Runtime truth is the typed evidence model shown across Help, Mapping, Live Monitor, and Perf / Diagnostics.",)),
+            ("What it does", ("It separates process hints, command requests, telemetry freshness, physical input proof, output intent, output write proof, and readiness.",)),
+            ("Common mistakes", ("Command files are requests, not success proof. Output intent is not output write proof. vJoy detected is not output verification.",)),
+            ("Runtime truth notes", ("Full Live Runtime Ready gates remain unchanged and require the Phase 16 proof chain.",)),
+        ),
+    ),
+    _structured_article(
+        "Full Live Runtime Ready",
+        topic_category="Runtime Truth",
+        category="Analysis",
+        summary="The final readiness gate and why it remains conservative.",
+        keywords=("full live runtime ready", "gate", "proof", "readiness"),
+        related_topics=("Runtime Indicators", "vJoy/output verification", "Bridge telemetry"),
+        importance=99,
+        sections=(
+            ("What this is", ("Full Live Runtime Ready is the final Phase 16 readiness gate, not a UI styling state or packaging state.",)),
+            ("What it does", ("It requires fresh physical input, successful pipeline processing, guarded real output verification, explicit output-loop state, fresh telemetry, and no safety stop.",)),
+            ("Common mistakes", ("Do not infer it from vJoy detection, HOTAS detection, output intent generation, fake verification, fake output loops, stale telemetry, or UI process presence.",)),
+            ("Runtime truth notes", ("Packaged smoke is not runtime readiness. Real hardware proof is not claimed unless the gate evidence exists.",)),
+        ),
+    ),
+    _structured_article(
+        "vJoy/output verification",
+        topic_category="Runtime Truth",
+        category="Analysis",
+        summary="How virtual output proof differs from detection and intent.",
+        keywords=("vjoy", "output verification", "output intent", "write proof"),
+        related_topics=("Full Live Runtime Ready", "Runtime Setup / vJoy Setup"),
+        importance=95,
+        sections=(
+            ("What this is", ("Output verification is guarded proof that output writes succeeded through the virtual output backend.",)),
+            ("What it does", ("It keeps dependency detection, selected output device, final output intent, fake output tests, and real write proof separate.",)),
+            ("Common mistakes", ("vJoy detected does not equal output verified. Output intent is not output write proof.",)),
+            ("Runtime truth notes", ("Fake/mock verification is not real output verification and cannot make Full Live Runtime Ready true.",)),
+        ),
+    ),
+    _structured_article(
+        "Bridge telemetry",
+        topic_category="Runtime Truth",
+        category="Analysis",
+        summary="How Bridge-provided data becomes the truth surface.",
+        keywords=("bridge", "telemetry", "runtime_frame", "stale", "invalid"),
+        related_topics=("Runtime Indicators", "Performance / Diagnostics"),
+        importance=94,
+        sections=(
+            ("What this is", ("Bridge telemetry is the runtime truth surface when fresh, parseable, and consistent.",)),
+            ("What it does", ("It can carry lifecycle, runtime_frame, output verification, physical input, output loop, blocked reason, and proof summary fields.",)),
+            ("Common mistakes", ("Process presence is a hint only. Stale, missing, or invalid telemetry cannot prove readiness.",)),
+            ("Runtime truth notes", ("The UI does not start, stop, restart, spawn, install, or manage the Bridge.",)),
+        ),
+    ),
+    _structured_article(
+        "HOTAS diagram",
+        topic_category="Mapping",
+        category="Core Pages",
+        summary="Read the visual mapping diagram without mistaking it for live hardware control.",
+        keywords=("hotas diagram", "mapping", "visual", "markers"),
+        related_topics=("Mapping", "Mapping Route Inspector"),
+        open_page_id="mapping",
+        parameter_ids=("mapping.raw_axis", "mapping.hotas_button", "mapping.hotas_hat"),
+        importance=92,
+        sections=(
+            ("What this is", ("The HOTAS diagram is a visual workspace map of configured axes, buttons, and hats.",)),
+            ("What it does", ("It highlights mapped, unmapped, selected, and warning states while reusing Mapping route metadata.",)),
+            ("When to use it", ("Use it to find which physical control corresponds to a route before opening the inspector/editor.",)),
+            ("Runtime truth notes", ("The diagram does not poll hardware and does not write vJoy. It reflects workspace/config routing plus available read-only telemetry labels.",)),
+        ),
+    ),
+    _structured_article(
+        "Mapping Route Inspector",
+        topic_category="Mapping",
+        category="Core Pages",
+        summary="Inspect selected diagram routes and conflict previews.",
+        keywords=("route inspector", "mapping", "conflict", "selected"),
+        related_topics=("Mapping edit workflow", "HOTAS diagram"),
+        open_page_id="mapping",
+        importance=91,
+        sections=(
+            ("What this is", ("The Route Inspector explains the selected route and whether it is being inspected or edited as a workspace draft.",)),
+            ("What it does", ("It shows route type, source, output intent, warnings, and config conflict previews before draft changes are applied.",)),
+            ("Common mistakes", ("A conflict preview is not hardware failure. It is a workspace/config warning.",)),
+            ("Runtime truth notes", ("Output intent shown here remains intent only and is not output write proof.",)),
+        ),
+    ),
+    _structured_article(
+        "Mapping edit workflow",
+        topic_category="Mapping",
+        category="Workflow",
+        summary="Safely edit diagram-selected Mapping routes as workspace drafts.",
+        keywords=("mapping edit workflow", "apply to draft", "save workspace", "route editor"),
+        related_topics=("Mapping", "Mapping Route Inspector", "Saving and Importing"),
+        open_page_id="mapping",
+        parameter_ids=("mapping.raw_axis", "mapping.logical_output", "mapping.runtime_output_axis", "mapping.invert_axis"),
+        importance=97,
+        sections=(
+            ("What this is", ("Post-RC 2C promotes the Mapping diagram from inspection-only selection into a safe workspace draft editor.",)),
+            ("What it does", ("Click or focus a routed marker, review it in Route Inspector, choose Change Mapping, adjust supported route fields, preview conflicts, then Apply to Draft or Cancel.",)),
+            ("When to use it", ("Use it when the selected axis, button, or hat should change its workspace/config route without touching runtime authority.",)),
+            ("Key parameters", ("Raw Axis, Logical Output, Output Intent Axis, Invert Axis, HOTAS Button, Output Button, HOTAS Hat, Output POV, and Hat Direction Button are metadata-backed where supported.",)),
+            ("Runtime truth notes", ("Mapping edits are workspace/config draft only. Save Workspace is required to persist. Output intent is not vJoy write proof.",)),
+            ("Related topics", ("See HOTAS diagram, Mapping Route Inspector, Axis routing, Button routing, and Hat routing.",)),
+        ),
+    ),
+    _structured_article(
+        "Axis routing",
+        topic_category="Mapping",
+        category="Core Pages",
+        summary="Route raw axes to logical and output-intent axes.",
+        keywords=("axis routing", "raw axis", "logical output", "invert"),
+        related_topics=("Mapping edit workflow", "Base Tuning"),
+        open_page_id="mapping",
+        parameter_ids=("mapping.raw_axis", "mapping.logical_output", "mapping.runtime_output_axis", "mapping.invert_axis"),
+        sections=(
+            ("What this is", ("Axis routing connects a physical/raw axis channel to a logical workspace output and output-intent axis.",)),
+            ("Suggested ranges", ("Dropdowns list only supported route options from the current Mapping page.",)),
+            ("Runtime truth notes", ("Changing an axis route changes the draft workspace, not live vJoy output.",)),
+        ),
+    ),
+    _structured_article(
+        "Button routing",
+        topic_category="Mapping",
+        category="Core Pages",
+        summary="Route physical buttons to output button intent.",
+        keywords=("button routing", "hotas button", "output button"),
+        related_topics=("Mapping edit workflow"),
+        open_page_id="mapping",
+        parameter_ids=("mapping.hotas_button", "mapping.output_button"),
+        sections=(
+            ("What this is", ("Button routing maps a physical button label to an output button intent.",)),
+            ("Common mistakes", ("A pressed-state display is telemetry/simulation context, not proof that output was written.",)),
+            ("Runtime truth notes", ("Save Workspace persists the draft route; runtime proof remains separate.",)),
+        ),
+    ),
+    _structured_article(
+        "Hat routing",
+        topic_category="Mapping",
+        category="Core Pages",
+        summary="Route physical hat controls to POV and optional button intent.",
+        keywords=("hat routing", "pov", "direction button"),
+        related_topics=("Mapping edit workflow"),
+        open_page_id="mapping",
+        parameter_ids=("mapping.hotas_hat", "mapping.output_pov", "mapping.hat_direction_button"),
+        sections=(
+            ("What this is", ("Hat routing maps the physical hat to output POV intent and optional direction button intent fields.",)),
+            ("When to use it", ("Use it when the workspace needs POV-style routing or directional button fallbacks.",)),
+            ("Runtime truth notes", ("Hat routing is still workspace/config draft behavior, not output verification.",)),
+        ),
+    ),
+    _structured_article(
+        "Curve modes",
+        topic_category="Tuning",
+        category="Reference",
+        summary="Understand the currently supported curve mode options.",
+        keywords=("curve modes", "curve mode", "s curve"),
+        related_topics=("Base Tuning", "Parameter Reference"),
+        open_page_id="base_tuning",
+        parameter_ids=("base.curve_mode", "base.curve_strength"),
+        sections=(
+            ("What this is", ("Curve Mode chooses the shape family used before strength is applied.",)),
+            ("Suggested ranges", ("Current UI options are intentionally limited to supported values from the metadata registry.",)),
+            ("Runtime truth notes", ("Changing curve values changes workspace math only until saved and later consumed by the pipeline.",)),
+        ),
+    ),
+    _structured_article(
+        "Deadzone / anti-deadzone",
+        topic_category="Tuning",
+        category="Reference",
+        summary="Balance center noise rejection with initial response.",
+        keywords=("deadzone", "anti-deadzone", "center"),
+        related_topics=("Base Tuning", "Parameter Reference"),
+        open_page_id="base_tuning",
+        parameter_ids=("base.deadzone", "base.anti_deadzone"),
+        sections=(
+            ("What this is", ("Deadzone ignores small input near center; anti-deadzone adds a controlled initial output after leaving center.",)),
+            ("Examples", ("Low deadzone responds to tiny motion. High deadzone calms drift but can feel unresponsive.",)),
+            ("Common mistakes", ("Do not use high anti-deadzone to compensate for a route problem; it can make fine control lurch.",)),
+        ),
+    ),
+    _structured_article(
+        "Hysteresis",
+        topic_category="Tuning",
+        category="Reference",
+        summary="Reduce chatter from small reversals.",
+        keywords=("hysteresis", "jitter", "center chatter"),
+        related_topics=("Base Tuning", "Filtering"),
+        open_page_id="base_tuning",
+        parameter_ids=("base.hysteresis",),
+        sections=(
+            ("What this is", ("Hysteresis adds a small hold band so tiny direction changes do not constantly flip state.",)),
+            ("Common mistakes", ("Too much hysteresis can hide intentional small inputs.",)),
+        ),
+    ),
+    _structured_article(
+        "Output scale / max output",
+        topic_category="Tuning",
+        category="Reference",
+        summary="Limit or expand workspace output authority.",
+        keywords=("output scale", "max output", "authority"),
+        related_topics=("Base Tuning", "Runtime truth model"),
+        open_page_id="base_tuning",
+        parameter_ids=("base.output_scale", "base.max_output", "base.precision_scale"),
+        sections=(
+            ("What this is", ("Output scale multiplies processed output; Max Output clamps final authority.",)),
+            ("Runtime truth notes", ("Output scale changes output intent math and does not prove an output write.",)),
+        ),
+    ),
+    _structured_article(
+        "Slew limits",
+        topic_category="Filtering",
+        category="Reference",
+        summary="Control same-direction and reverse-direction rate changes.",
+        keywords=("slew limits", "same slew", "reverse slew"),
+        related_topics=("Filtering", "Combat Profile"),
+        open_page_id="filtering",
+        parameter_ids=("filtering.same_slew_limit", "filtering.reverse_slew_limit"),
+        sections=(
+            ("What this is", ("Slew limits cap how quickly the processed signal can change in the same or reverse direction.",)),
+            ("Examples", ("Higher limits feel more immediate. Lower limits can calm abrupt changes but may feel delayed.",)),
+        ),
+    ),
+    _structured_article(
+        "Precision mode",
+        topic_category="Modes",
+        category="Core Pages",
+        summary="Use precision controls for fine movement layers.",
+        keywords=("precision mode", "precision hold buttons"),
+        related_topics=("Modes", "Stack mode"),
+        open_page_id="modes",
+        parameter_ids=("modes.precision_hold_buttons",),
+        sections=(
+            ("What this is", ("Precision mode is a workspace mode layer for fine control.",)),
+            ("Runtime truth notes", ("Mode buttons are configuration until telemetry proves input and the runtime path.",)),
+        ),
+    ),
+    _structured_article(
+        "Combat mode",
+        topic_category="Modes",
+        category="Core Pages",
+        summary="Use combat gates with combat tuning parameters.",
+        keywords=("combat mode", "combat trigger", "zoom aim"),
+        related_topics=("Combat Profile", "Modes"),
+        open_page_id="modes",
+        parameter_ids=("modes.combat_trigger_buttons", "modes.combat_zoom_aim_buttons", "modes.combat_extra_buttons"),
+        sections=(
+            ("What this is", ("Combat mode gates combat-focused tuning layers.",)),
+            ("Runtime truth notes", ("Configured buttons do not prove physical input is fresh or output is verified.",)),
+        ),
+    ),
+    _structured_article(
+        "Stack mode",
+        topic_category="Modes",
+        category="Core Pages",
+        summary="Understand how mode effects combine.",
+        keywords=("stack mode", "multiply"),
+        related_topics=("Modes", "Combat Profile"),
+        open_page_id="modes",
+        parameter_ids=("modes.stack_mode",),
+        sections=(
+            ("What this is", ("Stack Mode controls how mode effects combine.",)),
+            ("Common mistakes", ("Multiply stacking can compound reductions more than expected.",)),
+        ),
+    ),
+    _structured_article(
+        "Rule stages",
+        topic_category="Conditional Rules",
+        category="Advanced Pages",
+        summary="Where conditional rules inject into the response stack.",
+        keywords=("rule stages", "injects at", "stage"),
+        related_topics=("Conditional Rules", "Effective Response Stack"),
+        open_page_id="conditional_rules",
+        parameter_ids=("rules.injects_at", "rules.stage", "rules.reference_stage"),
+        sections=(
+            ("What this is", ("Rule stages describe where the rule reads or injects within the response stack.",)),
+            ("Runtime truth notes", ("Rule injection metadata is workspace/pipeline evidence, not hardware output proof.",)),
+        ),
+    ),
+    _structured_article(
+        "Comparators",
+        topic_category="Conditional Rules",
+        category="Advanced Pages",
+        summary="How rule conditions compare measured values.",
+        keywords=("comparators", "threshold", "between", "greater than"),
+        related_topics=("Conditional Rules", "Rule stages"),
+        open_page_id="conditional_rules",
+        parameter_ids=("rules.comparator", "rules.threshold", "rules.threshold_high"),
+        sections=(
+            ("What this is", ("Comparators decide whether a measured value crosses a threshold or range.",)),
+            ("Common mistakes", ("Invalid thresholds block the rule instead of crashing the pipeline.",)),
+        ),
+    ),
+    _structured_article(
+        "Recorder review/export diagnostics",
+        topic_category="Flight Recorder",
+        category="Analysis",
+        summary="Review simulated recorder sessions and export diagnostics without claiming video.",
+        keywords=("recorder review export diagnostics", "json", "csv", "metadata"),
+        related_topics=("Flight Recorder", "Real capture limitations"),
+        open_page_id="flight_recorder",
+        importance=88,
+        sections=(
+            ("What this is", ("Post-RC 3B adds recorder review and export diagnostics for simulated or metadata-only recorder artifacts.",)),
+            ("What it does", ("It can summarize sessions and export local JSON or CSV diagnostic data where supported.",)),
+            ("Runtime truth notes", ("Exports are diagnostics, not real video recordings, not previewable clips, and not runtime readiness proof.",)),
+        ),
+    ),
+    _structured_article(
+        "One-frame capture proof",
+        topic_category="Flight Recorder",
+        category="Analysis",
+        summary="Understand the manual still-frame proof added in Post-RC 3C.",
+        keywords=("one-frame capture proof", "still frame", "capture proof"),
+        related_topics=("Flight Recorder", "Real capture limitations"),
+        open_page_id="flight_recorder",
+        importance=89,
+        sections=(
+            ("What this is", ("Post-RC 3C adds a manually triggered one-frame capture proof surface.",)),
+            ("What it does", ("It can request one still-frame proof from a capable backend and records typed proof metadata when available.",)),
+            ("Common mistakes", ("one-frame capture proof is not video recording. It is not a continuous capture loop, not a playable preview, and not an encoded export.",)),
+            ("Runtime truth notes", ("No continuous recorder capture yet. No video encoding/export/preview yet. Capture proof is not runtime readiness.",)),
+        ),
+    ),
+    _structured_article(
+        "Real capture limitations",
+        topic_category="Flight Recorder",
+        category="Analysis",
+        summary="Recorder capture boundaries after the 3C proof phase.",
+        keywords=("real capture limitations", "video encoding", "buffering", "preview"),
+        related_topics=("One-frame capture proof", "Recorder review/export diagnostics"),
+        open_page_id="flight_recorder",
+        sections=(
+            ("What this is", ("The recorder has a capture seam and a one-frame proof, but no continuous capture product yet.",)),
+            ("What it does", ("It truthfully labels missing, simulated, candidate-unavailable, candidate-available, and one-frame proof states.",)),
+            ("Runtime truth notes", ("No continuous recorder capture yet. No video encoding/export/preview yet. No game injection or graphics API hooking was added.",)),
+        ),
+    ),
+    _structured_article(
+        "Parameter Reference",
+        topic_category="Parameter Reference",
+        category="Reference",
+        summary="Searchable parameter metadata from the shared registry.",
+        keywords=("parameter reference", "metadata", "range", "default", "scope"),
+        related_topics=("Base Tuning", "Mapping", "Flight Recorder"),
+        parameter_ids=tuple(metadata.parameter_id for metadata in parameter_reference_entries()),
+        importance=93,
+        sections=(
+            ("What this is", ("Parameter Reference is generated from the shared Post-RC metadata registry.",)),
+            ("What it does", ("Each block lists display name, page/category, support scope, value type, ranges or options, default value, examples, warnings, and related help topic when available.",)),
+            ("Runtime truth notes", ("Parameter help explains configuration. It does not activate runtime, poll hardware, write vJoy, or weaken readiness gates.",)),
+        ),
+    ),
+    _structured_article(
+        "Troubleshooting",
+        topic_category="Troubleshooting",
+        category="Reference",
+        summary="Read common blocked states without turning them into false readiness.",
+        keywords=("troubleshooting", "blocked", "stale", "missing", "invalid"),
+        related_topics=("Runtime truth model", "Performance / Diagnostics"),
+        open_page_id="perf_diagnostics",
+        importance=86,
+        sections=(
+            ("What this is", ("Troubleshooting explains common blocked states and where to inspect the truth fields.",)),
+            ("Common mistakes", ("Do not treat process presence, command acknowledgement, vJoy detection, or one-frame capture proof as readiness.",)),
+            ("Runtime truth notes", ("Use Perf / Diagnostics for telemetry freshness, blocked reason, proof summary, and Full Live Runtime Ready gate details.",)),
         ),
     ),
 )
