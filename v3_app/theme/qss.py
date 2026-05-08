@@ -115,6 +115,12 @@ def app_qss() -> str:
         border-radius: 18px;
     }
 
+    QFrame#routeInspectorPanel {
+        background: #0b1724;
+        border: 1px solid #28496a;
+        border-radius: 12px;
+    }
+
     QLabel[hotasDiagramMarker="true"] {
         background: #0b1724;
         border: 1px solid #315577;
@@ -143,6 +149,17 @@ def app_qss() -> str:
     QLabel[hotasDiagramMarker="true"][status="unmapped"] {
         border-color: #8d6c24;
         color: #f0c46a;
+    }
+
+    QLabel[hotasDiagramMarker="true"][selected="true"] {
+        background: #123d61;
+        border: 2px solid #96ffc5;
+        color: #ffffff;
+    }
+
+    QLabel[inspectorValue="true"] {
+        color: #f5f9ff;
+        font-weight: 600;
     }
 
     QLabel#hotasDiagramLegend {

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QPointF, QRectF, QSize, Qt
+from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import QFrame, QLabel, QSizePolicy
 
@@ -12,6 +12,8 @@ from v3_app.services.hotas_diagram_model import (
 
 
 class HotasDiagramWidget(QFrame):
+    control_selected = Signal(str)
+
     def __init__(self, model: HotasDiagramModel) -> None:
         super().__init__()
         self.setObjectName("hotasDiagramWidget")
@@ -21,6 +23,7 @@ class HotasDiagramWidget(QFrame):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._model = model
         self._markers: list[tuple[HotasDiagramControl, QLabel]] = []
+        self._selected_control_id: str | None = None
         self._build_markers()
 
     def set_model(self, model: HotasDiagramModel) -> None:
@@ -31,6 +34,14 @@ class HotasDiagramWidget(QFrame):
         self._build_markers()
         self._position_markers()
         self.update()
+
+    def set_selected_control_id(self, control_id: str | None) -> None:
+        self._selected_control_id = control_id
+        for control, marker in self._markers:
+            marker.setProperty("selected", control.control_id == control_id)
+            marker.style().unpolish(marker)
+            marker.style().polish(marker)
+            marker.update()
 
     def sizeHint(self) -> QSize:
         return QSize(980, 460)
@@ -75,17 +86,19 @@ class HotasDiagramWidget(QFrame):
 
     def _build_markers(self) -> None:
         for control in self._model.routed_controls:
-            marker = QLabel(self)
+            marker = _HotasDiagramMarker(control, self)
             marker.setObjectName(f"hotasMarker_{control.control_id}")
             marker.setProperty("hotasDiagramMarker", True)
             marker.setProperty("controlType", control.control_type)
             marker.setProperty("status", control.status)
+            marker.setProperty("selected", control.control_id == self._selected_control_id)
             marker.setToolTip(format_hotas_control_tooltip(control))
             marker.setAccessibleName(f"{control.display_label} mapping detail")
             marker.setAlignment(Qt.AlignmentFlag.AlignCenter)
             marker.setWordWrap(True)
             marker.setText(_marker_text(control))
             marker.setMouseTracking(True)
+            marker.control_selected.connect(self.control_selected)
             self._markers.append((control, marker))
         self._position_markers()
 
@@ -160,3 +173,19 @@ def _marker_text(control: HotasDiagramControl) -> str:
     if control.control_type == "button":
         return f"{control.display_label}\n{control.output_intent_target.removeprefix('Output intent: ')}"
     return f"{control.display_label}\n{control.mapped_function}"
+
+
+class _HotasDiagramMarker(QLabel):
+    control_selected = Signal(str)
+
+    def __init__(self, control: HotasDiagramControl, parent: HotasDiagramWidget) -> None:
+        super().__init__(parent)
+        self._control = control
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def mousePressEvent(self, event) -> None:  # noqa: ANN001
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.control_selected.emit(self._control.control_id)
+            event.accept()
+            return
+        super().mousePressEvent(event)
