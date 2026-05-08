@@ -356,6 +356,10 @@ AUXILIARY_ARTICLES = (
         related_topics=("Live Overlay", "Runtime Indicators", "Graphs and Previews"),
         paragraphs=(
             "Flight Recorder is currently a recorder shell with settings, shared axis overlay colors, a recording library, and a metadata-only clip preview. Simulated exports and simulated artifact manifests are clearly labeled as non-video metadata.",
+            "Post-RC 3A adds a real backend design seam and a guarded capture backend capability model. The seam can report Missing, Simulated, Candidate unavailable, or Candidate available, but real capture is still not fully active unless a backend explicitly reports real capture support.",
+            "The rule is simple: simulated artifacts are not real recordings. They are metadata-only artifacts or simulated export bundles; they do not contain desktop frames, playable clips, output verification, or Full Live Runtime Ready proof.",
+            "The recorder does not inject into games and does not use graphics hooks. It does not add admin-level capture, hardware polling, vJoy writes, Bridge lifecycle management, cloud AI behavior, or auto-save.",
+            "For now, video encoding and hindsight video buffering remain later phases. Record Now and Save Last Clip stay unavailable for real video until a verified capture backend and video buffer exist.",
             "No desktop frames are captured, no video encoding is performed, no playable clip export is produced, no recorder global hotkey is registered, and video hindsight buffering remains unavailable until later recorder phases implement and verify those behaviors.",
             "Recorder status chips are status labels, not action controls. Recording library rows and preview metadata help inspect simulated artifacts without claiming real capture or output/runtime readiness.",
         ),

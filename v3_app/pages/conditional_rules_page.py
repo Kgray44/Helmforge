@@ -32,6 +32,7 @@ from shared_core.rules.evaluator import (
     rule_preview_sentence,
     status_counts,
 )
+from v3_app.pages.page_helpers import apply_parameter_metadata, parameter_label
 from v3_app.services.app_state import AppState
 from v3_app.ui.status_chips import action_button, status_chip
 
@@ -48,6 +49,23 @@ BUTTON_TEST_OPTIONS = ("Any", "All")
 REFERENCE_STAGE_OPTIONS = ("Final Output", "Raw Input", "Center Conditioning", "Curve / Shape", "Base Output Limits", "Filtering", "Mode Modifiers")
 MEASURE_OPTIONS = ("absolute", "signed", "raw")
 COMPARATOR_OPTIONS = ("greater than", "less than", "equal", "approximately", "between", "range")
+RULE_FIELD_METADATA_IDS = {
+    "title": "rules.title",
+    "target_axis": "rules.target_axis",
+    "parameter": "rules.parameter",
+    "operation": "rules.operation",
+    "value": "rules.value",
+    "injection_stage": "rules.injects_at",
+    "mode_gate": "rules.mode_gate",
+    "buttons": "rules.buttons",
+    "button_test": "rules.button_test",
+    "reference_axis": "rules.reference_axis",
+    "stage": "rules.stage",
+    "measure": "rules.measure",
+    "comparator": "rules.comparator",
+    "threshold": "rules.threshold",
+    "threshold_high": "rules.threshold_high",
+}
 
 
 class ConditionalRulesPage(QWidget):
@@ -88,12 +106,14 @@ class ConditionalRulesPage(QWidget):
 
         split = QHBoxLayout()
         split.setSpacing(8)
-        split.addWidget(self._build_rule_list_card(), 1)
+        split.addWidget(self._build_rule_list_card(), 1, Qt.AlignmentFlag.AlignTop)
         right = QVBoxLayout()
         right.setSpacing(18)
         right.addWidget(self._build_detail_card(), 2)
         right.addWidget(self._build_logic_card(), 1)
-        split.addLayout(right, 1)
+        right_panel = QWidget()
+        right_panel.setLayout(right)
+        split.addWidget(right_panel, 1, Qt.AlignmentFlag.AlignTop)
         root.addLayout(split, 1)
 
         self._refresh_all(select_index=0)
@@ -272,16 +292,18 @@ class ConditionalRulesPage(QWidget):
             group_title.setObjectName("sectionLabel")
             group_layout.addWidget(group_title, 0, 0, 1, 2)
             for row_index, (label, field, options) in enumerate(rows, start=1):
-                key = QLabel(label)
-                key.setObjectName("formLabel")
+                metadata_id = RULE_FIELD_METADATA_IDS.get(field)
+                key = parameter_label(label, metadata_id=metadata_id)
                 group_layout.addWidget(key, row_index, 0)
                 if options == "line":
                     widget = QLineEdit()
                     widget.setObjectName(f"rule{_field_object_name(field)}Field")
+                    apply_parameter_metadata(widget, metadata_id)
                     widget.editingFinished.connect(lambda field_name=field: self._line_field_changed(field_name))
                 else:
                     widget = QComboBox()
                     widget.setObjectName(f"rule{_field_object_name(field)}Field")
+                    apply_parameter_metadata(widget, metadata_id)
                     widget.addItems(tuple(options))
                     widget.currentTextChanged.connect(
                         lambda value, field_name=field: self._combo_field_changed(field_name, value)

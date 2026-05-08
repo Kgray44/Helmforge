@@ -22,7 +22,15 @@ from PySide6.QtWidgets import (
 from shared_core.models.runtime import RuntimePreflightStatus
 from shared_core.models.workspace import WorkspaceConfig
 from shared_core.runtime.device_discovery import build_runtime_preflight_status
-from v3_app.pages.page_helpers import card, card_header, card_layout, page_intro
+from v3_app.pages.page_helpers import (
+    add_card_to_grid,
+    apply_parameter_metadata,
+    card,
+    card_header,
+    card_layout,
+    page_intro,
+    parameter_label,
+)
 from v3_app.recorder.clip_library import ClipLibrary
 from v3_app.recorder.recorder_controller import FlightRecorderController
 from v3_app.recorder.recorder_settings import FlightRecorderSettings
@@ -65,14 +73,15 @@ class FlightRecorderPage(QWidget):
             )
         )
         root.addWidget(self._status_card())
+        root.addWidget(self._review_card())
 
         grid = QGridLayout()
         grid.setHorizontalSpacing(18)
         grid.setVerticalSpacing(18)
-        grid.addWidget(self._recorder_settings_card(), 0, 0)
-        grid.addWidget(self._axis_overlay_card(), 0, 1)
-        grid.addWidget(self._recording_library_card(), 1, 0)
-        grid.addWidget(self._clip_preview_card(), 1, 1)
+        add_card_to_grid(grid, self._recorder_settings_card(), 0, 0)
+        add_card_to_grid(grid, self._axis_overlay_card(), 0, 1)
+        add_card_to_grid(grid, self._recording_library_card(), 1, 0)
+        add_card_to_grid(grid, self._clip_preview_card(), 1, 1)
         root.addLayout(grid)
         root.addStretch(1)
 
@@ -83,7 +92,8 @@ class FlightRecorderPage(QWidget):
         row = QHBoxLayout()
         row.setSpacing(8)
         row.addWidget(status_chip("UI Ready", tone="success", object_name="recorderUiReadyChip"))
-        backend_label = "Simulated backend" if self._backend_status.capabilities.simulated_artifact_available else "Capture backend missing"
+        capabilities = self._backend_status.capabilities
+        backend_label = _capture_backend_chip_label(capabilities)
         row.addWidget(status_chip(backend_label, tone="warning", object_name="recorderBackendChip"))
         row.addWidget(status_chip("Hotkey not registered", tone="warning", object_name="recorderHotkeyChip"))
         row.addWidget(status_chip(f"{self.settings.overlay_source} source", tone="neutral", object_name="recorderOverlaySourceChip"))
@@ -100,17 +110,25 @@ class FlightRecorderPage(QWidget):
                     "Output verified": str(self._runtime_status.live_output_writes_verified).lower(),
                     "Full Live Runtime Ready": str(_full_live_runtime_ready(self._runtime_status)).lower(),
                     "Capture backend": summary["Capture backend"],
+                    "Dependency status": summary["Dependency status"],
+                    "Real capture supported": summary["Real capture supported"],
+                    "Frame capture": summary["Frame capture"],
+                    "Cursor capture": summary["Cursor capture"],
+                    "Display enumeration": summary["Display enumeration"],
+                    "Video encoding": summary["Video encoding"],
                     "Compositor": summary["Compositor"],
                     "Recorder mode": summary["Recorder mode"],
                     "Hotkey status": summary["Hotkey status"],
                     "Telemetry hindsight": summary["Telemetry hindsight"],
-                    "Hindsight video buffering": summary["Video hindsight"],
+                    "Video hindsight": summary["Video hindsight"],
+                    "Hindsight video buffering": "unavailable",
                 }
             )
         )
         layout.addWidget(
             _body(
                 "Telemetry hindsight buffer available. Video hindsight buffering is not implemented yet. "
+                "Video hindsight unavailable. Video encoding unavailable. "
                 "Save Last Clip cannot save real video until capture and buffer backends exist. "
                 "Simulated exports contain telemetry and overlay metadata only."
             )
@@ -121,27 +139,65 @@ class FlightRecorderPage(QWidget):
         layout.addWidget(self.action_status)
         return frame
 
+    def _review_card(self) -> QWidget:
+        frame = card("recorderReviewCard")
+        layout = card_layout(frame)
+        layout.addWidget(card_header("Recorder Review", "Session summary, timeline, and local export for recorder diagnostics."))
+        self.review_summary = QLabel("No reviewed recorder session yet.\nSimulated/Workspace Only\nRuntime blocked until telemetry proves otherwise.")
+        self.review_summary.setObjectName("recorderReviewSummary")
+        self.review_summary.setWordWrap(True)
+        layout.addWidget(self.review_summary)
+        self.timeline_table = QTableWidget(0, 4)
+        self.timeline_table.setObjectName("recorderTimelineTable")
+        self.timeline_table.setHorizontalHeaderLabels(("When", "Channel", "Change", "Detail"))
+        self.timeline_table.setFrameShape(QFrame.Shape.NoFrame)
+        self.timeline_table.setMinimumHeight(128)
+        layout.addWidget(self.timeline_table)
+        controls = QHBoxLayout()
+        self.review_session_button = action_button("Review Current Session", object_name="reviewCurrentSessionButton")
+        self.review_session_button.clicked.connect(self.review_current_session)
+        self.export_summary_button = action_button("Export Summary JSON", object_name="exportReviewSummaryJsonButton")
+        self.export_summary_button.clicked.connect(self.export_review_summary_json)
+        self.export_samples_button = action_button("Export Samples CSV", object_name="exportReviewSamplesCsvButton")
+        self.export_samples_button.clicked.connect(self.export_review_samples_csv)
+        self.clear_review_button = action_button("Clear Review", object_name="clearReviewSessionButton")
+        self.clear_review_button.clicked.connect(self.clear_review_session)
+        for button in (
+            self.review_session_button,
+            self.export_summary_button,
+            self.export_samples_button,
+            self.clear_review_button,
+        ):
+            controls.addWidget(button)
+        controls.addStretch(1)
+        layout.addLayout(controls)
+        layout.addWidget(
+            _body(
+                "Review exports are local JSON/CSV diagnostics. They include source and runtime truth fields and are not video, output verification, or Full Live Runtime Ready proof."
+            )
+        )
+        self._update_review_widgets()
+        return frame
+
     def _recorder_settings_card(self) -> QWidget:
         frame = card("recorderSettingsCard")
         layout = card_layout(frame)
         layout.addWidget(card_header("Recorder Settings", "Settings are stored in-memory for this UI shell; no video files are written."))
-        layout.addLayout(
-            _row_grid(
-                {
-                    "Destination": str(self.settings.destination_folder),
-                    "Length": f"{self.settings.length_seconds} s",
-                    "Frame Rate": f"{self.settings.frame_rate_fps} fps",
-                    "History": f"{self.settings.history_seconds:.2f} s",
-                    "Overlay Source": self.settings.overlay_source,
-                    "Capture Source": self.settings.capture_source,
-                    "Display": self.settings.display_label,
-                    "Hotkey": self.settings.hotkey,
-                    "Trigger Mode": self.settings.trigger_mode,
-                }
-            )
-        )
+        settings_rows = {
+            "Destination": str(self.settings.destination_folder),
+            "Length": f"{self.settings.length_seconds} s",
+            "Frame Rate": f"{self.settings.frame_rate_fps} fps",
+            "History": f"{self.settings.history_seconds:.2f} s",
+            "Overlay Source": self.settings.overlay_source,
+            "Capture Source": self.settings.capture_source,
+            "Display": self.settings.display_label,
+            "Hotkey": self.settings.hotkey,
+            "Trigger Mode": self.settings.trigger_mode,
+        }
+        layout.addLayout(_row_grid(settings_rows, metadata_ids=_RECORDER_SETTINGS_METADATA))
         cursor = QCheckBox("Record the cursor")
         cursor.setObjectName("recordCursorCheckbox")
+        apply_parameter_metadata(cursor, "flight_recorder.record_cursor")
         cursor.setChecked(self.settings.record_cursor)
         cursor.setEnabled(False)
         layout.addWidget(cursor)
@@ -150,12 +206,12 @@ class FlightRecorderPage(QWidget):
         browse.setEnabled(False)
         open_folder = action_button("Open Folder", object_name="recorderOpenFolderButton")
         open_folder.setEnabled(False)
-        simulated_available = self._backend_status.capabilities.simulated_artifact_available
+        real_capture_supported = self._backend_status.capabilities.real_capture_supported
         self.record_now_button = action_button("Record Now", object_name="recordNowButton")
-        self.record_now_button.setEnabled(simulated_available)
+        self.record_now_button.setEnabled(real_capture_supported)
         self.record_now_button.clicked.connect(self.record_now)
         self.save_last_clip_button = action_button("Save Last Clip", object_name="saveLastClipButton")
-        self.save_last_clip_button.setEnabled(simulated_available)
+        self.save_last_clip_button.setEnabled(real_capture_supported and self.settings.hindsight_video_buffer_available)
         self.save_last_clip_button.clicked.connect(self.save_last_clip)
         for button in (browse, open_folder, self.record_now_button, self.save_last_clip_button):
             button_row.addWidget(button)
@@ -163,7 +219,7 @@ class FlightRecorderPage(QWidget):
         layout.addLayout(button_row)
         layout.addWidget(
             _body(
-                "Capture backend missing. Video hindsight buffer not implemented yet. "
+                f"{_capture_backend_chip_label(self._backend_status.capabilities)}. Video hindsight buffer not implemented yet. "
                 "Recording backend is not active in this phase. Recording backend unavailable. "
                 "Injected simulated backends can write metadata-only manifests or simulated export bundles for tests."
             )
@@ -207,9 +263,10 @@ class FlightRecorderPage(QWidget):
         sort = QComboBox()
         sort.setObjectName("recordingLibrarySortDropdown")
         sort.addItem("Newest First")
+        apply_parameter_metadata(sort, "flight_recorder.library_sort")
         refresh = action_button("Refresh", object_name="recordingLibraryRefreshButton")
         refresh.clicked.connect(self.refresh_library)
-        controls.addWidget(QLabel("Sort"))
+        controls.addWidget(parameter_label("Sort", metadata_id="flight_recorder.library_sort"))
         controls.addWidget(sort)
         controls.addWidget(refresh)
         controls.addStretch(1)
@@ -315,6 +372,78 @@ class FlightRecorderPage(QWidget):
         self.action_status.setText(message)
         self._populate_library()
 
+    def review_current_session(self) -> None:
+        session = self.controller.review_current_session(runtime_status=self._runtime_status, capture_mode="buffered")
+        if session is None:
+            self.action_status.setText("No recorder samples are available to review.")
+        else:
+            self.action_status.setText("Recorder review session updated; no real capture or output proof was claimed.")
+        self._update_review_widgets()
+
+    def export_review_summary_json(self) -> None:
+        result = self.controller.export_review_summary_json()
+        self.action_status.setText(result.message if result.path is None else f"{result.message} {result.path}")
+        self._update_review_widgets()
+
+    def export_review_samples_csv(self) -> None:
+        result = self.controller.export_review_samples_csv()
+        self.action_status.setText(result.message if result.path is None else f"{result.message} {result.path}")
+        self._update_review_widgets()
+
+    def clear_review_session(self) -> None:
+        self.controller.clear_review_session()
+        self.action_status.setText("Recorder review cleared; no files or workspace settings were deleted.")
+        self._update_review_widgets()
+
+    def _update_review_widgets(self) -> None:
+        session = self.controller.reviewed_session
+        has_session = session is not None
+        self.export_summary_button.setEnabled(has_session)
+        self.export_samples_button.setEnabled(has_session)
+        self.clear_review_button.setEnabled(has_session)
+        if session is None:
+            self.review_summary.setText(
+                "No reviewed recorder session yet.\n"
+                "Simulated/Workspace Only\n"
+                f"Runtime truth\n{self._runtime_status.truth.value}\n"
+                f"Output verified\n{str(self._runtime_status.live_output_writes_verified).lower()}\n"
+                f"Full Live Runtime Ready\n{str(_full_live_runtime_ready(self._runtime_status)).lower()}"
+            )
+            self.timeline_table.setRowCount(0)
+            return
+        axis_channels = ", ".join(session.axis_channels) if session.axis_channels else "None"
+        warnings = "; ".join(session.warnings) if session.warnings else "None"
+        errors = "; ".join(session.errors) if session.errors else "None"
+        self.review_summary.setText(
+            "Latest Session Summary\n"
+            f"{session.truth_label}\n"
+            f"Session id\n{session.session_id}\n"
+            f"Source type\n{session.source_type}\n"
+            f"Capture source\n{session.capture_source}\n"
+            f"Capture mode\n{session.capture_mode}\n"
+            f"Duration\n{session.duration_seconds:.2f} s\n"
+            f"Samples\n{session.sample_count}\n"
+            f"Events\n{session.event_count}\n"
+            f"Axis channels\n{axis_channels}\n"
+            f"Button channels\n{', '.join(session.button_channels) if session.button_channels else 'None'}\n"
+            f"Hat channels\n{', '.join(session.hat_channels) if session.hat_channels else 'None'}\n"
+            f"Runtime truth\n{session.runtime_truth_snapshot['truth']}\n"
+            f"Output verified\n{str(session.runtime_truth_snapshot['output_verified']).lower()}\n"
+            f"Full Live Runtime Ready\n{str(session.runtime_truth_snapshot['full_live_runtime_ready']).lower()}\n"
+            f"Warnings\n{warnings}\n"
+            f"Errors\n{errors}"
+        )
+        self.timeline_table.setRowCount(len(session.timeline_events))
+        for row, event in enumerate(session.timeline_events):
+            values = (
+                f"+{event.relative_seconds:.2f}s",
+                event.channel,
+                f"{event.previous_value:.3f} -> {event.value:.3f}",
+                event.description,
+            )
+            for column, value in enumerate(values):
+                self.timeline_table.setItem(row, column, QTableWidgetItem(value))
+
     def _show_artifact_preview(self, artifact) -> None:
         sample_count = _telemetry_sample_count(artifact.path)
         if artifact.is_simulated:
@@ -375,13 +504,28 @@ class FlightRecorderPage(QWidget):
         self.preview_status.setText("Select a recorder artifact to preview.\nNo video preview available.")
 
 
-def _row_grid(values: dict[str, str]) -> QGridLayout:
+_RECORDER_SETTINGS_METADATA = {
+    "Destination": "flight_recorder.destination",
+    "Length": "flight_recorder.length",
+    "Frame Rate": "flight_recorder.frame_rate",
+    "History": "flight_recorder.history",
+    "Overlay Source": "flight_recorder.overlay_source",
+    "Capture Source": "flight_recorder.capture_source",
+    "Display": "flight_recorder.display",
+    "Hotkey": "flight_recorder.hotkey",
+    "Trigger Mode": "flight_recorder.trigger_mode",
+}
+
+
+def _row_grid(values: dict[str, str], *, metadata_ids: dict[str, str] | None = None) -> QGridLayout:
     grid = QGridLayout()
     grid.setHorizontalSpacing(14)
     grid.setVerticalSpacing(8)
     for row, (label, value) in enumerate(values.items()):
-        key = QLabel(label)
-        key.setObjectName("tableMutedText")
+        metadata_id = metadata_ids.get(label) if metadata_ids is not None else None
+        key = parameter_label(label, metadata_id=metadata_id) if metadata_id else QLabel(label)
+        if metadata_id is None:
+            key.setObjectName("tableMutedText")
         val = QLabel(value)
         val.setObjectName("routeSummaryValue")
         val.setWordWrap(True)
@@ -399,6 +543,14 @@ def _body(text: str) -> QLabel:
 
 def _key(axis_name: str) -> str:
     return axis_name.replace(" ", "_")
+
+
+def _capture_backend_chip_label(capabilities) -> str:
+    if capabilities.backend_kind == "simulated":
+        return "Simulated backend"
+    if capabilities.backend_kind == "candidate":
+        return "Candidate available" if capabilities.dependency_available else "Candidate unavailable"
+    return "Capture backend missing"
 
 
 def _full_live_runtime_ready(runtime_status: RuntimePreflightStatus) -> bool:

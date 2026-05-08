@@ -10,7 +10,6 @@ def app_qss() -> str:
         font-size: 15px;
     }
 
-    QWidget#appSidebar,
     QWidget#appHeader,
     QWidget#appFooter,
     QDialog#helmOverlay,
@@ -19,6 +18,7 @@ def app_qss() -> str:
     QFrame[cardRole="pageCard"],
     QFrame#routingOverviewCard,
     QFrame#liveRouteSummaryCard,
+    QFrame#hotasDiagramCard,
     QFrame#runtimePreflightCard,
     QFrame#axisRoutingCard,
     QFrame#buttonRoutingCard,
@@ -28,14 +28,32 @@ def app_qss() -> str:
         border-radius: 18px;
     }
 
+    QWidget#appSidebar {
+        background: #0b1724;
+        border: 1px solid #315577;
+        border-radius: 20px;
+    }
+
+    QWidget#statusCluster,
+    QWidget#assistantCluster {
+        background: #0b1724;
+        border: 1px solid #315577;
+        border-radius: 14px;
+    }
+
     QWidget#contentViewport,
     QWidget#helmOverlayContent,
-    QScrollArea#pageScrollArea,
     QWidget#pageScrollViewport,
     QScrollArea#helmOverlayScrollArea,
     QStackedWidget#pageStack {
         background: #07111d;
         border: none;
+    }
+
+    QScrollArea#pageScrollArea {
+        background: #0a1420;
+        border: 1px solid #1e3f5c;
+        border-radius: 16px;
     }
 
     QScrollArea#pageScrollArea > QWidget > QWidget {
@@ -91,6 +109,63 @@ def app_qss() -> str:
         font-weight: 550;
     }
 
+    QFrame#hotasDiagramWidget {
+        background: #07111d;
+        border: 1px solid #203a55;
+        border-radius: 18px;
+    }
+
+    QFrame#routeInspectorPanel {
+        background: #0b1724;
+        border: 1px solid #28496a;
+        border-radius: 12px;
+    }
+
+    QLabel[hotasDiagramMarker="true"] {
+        background: #0b1724;
+        border: 1px solid #315577;
+        border-radius: 10px;
+        color: #f5f9ff;
+        font-size: 10px;
+        font-weight: 700;
+        padding: 3px 5px;
+    }
+
+    QLabel[hotasDiagramMarker="true"][controlType="axis"] {
+        border-color: #53b7ff;
+        color: #cdeeff;
+    }
+
+    QLabel[hotasDiagramMarker="true"][controlType="button"] {
+        border-color: #426f97;
+        color: #dceeff;
+    }
+
+    QLabel[hotasDiagramMarker="true"][controlType="hat"] {
+        border-color: #76d39b;
+        color: #d9ffe7;
+    }
+
+    QLabel[hotasDiagramMarker="true"][status="unmapped"] {
+        border-color: #8d6c24;
+        color: #f0c46a;
+    }
+
+    QLabel[hotasDiagramMarker="true"][selected="true"] {
+        background: #123d61;
+        border: 2px solid #96ffc5;
+        color: #ffffff;
+    }
+
+    QLabel[inspectorValue="true"] {
+        color: #f5f9ff;
+        font-weight: 600;
+    }
+
+    QLabel#hotasDiagramLegend {
+        color: #a8c3dc;
+    }
+
     QLabel#snapshotValue {
         color: #ffffff;
         font-size: 22px;
@@ -104,17 +179,53 @@ def app_qss() -> str:
     }
 
     QLabel#formLabel {
-        color: #f5f9ff;
+        color: #dceeff;
+        font-weight: 650;
     }
 
-    QLabel#axisListItem {
+    QLabel#parameterInfoIcon {
+        background: #0b1724;
+        border: 1px solid #3e6b91;
+        border-radius: 9px;
+        color: #a8dfff;
+        font-size: 11px;
+        font-weight: 800;
+        min-width: 18px;
+        min-height: 18px;
+        max-width: 18px;
+        max-height: 18px;
+    }
+
+    QLabel#parameterInfoIcon:hover {
+        background: #123a58;
+        border-color: #53b7ff;
+        color: #ffffff;
+    }
+
+    QLabel#axisListItem,
+    QPushButton#axisListItem {
         color: #f5f9ff;
         padding: 10px 14px;
         border-radius: 10px;
+        text-align: left;
     }
 
-    QLabel#axisListItem[active="true"] {
+    QPushButton#axisListItem {
+        background: transparent;
+        border: 1px solid transparent;
+        font-weight: 650;
+    }
+
+    QPushButton#axisListItem:hover {
+        background: #10283d;
+        border-color: #28496a;
+    }
+
+    QLabel#axisListItem[active="true"],
+    QPushButton#axisListItem[active="true"],
+    QPushButton#axisListItem:checked {
         background: #153b5a;
+        border-color: #53b7ff;
         color: #ffffff;
     }
 
@@ -173,7 +284,8 @@ def app_qss() -> str:
         border-color: #8d3d3d;
     }
 
-    QPushButton {
+    QPushButton,
+    QToolButton {
         background: #0b1724;
         border: 1px solid #385a7c;
         border-radius: 10px;
@@ -181,25 +293,51 @@ def app_qss() -> str:
         color: #f5f9ff;
     }
 
-    QPushButton:hover {
+    QPushButton:hover,
+    QToolButton:hover {
         background: #15283a;
         border-color: #53b7ff;
     }
 
-    QPushButton:focus {
+    QPushButton:pressed,
+    QToolButton:pressed {
+        background: #174f7e;
         border-color: #96ffc5;
     }
 
-    QPushButton:disabled {
+    QPushButton:checked,
+    QToolButton:checked {
+        background: #123d61;
+        border-color: #53b7ff;
+    }
+
+    QPushButton:focus,
+    QToolButton:focus {
+        border-color: #96ffc5;
+    }
+
+    QPushButton:disabled,
+    QToolButton:disabled {
         background: #08111b;
         border-color: #20364d;
         color: #6f8daa;
     }
 
     QPushButton[uiRole="actionButton"] {
-        background: #102f4c;
-        border-color: #3e8ec5;
+        background: #0d2236;
+        border-color: #3e6b91;
         font-weight: 650;
+    }
+
+    QPushButton[uiRole="actionButton"]:hover {
+        background: #123a58;
+        border-color: #53b7ff;
+    }
+
+    QPushButton[uiRole="actionButton"]:pressed,
+    QPushButton[uiRole="actionButton"]:checked {
+        background: #174f7e;
+        border-color: #96ffc5;
     }
 
     QPushButton[uiRole="actionButton"]:disabled {
@@ -308,6 +446,70 @@ def app_qss() -> str:
         border-color: #53b7ff;
     }
 
+    QComboBox {
+        padding-right: 30px;
+        selection-background-color: #174f7e;
+        selection-color: #ffffff;
+    }
+
+    QComboBox:hover {
+        border-color: #53b7ff;
+        background: #0b1724;
+    }
+
+    QComboBox:disabled {
+        background: #08111b;
+        border-color: #20364d;
+        color: #6f8daa;
+    }
+
+    QComboBox::drop-down {
+        subcontrol-origin: padding;
+        subcontrol-position: top right;
+        width: 28px;
+        border-left: 1px solid #28496a;
+        border-top-right-radius: 9px;
+        border-bottom-right-radius: 9px;
+        background: #0d1a27;
+    }
+
+    QComboBox::down-arrow {
+        width: 0px;
+        height: 0px;
+        border-left: 5px solid transparent;
+        border-right: 5px solid transparent;
+        border-top: 6px solid #a8c3dc;
+        margin-right: 8px;
+    }
+
+    QComboBox QAbstractItemView {
+        background: #0b1724;
+        color: #f5f9ff;
+        border: 1px solid #315577;
+        selection-background-color: #174f7e;
+        selection-color: #ffffff;
+        outline: 0px;
+        padding: 6px;
+    }
+
+    QComboBox QAbstractItemView::item {
+        min-height: 28px;
+        padding: 7px 10px;
+        border-radius: 7px;
+        color: #f5f9ff;
+        background: transparent;
+    }
+
+    QComboBox QAbstractItemView::item:hover {
+        background: #123a58;
+        color: #ffffff;
+    }
+
+    QComboBox QAbstractItemView::item:selected {
+        background: #174f7e;
+        color: #ffffff;
+    }
+
     QPushButton[uiRole="symptomChip"] {
         background: #0c1a27;
         border-color: #2d4d6f;
@@ -342,10 +544,19 @@ def app_qss() -> str:
         background: #153b5a;
     }
 
-    QPushButton#saveWorkspaceButton,
-    QPushButton#helmButton {
+    QPushButton#saveWorkspaceButton {
+        background: #12314b;
+        border-color: #4f91c0;
+    }
+
+    QPushButton#saveWorkspaceButton:hover {
         background: #174f7e;
         border-color: #53b7ff;
+    }
+
+    QPushButton#saveWorkspaceButton:pressed {
+        background: #1d638f;
+        border-color: #96ffc5;
     }
 
     QPushButton[navItem="true"] {

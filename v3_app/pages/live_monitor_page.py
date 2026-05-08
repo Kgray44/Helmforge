@@ -49,7 +49,7 @@ from v3_app.overlay.live_overlay_window import LiveOverlayWindow
 from v3_app.overlay.overlay_config import LiveOverlayConfig
 from v3_app.overlay.telemetry_buffer import OverlayTelemetryBuffer, OverlayTelemetrySample
 from v3_app.overlay.trace_builder import build_overlay_traces
-from v3_app.pages.page_helpers import card, card_header, card_layout, page_intro, signed
+from v3_app.pages.page_helpers import add_card_to_grid, card, card_header, card_layout, page_intro, signed
 from v3_app.services.app_state import AppState
 from v3_app.services.bridge_client import (
     DEFAULT_BRIDGE_TELEMETRY_PATH,
@@ -180,8 +180,8 @@ class LiveMonitorPage(QWidget):
         status_grid = QGridLayout()
         status_grid.setHorizontalSpacing(18)
         status_grid.setVerticalSpacing(18)
-        status_grid.addWidget(self._build_live_state_card(), 0, 0)
-        status_grid.addWidget(self._build_buttons_hats_card(), 0, 1)
+        add_card_to_grid(status_grid, self._build_live_state_card(), 0, 0)
+        add_card_to_grid(status_grid, self._build_buttons_hats_card(), 0, 1)
         root.addLayout(status_grid)
 
         root.addWidget(self._build_axis_levels_card())
@@ -190,8 +190,8 @@ class LiveMonitorPage(QWidget):
         button_grid = QGridLayout()
         button_grid.setHorizontalSpacing(18)
         button_grid.setVerticalSpacing(18)
-        button_grid.addWidget(self._build_hotas_buttons_card(), 0, 0)
-        button_grid.addWidget(self._build_output_buttons_card(), 0, 1)
+        add_card_to_grid(button_grid, self._build_hotas_buttons_card(), 0, 0)
+        add_card_to_grid(button_grid, self._build_output_buttons_card(), 0, 1)
         root.addLayout(button_grid)
         root.addStretch(1)
 

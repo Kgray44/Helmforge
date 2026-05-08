@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
 
 from shared_core.models.runtime import AXIS_NAMES
 from v3_app.overlay.overlay_config import LiveOverlayConfig, OverlayAxisConfig
-from v3_app.pages.page_helpers import card, card_header, card_layout
+from v3_app.pages.page_helpers import apply_parameter_metadata, card, card_header, card_layout, parameter_label
 
 
 class LiveOverlayConfigDialog(QDialog):
@@ -89,15 +89,16 @@ class LiveOverlayConfigDialog(QDialog):
         self.height.setDecimals(2)
         self.height.setSingleStep(0.05)
         rows = (
-            ("Position", self.position, "Bottom strip"),
-            ("Margin", self.margin, "18 px"),
-            ("Attach", self.attach, "Attach to display"),
-            ("Width", self.width, "Standard"),
-            ("Height", self.height, "0.60"),
-            ("Display", QLabel(self._draft.display_label), self._draft.display_label),
+            ("Position", self.position, "Bottom strip", "live_overlay.position"),
+            ("Margin", self.margin, "18 px", "live_overlay.margin"),
+            ("Attach", self.attach, "Attach to display", "live_overlay.attach"),
+            ("Width", self.width, "Standard", "live_overlay.width"),
+            ("Height", self.height, "0.60", "live_overlay.height"),
+            ("Display", QLabel(self._draft.display_label), self._draft.display_label, "live_overlay.display"),
         )
-        for row, (label, widget, value_text) in enumerate(rows):
-            grid.addWidget(_label(label), row, 0)
+        for row, (label, widget, value_text, metadata_id) in enumerate(rows):
+            apply_parameter_metadata(widget, metadata_id)
+            grid.addWidget(_label(label, metadata_id), row, 0)
             grid.addWidget(widget, row, 1)
             grid.addWidget(_value(value_text), row, 2)
         layout.addLayout(grid)
@@ -116,14 +117,15 @@ class LiveOverlayConfigDialog(QDialog):
         self.show_values = QCheckBox("Show live values")
         self.show_values.setObjectName("overlayShowValuesCheckbox")
         rows = (
-            ("Opacity", self.opacity, "0.66"),
-            ("Background", self.background, "0.82"),
-            ("Line thickness", self.line_thickness, "2.80"),
-            ("Legend", self.show_legend, "Show legend"),
-            ("Values", self.show_values, "Show live values"),
+            ("Opacity", self.opacity, "0.66", "live_overlay.opacity"),
+            ("Background", self.background, "0.82", "live_overlay.background"),
+            ("Line thickness", self.line_thickness, "2.80", "live_overlay.line_thickness"),
+            ("Legend", self.show_legend, "Show legend", "live_overlay.show_legend"),
+            ("Values", self.show_values, "Show live values", "live_overlay.show_values"),
         )
-        for row, (label, widget, value_text) in enumerate(rows):
-            grid.addWidget(_label(label), row, 0)
+        for row, (label, widget, value_text, metadata_id) in enumerate(rows):
+            apply_parameter_metadata(widget, metadata_id)
+            grid.addWidget(_label(label, metadata_id), row, 0)
             grid.addWidget(widget, row, 1)
             grid.addWidget(_value(value_text), row, 2)
         layout.addLayout(grid)
@@ -142,16 +144,17 @@ class LiveOverlayConfigDialog(QDialog):
         self.fps_cap.setRange(15, 144)
         self.fps_cap.setSuffix(" fps")
         rows = (
-            ("Auto-hide when target loses focus", self.auto_hide, "false"),
-            ("Always on top", self.always_on_top, "true"),
-            ("Click-through", self.click_through, "false"),
-            ("FPS cap", self.fps_cap, "60 fps"),
-            ("Toggle hotkey", QLabel(self._draft.toggle_hotkey), self._draft.toggle_hotkey),
-            ("Hotkey status", QLabel("Not registered"), "Not registered"),
-            ("Click-through support", QLabel("Not verified"), "Not verified"),
+            ("Auto-hide when target loses focus", self.auto_hide, "false", "live_overlay.auto_hide"),
+            ("Always on top", self.always_on_top, "true", "live_overlay.always_on_top"),
+            ("Click-through", self.click_through, "false", "live_overlay.click_through"),
+            ("FPS cap", self.fps_cap, "60 fps", "live_overlay.fps_cap"),
+            ("Toggle hotkey", QLabel(self._draft.toggle_hotkey), self._draft.toggle_hotkey, "live_overlay.toggle_hotkey"),
+            ("Hotkey status", QLabel("Not registered"), "Not registered", None),
+            ("Click-through support", QLabel("Not verified"), "Not verified", None),
         )
-        for row, (label, widget, value_text) in enumerate(rows):
-            grid.addWidget(_label(label), row, 0)
+        for row, (label, widget, value_text, metadata_id) in enumerate(rows):
+            apply_parameter_metadata(widget, metadata_id)
+            grid.addWidget(_label(label, metadata_id), row, 0)
             grid.addWidget(widget, row, 1)
             grid.addWidget(_value(value_text), row, 2)
         layout.addLayout(grid)
@@ -166,11 +169,12 @@ class LiveOverlayConfigDialog(QDialog):
         self.source.addItem("Final output")
         self.history = _double_field("overlayHistoryField", 0.5, 60.0, 2, 0.5)
         rows = (
-            ("Source", self.source, "Final output"),
-            ("History", self.history, "7.50 s"),
+            ("Source", self.source, "Final output", "live_overlay.source"),
+            ("History", self.history, "7.50 s", "live_overlay.history"),
         )
-        for row, (label, widget, value_text) in enumerate(rows):
-            grid.addWidget(_label(label), row, 0)
+        for row, (label, widget, value_text, metadata_id) in enumerate(rows):
+            apply_parameter_metadata(widget, metadata_id)
+            grid.addWidget(_label(label, metadata_id), row, 0)
             grid.addWidget(widget, row, 1)
             grid.addWidget(_value(value_text), row, 2)
         layout.addLayout(grid)
@@ -254,7 +258,9 @@ class LiveOverlayConfigDialog(QDialog):
         super().showEvent(event)
 
 
-def _label(text: str) -> QLabel:
+def _label(text: str, metadata_id: str | None = None) -> QWidget:
+    if metadata_id is not None:
+        return parameter_label(text, metadata_id=metadata_id)
     label = QLabel(text)
     label.setObjectName("tableMutedText")
     return label

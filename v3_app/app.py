@@ -26,6 +26,7 @@ class HelmForgeMainWindow(QMainWindow):
         super().__init__()
         self.setObjectName("helmforgeMainWindow")
         self.setWindowTitle(title)
+        self.setMinimumSize(Layout.window_min_width, Layout.window_min_height)
         self.resize(Layout.window_width, Layout.window_height)
         icon_file = _icon_path()
         if icon_file.exists():

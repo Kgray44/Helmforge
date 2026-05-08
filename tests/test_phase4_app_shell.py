@@ -90,12 +90,13 @@ def test_phase4_sidebar_switching_updates_active_state_and_footer():
 
     active_button = shell.findChild(QPushButton, "nav_flight_recorder")
     inactive_button = shell.findChild(QPushButton, "nav_mapping")
-    footer_page = shell.findChild(QLabel, "footerPageDetail")
+    footer_text = " ".join(label.text() for label in shell.footer.findChildren(QLabel))
 
     assert shell.active_page_id == "flight_recorder"
     assert active_button.property("active") is True
     assert inactive_button.property("active") is False
-    assert "Flight Recorder" in footer_page.text()
+    for removed_detail in ("Page:", "Axis:", "Profile:", "Source:"):
+        assert removed_detail not in footer_text
 
 
 def test_phase4_runtime_status_surfaces_do_not_claim_live_when_unverified():
