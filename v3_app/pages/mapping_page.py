@@ -53,7 +53,13 @@ from shared_core.runtime.vjoy_output import (
 )
 from v3_app.services.app_state import AppState
 from v3_app.services.bridge_client import RuntimeFrameTelemetryPayload
-from v3_app.services.hotas_diagram_model import build_hotas_diagram_model
+from v3_app.services.hotas_diagram_model import (
+    HotasDiagramModel,
+    build_hotas_diagram_model,
+    build_route_inspector,
+    build_workspace_route_warnings,
+    select_hotas_diagram_route,
+)
 from v3_app.services.physical_input_ui import (
     build_input_source_status,
     buttons_from_physical_snapshot,
@@ -144,6 +150,11 @@ class MappingPage(QWidget):
         self._button_table: QTableWidget | None = None
         self._hat_table: QTableWidget | None = None
         self._hotas_diagram_widget: HotasDiagramWidget | None = None
+        self._hotas_diagram_model: HotasDiagramModel | None = None
+        self._route_warnings = build_workspace_route_warnings(self._workspace)
+        self._selected_route_control_id = "axis_roll"
+        self._syncing_route_selection = False
+        self._route_inspector_labels: dict[str, QLabel] = {}
 
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 22, 24, 28)
@@ -167,6 +178,7 @@ class MappingPage(QWidget):
         lower_cards.addWidget(self._build_button_routing_card(), 1)
         lower_cards.addWidget(self._build_hat_routing_card(), 1)
         root.addLayout(lower_cards)
+        self._apply_route_selection(self._selected_route_control_id, update_table=True)
         root.addStretch(1)
 
     def _build_intro(self) -> QWidget:
@@ -290,7 +302,9 @@ class MappingPage(QWidget):
         body.setObjectName("cardBody")
         body.setWordWrap(True)
 
-        self._hotas_diagram_widget = HotasDiagramWidget(self._build_hotas_diagram_model())
+        self._hotas_diagram_model = self._create_hotas_diagram_model()
+        self._hotas_diagram_widget = HotasDiagramWidget(self._hotas_diagram_model)
+        self._hotas_diagram_widget.control_selected.connect(self._select_route_by_control_id)
         note = QLabel(
             "Read-only visual/diagnostic diagram. Physical input samples and simulation/fallback values are display-only; "
             "Output intent is not output write proof."
@@ -301,8 +315,44 @@ class MappingPage(QWidget):
         layout.addWidget(title)
         layout.addWidget(body)
         layout.addWidget(self._hotas_diagram_widget)
+        layout.addWidget(self._build_route_inspector_panel())
         layout.addWidget(note)
         return card
+
+    def _build_route_inspector_panel(self) -> QWidget:
+        panel = QFrame()
+        panel.setObjectName("routeInspectorPanel")
+        panel.setFrameShape(QFrame.Shape.NoFrame)
+        layout = QGridLayout(panel)
+        layout.setContentsMargins(14, 12, 14, 14)
+        layout.setHorizontalSpacing(16)
+        layout.setVerticalSpacing(7)
+
+        title = QLabel("Route Inspector")
+        title.setObjectName("sectionLabel")
+        layout.addWidget(title, 0, 0, 1, 2)
+
+        rows = (
+            ("Route type", "routeInspectorTypeValue"),
+            ("Selected physical input", "routeInspectorPhysicalValue"),
+            ("Mapped virtual output", "routeInspectorOutputValue"),
+            ("Mode/profile context", "routeInspectorContextValue"),
+            ("Source of truth", "routeInspectorTruthValue"),
+            ("Editable here", "routeInspectorEditableValue"),
+            ("Conflict / warning", "routeInspectorConflictValue"),
+            ("Verification notice", "routeInspectorVerificationValue"),
+        )
+        for row, (label, object_name) in enumerate(rows, start=1):
+            key = QLabel(label)
+            key.setObjectName("tableMutedText")
+            value = QLabel("Unavailable")
+            value.setObjectName(object_name)
+            value.setProperty("inspectorValue", True)
+            value.setWordWrap(True)
+            self._route_inspector_labels[object_name] = value
+            layout.addWidget(key, row, 0)
+            layout.addWidget(value, row, 1)
+        return panel
 
     def _build_runtime_preflight_card(self) -> QWidget:
         card = self._card("runtimePreflightCard")
@@ -441,6 +491,9 @@ class MappingPage(QWidget):
         )
         self._configure_table(table, minimum_height=320)
         self._populate_axis_table()
+        table.currentCellChanged.connect(
+            lambda row, _column, _old_row, _old_column: self._select_route_from_table("axisRoutingTable", row)
+        )
 
         layout.addWidget(title)
         layout.addWidget(body)
@@ -478,6 +531,9 @@ class MappingPage(QWidget):
         table.setHorizontalHeaderLabels(("HOTAS Button", "vJoy Button", "Raw", "Output"))
         self._configure_table(table, minimum_height=360)
         self._populate_button_table()
+        table.currentCellChanged.connect(
+            lambda row, _column, _old_row, _old_column: self._select_route_from_table("buttonRoutingTable", row)
+        )
 
         layout.addWidget(title)
         layout.addWidget(body)
@@ -513,6 +569,9 @@ class MappingPage(QWidget):
         table.setHorizontalHeaderLabels(("HOTAS Hat", "vJoy POV", "Up", "Right", "Down", "Left", "Live"))
         self._configure_table(table, minimum_height=240)
         self._populate_hat_table()
+        table.currentCellChanged.connect(
+            lambda row, _column, _old_row, _old_column: self._select_route_from_table("hatRoutingTable", row)
+        )
 
         layout.addWidget(title)
         layout.addWidget(body)
@@ -766,7 +825,7 @@ class MappingPage(QWidget):
         elif self._on_dirty is not None:
             self._on_dirty(message)
 
-    def _build_hotas_diagram_model(self):
+    def _create_hotas_diagram_model(self) -> HotasDiagramModel:
         return build_hotas_diagram_model(
             self._workspace,
             raw_axis_values=self._diagram_raw_axis_values(),
@@ -776,8 +835,87 @@ class MappingPage(QWidget):
         )
 
     def _refresh_hotas_diagram(self) -> None:
+        self._route_warnings = build_workspace_route_warnings(self._workspace)
+        self._hotas_diagram_model = self._create_hotas_diagram_model()
         if self._hotas_diagram_widget is not None:
-            self._hotas_diagram_widget.set_model(self._build_hotas_diagram_model())
+            self._hotas_diagram_widget.set_model(self._hotas_diagram_model)
+        self._apply_route_selection(self._selected_route_control_id, update_table=False)
+
+    def _select_route_by_control_id(self, control_id: str) -> None:
+        self._apply_route_selection(control_id, update_table=True)
+
+    def _select_route_from_table(self, table_object_name: str, row: int) -> None:
+        if self._syncing_route_selection or row < 0:
+            return
+        control_id = self._control_id_for_table_row(table_object_name, row)
+        if control_id is not None:
+            self._apply_route_selection(control_id, update_table=False)
+
+    def _apply_route_selection(self, control_id: str, *, update_table: bool) -> None:
+        model = self._hotas_diagram_model or self._create_hotas_diagram_model()
+        selection = select_hotas_diagram_route(model, control_id)
+        control = next((item for item in model.routed_controls if item.control_id == control_id), None)
+        if selection is None or control is None:
+            return
+        self._selected_route_control_id = control_id
+        if self._hotas_diagram_widget is not None:
+            self._hotas_diagram_widget.set_selected_control_id(control_id)
+        if update_table:
+            table = self._table_by_object_name(selection.table_object_name)
+            if table is not None and 0 <= selection.route_row < table.rowCount():
+                self._syncing_route_selection = True
+                table.setCurrentCell(selection.route_row, 0)
+                table.selectRow(selection.route_row)
+                self._syncing_route_selection = False
+        self._refresh_route_inspector(control)
+
+    def _refresh_route_inspector(self, control) -> None:
+        inspector = build_route_inspector(
+            control,
+            workspace=self._workspace,
+            active_profile=self._workspace.active_profile,
+            source_label=self._input_source_status.source_label,
+            runtime_truth_label=self._runtime_truth_label(),
+            telemetry_status=self._telemetry_status_label(),
+            warnings=self._route_warnings,
+        )
+        values = {
+            "routeInspectorTypeValue": inspector.route_type,
+            "routeInspectorPhysicalValue": inspector.selected_physical_input,
+            "routeInspectorOutputValue": inspector.mapped_virtual_output,
+            "routeInspectorContextValue": inspector.mode_profile_context,
+            "routeInspectorTruthValue": inspector.source_of_truth,
+            "routeInspectorEditableValue": inspector.editable_in_current_ui,
+            "routeInspectorConflictValue": inspector.conflict_status,
+            "routeInspectorVerificationValue": inspector.no_live_output_verification_notice,
+        }
+        for object_name, text in values.items():
+            label = self._route_inspector_labels.get(object_name)
+            if label is not None:
+                label.setText(text)
+
+    def _control_id_for_table_row(self, table_object_name: str, row: int) -> str | None:
+        model = self._hotas_diagram_model or self._create_hotas_diagram_model()
+        for control in model.routed_controls:
+            if control.table_object_name == table_object_name and control.route_row == row:
+                return control.control_id
+        return None
+
+    def _table_by_object_name(self, table_object_name: str) -> QTableWidget | None:
+        if table_object_name == "axisRoutingTable":
+            return self._axis_table
+        if table_object_name == "buttonRoutingTable":
+            return self._button_table
+        if table_object_name == "hatRoutingTable":
+            return self._hat_table
+        return None
+
+    def _telemetry_status_label(self) -> str:
+        if self._runtime_frame is None:
+            return "Bridge telemetry unavailable"
+        if not self._runtime_frame.available:
+            return f"Bridge telemetry {self._runtime_frame.parse_status}"
+        return "Bridge telemetry available"
 
     def _diagram_raw_axis_values(self):
         return self._physical_raw_axes or self._snapshot.raw_axis_values
