@@ -7,6 +7,7 @@ from shared_core.models.workspace import WorkspaceConfig, create_default_workspa
 from shared_core.runtime.device_discovery import build_runtime_preflight_status
 from v3_app.pages.page_helpers import (
     OnDirty,
+    add_card_to_grid,
     card,
     card_header,
     card_layout,
@@ -50,10 +51,10 @@ class ModesPage(QWidget):
         grid = QGridLayout()
         grid.setHorizontalSpacing(18)
         grid.setVerticalSpacing(18)
-        grid.addWidget(self._build_precision_card(), 0, 0)
-        grid.addWidget(self._build_combat_card(), 0, 1)
-        grid.addWidget(self._build_live_state_card(), 1, 0)
-        grid.addWidget(self._build_notes_card(), 1, 1)
+        add_card_to_grid(grid, self._build_precision_card(), 0, 0)
+        add_card_to_grid(grid, self._build_combat_card(), 0, 1)
+        add_card_to_grid(grid, self._build_live_state_card(), 1, 0)
+        add_card_to_grid(grid, self._build_notes_card(), 1, 1)
         root.addLayout(grid)
         root.addStretch(1)
 

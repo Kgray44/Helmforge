@@ -66,7 +66,7 @@ def test_phase6_modes_page_constructs_and_shows_recovered_defaults():
 def test_phase6_base_tuning_page_constructs_axis_list_and_true_linear_reference():
     _app()
 
-    from PySide6.QtWidgets import QLabel
+    from PySide6.QtWidgets import QLabel, QPushButton
     from shared_core.models.workspace import create_default_workspace
     from v3_app.pages.base_tuning_page import BaseTuningPage
     from v3_app.pages.graph_data import base_response_preview_data
@@ -79,7 +79,10 @@ def test_phase6_base_tuning_page_constructs_axis_list_and_true_linear_reference(
         workspace=workspace,
         runtime_status=status,
     )
-    text = " ".join(label.text() for label in page.findChildren(QLabel))
+    text = " ".join(
+        [label.text() for label in page.findChildren(QLabel)]
+        + [button.text() for button in page.findChildren(QPushButton)]
+    )
     data = base_response_preview_data(workspace.tuning.axes["roll"])
 
     assert page.objectName() == "baseTuningPage"

@@ -86,16 +86,25 @@ class FlightRecorderController:
 
     def build_status_summary(self) -> dict[str, str]:
         status = self.refresh_status()
+        capabilities = status.capabilities
         return {
-            "Capture backend": "simulated backend" if status.capabilities.simulated_artifact_available else "missing",
+            "Capture backend": _capture_backend_label(capabilities),
+            "Dependency status": "available" if capabilities.dependency_available else "unavailable",
+            "Real capture supported": str(capabilities.real_capture_supported).lower(),
+            "Frame capture": "available" if capabilities.frame_capture_available else "unavailable",
+            "Cursor capture": "available" if capabilities.cursor_capture_available else "unavailable",
+            "Display enumeration": "available" if capabilities.display_enumeration_available else "unavailable",
+            "Video encoding": "available" if capabilities.video_encoding_available else "unavailable",
             "Compositor": (
                 "simulated metadata exporter"
                 if self.compositor.capabilities().simulated_export_available
                 else "unavailable"
             ),
             "Recorder mode": (
-                "backend foundation only / simulated artifacts only"
-                if status.capabilities.simulated_artifact_available
+                "metadata-only simulated artifacts"
+                if capabilities.simulated_artifact_available
+                else "candidate seam only / no capture active"
+                if capabilities.backend_kind == "candidate"
                 else "UI/backend foundation only"
             ),
             "Hotkey status": "Not registered",
@@ -177,3 +186,11 @@ def _artifact_from_export(metadata: RecorderExportMetadata) -> RecorderArtifact:
         notes=("simulated recorder export", "metadata and overlay trace only"),
         warnings=metadata.warnings,
     )
+
+
+def _capture_backend_label(capabilities) -> str:
+    if capabilities.backend_kind == "simulated":
+        return "Simulated"
+    if capabilities.backend_kind == "candidate":
+        return "Candidate available" if capabilities.dependency_available else "Candidate unavailable"
+    return "Missing"

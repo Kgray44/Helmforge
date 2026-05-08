@@ -53,7 +53,14 @@ from shared_core.runtime.vjoy_output import (
 )
 from v3_app.services.app_state import AppState
 from v3_app.services.bridge_client import RuntimeFrameTelemetryPayload
-from v3_app.services.physical_input_ui import build_input_source_status, raw_axes_from_physical_snapshot
+from v3_app.services.hotas_diagram_model import build_hotas_diagram_model
+from v3_app.services.physical_input_ui import (
+    build_input_source_status,
+    buttons_from_physical_snapshot,
+    hat_from_physical_snapshot,
+    raw_axes_from_physical_snapshot,
+)
+from v3_app.widgets.hotas_diagram import HotasDiagramWidget
 from v3_app.ui.status_chips import action_button, status_chip
 
 
@@ -136,6 +143,7 @@ class MappingPage(QWidget):
         self._axis_table: QTableWidget | None = None
         self._button_table: QTableWidget | None = None
         self._hat_table: QTableWidget | None = None
+        self._hotas_diagram_widget: HotasDiagramWidget | None = None
 
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 22, 24, 28)
@@ -150,6 +158,7 @@ class MappingPage(QWidget):
         top_cards.addWidget(self._build_live_route_summary_card(), 1)
         root.addLayout(top_cards)
 
+        root.addWidget(self._build_hotas_diagram_card())
         root.addWidget(self._build_runtime_preflight_card())
         root.addWidget(self._build_axis_routing_card())
 
@@ -264,6 +273,34 @@ class MappingPage(QWidget):
         note = QLabel(self._runtime_route_note())
         note.setObjectName("cardBody")
         note.setWordWrap(True)
+        layout.addWidget(note)
+        return card
+
+    def _build_hotas_diagram_card(self) -> QWidget:
+        card = self._card("hotasDiagramCard")
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(22, 20, 22, 22)
+        layout.setSpacing(14)
+
+        title = QLabel("HOTAS Diagram")
+        title.setObjectName("cardTitle")
+        body = QLabel(
+            "See the physical controls, current mappings, and output intent targets in one visual layout."
+        )
+        body.setObjectName("cardBody")
+        body.setWordWrap(True)
+
+        self._hotas_diagram_widget = HotasDiagramWidget(self._build_hotas_diagram_model())
+        note = QLabel(
+            "Read-only visual/diagnostic diagram. Physical input samples and simulation/fallback values are display-only; "
+            "Output intent is not output write proof."
+        )
+        note.setObjectName("hotasDiagramLegend")
+        note.setWordWrap(True)
+
+        layout.addWidget(title)
+        layout.addWidget(body)
+        layout.addWidget(self._hotas_diagram_widget)
         layout.addWidget(note)
         return card
 
@@ -723,10 +760,37 @@ class MappingPage(QWidget):
 
     def _set_mapping_config(self, mapping_config: MappingConfig, message: str) -> None:
         self._workspace = replace(self._workspace, mappings=mapping_config)
+        self._refresh_hotas_diagram()
         if self._on_workspace_changed is not None:
             self._on_workspace_changed(self._workspace, message)
         elif self._on_dirty is not None:
             self._on_dirty(message)
+
+    def _build_hotas_diagram_model(self):
+        return build_hotas_diagram_model(
+            self._workspace,
+            raw_axis_values=self._diagram_raw_axis_values(),
+            button_states=self._diagram_button_states(),
+            hat_state=self._diagram_hat_state(),
+            source_label=self._input_source_status.source_label,
+        )
+
+    def _refresh_hotas_diagram(self) -> None:
+        if self._hotas_diagram_widget is not None:
+            self._hotas_diagram_widget.set_model(self._build_hotas_diagram_model())
+
+    def _diagram_raw_axis_values(self):
+        return self._physical_raw_axes or self._snapshot.raw_axis_values
+
+    def _diagram_button_states(self):
+        if self._physical_input_snapshot is not None and self._input_source_status.is_fresh_physical_sample:
+            return buttons_from_physical_snapshot(self._physical_input_snapshot)
+        return self._snapshot.button_states
+
+    def _diagram_hat_state(self) -> str:
+        if self._physical_input_snapshot is not None and self._input_source_status.is_fresh_physical_sample:
+            return hat_from_physical_snapshot(self._physical_input_snapshot)
+        return self._snapshot.hat_state
 
     def _refresh_counts(self) -> None:
         values = {

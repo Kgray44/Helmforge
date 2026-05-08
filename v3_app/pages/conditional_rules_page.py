@@ -88,12 +88,14 @@ class ConditionalRulesPage(QWidget):
 
         split = QHBoxLayout()
         split.setSpacing(8)
-        split.addWidget(self._build_rule_list_card(), 1)
+        split.addWidget(self._build_rule_list_card(), 1, Qt.AlignmentFlag.AlignTop)
         right = QVBoxLayout()
         right.setSpacing(18)
         right.addWidget(self._build_detail_card(), 2)
         right.addWidget(self._build_logic_card(), 1)
-        split.addLayout(right, 1)
+        right_panel = QWidget()
+        right_panel.setLayout(right)
+        split.addWidget(right_panel, 1, Qt.AlignmentFlag.AlignTop)
         root.addLayout(split, 1)
 
         self._refresh_all(select_index=0)
