@@ -31,6 +31,7 @@ def app_qss() -> str:
     QWidget#contentViewport,
     QWidget#helmOverlayContent,
     QScrollArea#pageScrollArea,
+    QWidget#pageScrollViewport,
     QScrollArea#helmOverlayScrollArea,
     QStackedWidget#pageStack {
         background: #07111d;
@@ -153,6 +154,7 @@ def app_qss() -> str:
         border-radius: 9px;
         padding: 7px 14px;
         color: #b9d4ec;
+        font-weight: 600;
     }
 
     QLabel[chipTone="success"] {
@@ -184,10 +186,26 @@ def app_qss() -> str:
         border-color: #53b7ff;
     }
 
+    QPushButton:focus {
+        border-color: #96ffc5;
+    }
+
+    QPushButton:disabled {
+        background: #08111b;
+        border-color: #20364d;
+        color: #6f8daa;
+    }
+
     QPushButton[uiRole="actionButton"] {
         background: #102f4c;
         border-color: #3e8ec5;
         font-weight: 650;
+    }
+
+    QPushButton[uiRole="actionButton"]:disabled {
+        background: #0a1520;
+        border-color: #263b52;
+        color: #6f8daa;
     }
 
     QTableWidget {
@@ -231,6 +249,10 @@ def app_qss() -> str:
     QListWidget::item:selected {
         background: #143d5f;
         color: #ffffff;
+    }
+
+    QListWidget::item:hover {
+        background: #10283d;
     }
 
     QCheckBox {

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from dataclasses import replace
 from pathlib import Path
 from datetime import datetime
@@ -68,6 +69,7 @@ from v3_app.services.bridge_presence import (
     build_live_monitor_diagnostic_rows,
     compose_bridge_lifecycle_diagnostics,
 )
+from v3_app.services.perf_diagnostics import DiagnosticsCollector
 from v3_app.services.physical_input_ui import (
     buttons_from_physical_snapshot,
     build_input_source_status,
@@ -99,12 +101,14 @@ class LiveMonitorPage(QWidget):
         virtual_output_backend: VirtualOutputBackend | None = None,
         virtual_output_verification: VirtualOutputVerificationResult | None = None,
         virtual_output_loop: VirtualOutputWriteLoop | VirtualOutputLoopSnapshot | None = None,
+        diagnostics_collector: DiagnosticsCollector | None = None,
     ) -> None:
         super().__init__()
         self.setObjectName("liveMonitorPage")
         self._state = state
         self._workspace = workspace or create_default_workspace()
         self._runtime_status = runtime_status or build_runtime_preflight_status()
+        self._diagnostics_collector = diagnostics_collector
         self._simulation = SimulatedRuntime(deterministic=False, workspace=self._workspace)
         self._bridge_client = BridgeTelemetryClient(
             telemetry_path=telemetry_path or DEFAULT_BRIDGE_TELEMETRY_PATH,
@@ -454,11 +458,22 @@ class LiveMonitorPage(QWidget):
 
     def _tick(self) -> None:
         if self.should_skip_timer_refresh():
+            self._record_hidden_skip()
             return
+        started_at = time.perf_counter()
         self.refresh_snapshot(force_new=True)
+        self._record_timing("heartbeat", started_at)
 
     def should_skip_timer_refresh(self) -> bool:
         return not self.isVisible()
+
+    def _record_hidden_skip(self) -> None:
+        if self._diagnostics_collector is not None:
+            self._diagnostics_collector.record_hidden_skip("Live Monitor")
+
+    def _record_timing(self, name: str, started_at: float) -> None:
+        if self._diagnostics_collector is not None:
+            self._diagnostics_collector.record_timing(name, (time.perf_counter() - started_at) * 1000.0)
 
     def set_selected_axis(self, axis_name: str) -> None:
         if axis_name not in AXIS_DISPLAY_NAMES:
@@ -895,6 +910,7 @@ class LiveMonitorPage(QWidget):
         self.command_status_label.setText(text)
 
     def _update_graphs(self) -> None:
+        started_at = time.perf_counter()
         raw_points = self.history.raw_points(self.selected_axis)
         final_points = self.history.final_points(self.selected_axis)
         latest = self.history.latest
@@ -915,6 +931,7 @@ class LiveMonitorPage(QWidget):
         if latest is not None:
             final_marker = (float(latest.index), latest.final_axes.get(self.selected_axis, 0.0))
         self.overlay_graph.plot_series_with_marker(tuple(overlay_series), marker=final_marker)
+        self._record_timing("graph", started_at)
 
 
 def _body(text: str) -> QLabel:

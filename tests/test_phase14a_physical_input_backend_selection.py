@@ -207,7 +207,7 @@ def test_phase14a_help_docs_explain_input_selection_without_output_authority():
     assert "Phase 14A introduces physical input detection and device selection" in runtime_setup
     assert "simulation mode remains available" in runtime_setup
     assert "supported HOTAS detected does not mean vJoy output is active" in runtime_setup
-    assert "Phase 15 is where virtual output and vJoy work begins" in runtime_setup
+    assert "virtual output is governed by Phase 15 backend, verification, and output-loop gates" in runtime_setup
     assert "device selection does not write output" in runtime_setup
     assert "Full Live Runtime Ready remains false" in runtime_setup
 

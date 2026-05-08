@@ -60,8 +60,8 @@ class FlightRecorderPage(QWidget):
         root.addWidget(
             page_intro(
                 "Flight Recorder",
-                "Capture the desktop on demand, then composite a time-matched axis trace overlay into the finished video.",
-                "Use the hotkey when you want a clean replay of what happened on-screen with the matched HOTAS signal history baked into the clip. Capture/export backend is not active yet.",
+                "Inspect the recorder shell, simulated export metadata, and future time-matched axis overlay without claiming video capture.",
+                "No video captured. No encoding performed. The hotkey text is configured but not registered, and recorder exports remain metadata-only until a real capture backend exists.",
             )
         )
         root.addWidget(self._status_card())
@@ -232,7 +232,12 @@ class FlightRecorderPage(QWidget):
         frame = card("clipPreviewCard")
         layout = card_layout(frame)
         layout.addWidget(card_header("Clip Preview", "Preview shell only; playback backend is deferred."))
-        self.preview_status = QLabel("Select a recorded clip to preview.\nClip preview backend is not implemented yet.")
+        self.preview_status = QLabel(
+            "Select a recorder artifact to preview.\n"
+            "Metadata-only preview.\n"
+            "No video captured.\n"
+            "No encoding performed."
+        )
         self.preview_status.setObjectName("clipPreviewUnavailableState")
         self.preview_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_status.setMinimumHeight(180)

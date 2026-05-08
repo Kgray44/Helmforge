@@ -267,7 +267,7 @@ def test_phase14b_help_docs_explain_read_only_sampling_and_phase15_output_bounda
 
     assert "Phase 14B adds read-only physical input sampling and normalization" in runtime_setup
     assert "physical input sampling does not imply vJoy output" in runtime_setup
-    assert "vJoy writes remain Phase 15 or later" in runtime_setup
+    assert "virtual output is governed by Phase 15 backend, verification, and output-loop gates" in runtime_setup
     assert "output_verified remains false" in runtime_setup
     assert "input sampling errors or disconnects fall back safely" in runtime_setup
     assert "Physical input sampling active" in indicators

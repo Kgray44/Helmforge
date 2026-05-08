@@ -335,6 +335,7 @@ def build_diagnostics_text(snapshot: DiagnosticsSnapshot) -> str:
         f"Output proof: {snapshot.runtime_frame_output_proof}",
         f"Full Live Runtime Ready gate: {snapshot.runtime_frame_full_live_gate}",
         f"Ready state: {snapshot.runtime_frame_ready_state}",
+        f"Blocked reason: {snapshot.runtime_frame_blocked_reason or 'None'}",
         f"Telemetry proof: {snapshot.runtime_frame_telemetry_proof}",
         f"Safety proof: {snapshot.runtime_frame_safety_proof}",
         f"Fake/real path: {snapshot.runtime_frame_fake_or_real_path}",

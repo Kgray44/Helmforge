@@ -6,6 +6,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QScrollArea, QStackedWidget, QVBoxLayout, QWidget
 
+from shared_core.models.runtime import RuntimePreflightStatus
 from shared_core.models.workspace import CONFIG_FILENAME, WorkspaceConfig, create_default_workspace
 from shared_core.persistence.workspace_store import WorkspaceJsonError, load_workspace, save_workspace
 from shared_core.runtime.device_discovery import build_runtime_preflight_status
@@ -24,6 +25,7 @@ from v3_app.pages.perf_diagnostics_page import PerfDiagnosticsPage
 from v3_app.pages.profiles_page import ProfilesPage
 from v3_app.helm.helm_overlay import HelmOverlay
 from v3_app.services.app_state import AppState, build_initial_app_state
+from v3_app.services.perf_diagnostics import DiagnosticsCollector
 from v3_app.ui.footer import Footer
 from v3_app.ui.header import Header
 from v3_app.ui.sidebar import Sidebar
@@ -36,6 +38,8 @@ class HelmForgeShell(QWidget):
         *,
         workspace: WorkspaceConfig | None = None,
         workspace_path: str | Path | None = None,
+        runtime_status: RuntimePreflightStatus | None = None,
+        diagnostics_collector: DiagnosticsCollector | None = None,
     ) -> None:
         super().__init__()
         self.setObjectName("helmforgeShell")
@@ -44,10 +48,11 @@ class HelmForgeShell(QWidget):
         self.workspace = workspace or self._load_initial_workspace()
         self._last_saved_workspace = self.workspace
         self.state.source_config = str(self.workspace_path)
-        self.runtime_status = build_runtime_preflight_status()
+        self.runtime_status = runtime_status or build_runtime_preflight_status()
         self.active_page_id = self.state.active_page_id
         self.page_widgets: dict[str, QScrollArea] = {}
         self.helm_overlay: HelmOverlay | None = None
+        self.diagnostics_collector = diagnostics_collector or DiagnosticsCollector()
 
         root = QHBoxLayout(self)
         root.setContentsMargins(18, 18, 18, 18)
@@ -96,6 +101,7 @@ class HelmForgeShell(QWidget):
             else:
                 scroll = QScrollArea()
             scroll.setObjectName("pageScrollArea")
+            scroll.viewport().setObjectName("pageScrollViewport")
             scroll.setWidgetResizable(True)
             scroll.setFrameShape(QScrollArea.Shape.NoFrame)
             scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -145,9 +151,9 @@ class HelmForgeShell(QWidget):
                 on_workspace_changed=self.update_workspace_draft,
             )
         if page_id == "effective_response_stack":
-            return EffectiveResponseStackPage(**common)
+            return EffectiveResponseStackPage(**common, diagnostics_collector=self.diagnostics_collector)
         if page_id == "live_monitor":
-            return LiveMonitorPage(**common)
+            return LiveMonitorPage(**common, diagnostics_collector=self.diagnostics_collector)
         if page_id == "flight_recorder":
             return FlightRecorderPage(**common)
         if page_id == "help_docs":
@@ -156,6 +162,7 @@ class HelmForgeShell(QWidget):
             return PerfDiagnosticsPage(
                 **common,
                 workspace_path=self.workspace_path,
+                diagnostics_collector=self.diagnostics_collector,
             )
         return create_placeholder_page(page, runtime_label=self.state.runtime.runtime_card_label)
 
@@ -176,7 +183,7 @@ class HelmForgeShell(QWidget):
     def import_profile_placeholder(self) -> None:
         self.set_status_message("Import Profile is reserved for a later import phase; no workspace file was changed.")
 
-    def open_helm_overlay(self) -> None:
+    def open_helm_overlay(self) -> HelmOverlay:
         if self.helm_overlay is None:
             self.helm_overlay = HelmOverlay(
                 workspace=self.workspace,
@@ -190,6 +197,7 @@ class HelmForgeShell(QWidget):
             self.helm_overlay._workspace = self.workspace
             self.helm_overlay._selected_axis = self.state.selected_axis
         self.helm_overlay.open_for_parent()
+        return self.helm_overlay
 
     def save_workspace(self) -> None:
         try:
@@ -232,7 +240,9 @@ class HelmForgeShell(QWidget):
         self.sidebar.update_active(page_id)
         self.footer.update_state(self.state, page_definition_by_id(page_id))
         if record_timing:
-            self.state.page_switch_timings_ms[page_id] = (time.perf_counter() - start) * 1000.0
+            elapsed_ms = (time.perf_counter() - start) * 1000.0
+            self.state.page_switch_timings_ms[page_id] = elapsed_ms
+            self.diagnostics_collector.record_timing("page_switch", elapsed_ms)
         content = self.page_widgets[page_id].widget()
         if hasattr(content, "refresh_diagnostics"):
             content.refresh_diagnostics()

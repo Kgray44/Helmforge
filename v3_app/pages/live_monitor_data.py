@@ -123,9 +123,9 @@ def bridge_telemetry_from_runtime_snapshot(
             verified=status.live_output_writes_verified,
             backend_name=status.detected_output_backend_name,
             message=(
-                "Live output writes are verified."
+                "Output writes are verified."
                 if status.live_output_writes_verified
-                else "Live output writes are not verified."
+                else "Output writes are not verified."
             ),
         ),
         warnings=status.warnings,

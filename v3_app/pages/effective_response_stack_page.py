@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from dataclasses import replace
 from datetime import datetime
 from typing import Any
@@ -30,6 +31,7 @@ from v3_app.pages.graph_data import effective_response_stack_graph_data
 from v3_app.pages.graph_widgets import GraphPreview
 from v3_app.pages.page_helpers import card, card_header, card_layout, page_intro, signed, value_grid
 from v3_app.services.app_state import AppState
+from v3_app.services.perf_diagnostics import DiagnosticsCollector
 from v3_app.services.physical_input_ui import build_input_source_status, raw_axes_from_physical_snapshot
 from v3_app.ui.status_chips import action_button, status_chip
 
@@ -116,12 +118,14 @@ class EffectiveResponseStackPage(QWidget):
         physical_input_snapshot: PhysicalInputSnapshot | None = None,
         physical_input_clock: Any | None = None,
         physical_sample_stale_after_seconds: float = 2.0,
+        diagnostics_collector: DiagnosticsCollector | None = None,
     ) -> None:
         super().__init__()
         self.setObjectName("effectiveResponseStackPage")
         self._state = state
         self._workspace = workspace or create_default_workspace()
         self._runtime_status = runtime_status or build_runtime_preflight_status()
+        self._diagnostics_collector = diagnostics_collector
         self._physical_input_backend = physical_input_backend or MissingPhysicalInputBackend()
         self._selected_physical_input_device_id = selected_physical_input_device_id
         self._physical_input_snapshot = physical_input_snapshot
@@ -291,9 +295,22 @@ class EffectiveResponseStackPage(QWidget):
         return frame
 
     def _tick(self) -> None:
-        if self.frozen or not self.isVisible():
+        if self.frozen:
             return
+        if not self.isVisible():
+            self._record_hidden_skip()
+            return
+        started_at = time.perf_counter()
         self.refresh_snapshot()
+        self._record_timing("heartbeat", started_at)
+
+    def _record_hidden_skip(self) -> None:
+        if self._diagnostics_collector is not None:
+            self._diagnostics_collector.record_hidden_skip("Effective Response Stack")
+
+    def _record_timing(self, name: str, started_at: float) -> None:
+        if self._diagnostics_collector is not None:
+            self._diagnostics_collector.record_timing(name, (time.perf_counter() - started_at) * 1000.0)
 
     def set_selected_axis(self, axis_name: str) -> None:
         if axis_name not in AXIS_DISPLAY_NAMES:
@@ -395,6 +412,7 @@ class EffectiveResponseStackPage(QWidget):
         )
 
     def _update_graph(self, raw_axis_values: dict[str, float]) -> None:
+        started_at = time.perf_counter()
         data = effective_response_stack_graph_data(
             self._workspace,
             self.selected_axis,
@@ -407,6 +425,7 @@ class EffectiveResponseStackPage(QWidget):
             ),
             marker=data.live_marker,
         )
+        self._record_timing("graph", started_at)
 
     def _update_mode_state(self) -> None:
         self.mode_state.setText(

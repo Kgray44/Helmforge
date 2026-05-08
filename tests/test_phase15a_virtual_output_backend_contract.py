@@ -199,7 +199,7 @@ def test_phase15a_perf_diagnostics_and_help_docs_preserve_output_truth(tmp_path)
     assert "output intent is not a write" in runtime_setup
     assert "fake/mock verification is not real vJoy verification" in runtime_setup
     assert "vJoy detected does not equal output verified" in runtime_setup
-    assert "real output writes are deferred" in runtime_setup
+    assert "real output writes are not part of Phase 15A" in runtime_setup
     assert "Full Live Runtime Ready remains false" in runtime_setup
     assert "Virtual output backend" in indicators
     assert "Fake output verified" in diagnostics

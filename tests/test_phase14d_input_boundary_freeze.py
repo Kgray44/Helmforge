@@ -259,7 +259,7 @@ def test_phase14d_docs_reports_and_phase15_readiness_are_explicit():
     assert "simulation mode remains available" in runtime_setup
     assert "physical input sampling is read-only" in runtime_setup
     assert "final output is not written to vJoy in Phase 14" in runtime_setup
-    assert "vJoy writes remain Phase 15 or later" in runtime_setup
+    assert "virtual output is governed by Phase 15 backend, verification, and output-loop gates" in runtime_setup
     assert "output_verified remains false" in runtime_setup
     assert "Full Live Runtime Ready remains false" in runtime_setup
     assert "stale/error/unavailable physical input falls back safely" in runtime_setup

@@ -138,9 +138,9 @@ def test_phase13a_flight_recorder_page_constructs_with_truthful_ui(tmp_path):
     text = _label_text(page)
 
     assert "Flight Recorder" in text
-    assert "Capture the desktop on demand, then composite a time-matched axis trace overlay into the finished video." in text
-    assert "Use the hotkey when you want a clean replay of what happened on-screen with the matched HOTAS signal history baked into the clip." in text
-    assert "Capture/export backend is not active yet." in text
+    assert "Inspect the recorder shell, simulated export metadata, and future time-matched axis overlay without claiming video capture." in text
+    assert "No video captured. No encoding performed." in text
+    assert "recorder exports remain metadata-only until a real capture backend exists." in text
 
     for card in ("Recorder Settings", "Axis Overlay", "Recording Library", "Clip Preview"):
         assert card in text
@@ -226,8 +226,10 @@ def test_phase13a_clip_preview_shell_is_truthful_and_unavailable(tmp_path):
     buttons = {button.text(): button for button in page.findChildren(QPushButton)}
     scrubber = page.findChild(QSlider, "clipPreviewTimeline")
 
-    assert "Select a recorded clip to preview." in text
-    assert "Clip preview backend is not implemented yet." in text
+    assert "Select a recorder artifact to preview." in text
+    assert "Metadata-only preview." in text
+    assert "No video captured." in text
+    assert "No encoding performed." in text
     assert "Filename: none | Overlay source: Final output | Resolution: Unavailable | Length: Unavailable" in text
     assert scrubber is not None
     assert scrubber.isEnabled() is False

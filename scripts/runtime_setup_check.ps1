@@ -125,7 +125,7 @@ else {
 }
 
 Write-SetupLog "Runtime status: Simulation Mode Active unless physical input and output writes are both verified."
-Write-SetupLog "Full Live Runtime Ready: false in Phase 2A unless later post-install verification proves both sides."
+Write-SetupLog "Full Live Runtime Ready: governed by the Phase 16 proof gate; false unless fresh input, pipeline, real output verification, output-loop state, telemetry, and safety proof all pass."
 
 if ($OpenPages) {
     Write-SetupLog "Opening official setup pages by request."

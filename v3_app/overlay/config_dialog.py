@@ -31,6 +31,8 @@ class LiveOverlayConfigDialog(QDialog):
         super().__init__(parent)
         self.setObjectName("liveOverlayConfigDialog")
         self.setWindowTitle("Live Overlay Configuration - HOTAS Control Panel V3")
+        self.setMinimumSize(780, 620)
+        self.setSizeGripEnabled(True)
         self._on_apply = on_apply
         self._draft = config
         self._axis_include_boxes: dict[str, QCheckBox] = {}

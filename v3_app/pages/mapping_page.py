@@ -400,7 +400,7 @@ class MappingPage(QWidget):
         table.setObjectName("axisRoutingTable")
         live_raw_label = "Live Raw (Physical input sample)" if self._physical_raw_axes is not None else "Live Raw"
         table.setHorizontalHeaderLabels(
-            ("Function", "Raw Axis", "Logical Output", "Runtime vJoy", "Invert", live_raw_label, "Live Output")
+            ("Function", "Raw Axis", "Logical Output", "Output Intent Axis", "Invert", live_raw_label, "Final Intent")
         )
         self._configure_table(table, minimum_height=320)
         self._populate_axis_table()

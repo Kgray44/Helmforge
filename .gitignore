@@ -25,6 +25,7 @@ packages/
 packaging/output/
 packaging/build/
 packaging/dist/
+packaging/installer/
 
 # Logs and diagnostics
 *.log
@@ -60,4 +61,3 @@ temp/
 # IDE/editor folders
 .idea/
 .vscode/
-

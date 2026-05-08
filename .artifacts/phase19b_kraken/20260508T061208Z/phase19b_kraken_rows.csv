@@ -1,0 +1,42 @@
+section,check,status,elapsed_ms,message,command,stdout_tail,stderr_tail
+source_app_smoke,offscreen_source_launch,pass,2934.18,Command exited 0.,C:\Users\kkids\AppData\Local\Programs\Python\Python312\python.exe -m v3_app.main --smoke-exit-ms 250,,
+packaged_app_smoke,packaged_executable_exists,pass,0.0,Packaged executable exists.,,,
+packaged_app_smoke,packaged_smoke_launch,pass,3745.82,Command exited 0.,C:\Users\kkids\Documents\HOTAS-Control-Panel\packaging\dist\HelmForge\HelmForge.exe --smoke-exit-ms 250,,
+bridge_smoke,bridge_once,pass,1629.81,Command exited 0.,C:\Users\kkids\AppData\Local\Programs\Python\Python312\python.exe -m bridge_app.main --once,,
+bridge_smoke,bridge_run_for_250ms,pass,1623.11,Command exited 0.,C:\Users\kkids\AppData\Local\Programs\Python\Python312\python.exe -m bridge_app.main --run-for-ms 250,,
+bridge_smoke,bridge_status,pass,1721.3,Command exited 0.,C:\Users\kkids\AppData\Local\Programs\Python\Python312\python.exe -m bridge_app.main --status,"HelmForge Bridge: lifecycle=Simulated truth=blocked_missing_device output_verified=False
+telemetry_path=C:\Users\kkids\AppData\Local\Temp\helmforge_bridge_telemetry.json
+",
+bridge_smoke,bridge_conservative_truth,pass,0.0,Bridge status kept conservative simulated truth.,,,
+runtime_setup_dry_run,runtime_setup_dry_run,pass,1029.59,Runtime setup dry-run preserved installer/runtime boundaries.,powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\kkids\Documents\HOTAS-Control-Panel\scripts\runtime_setup_check.ps1 -DryRun,"HelmForge Runtime Setup Check
+Product: HelmForge
+Technical subtitle: HOTAS Control Panel V3
+Known Thrustmaster target: Thrustmaster T-Flight HOTAS One / Thrustmaster T.Flight Hotas One
+Dry run: True
+Admin active: False
+Log path: C:\Users\kkids\AppData\Local\Temp\helmforge_runtime_setup_check.log
+Checked present PnP device names: 259
+Installed runtime software: vJoy Device Driver 2.2.2.0 2.2.2.0 (Shaul Eizikovich)
+Installed runtime software: T.Flight Hotas drivers 5.TFHT.2025 (Thrustmaster)
+HOTAS status: HOTAS Not Connected
+vJoy status: vJoy Detected
+  vJoy device match: vJoy Driver {D6E55CA0-1A2E-4234-AAF3-3852170B492F}\VJOYRAWPDO\1&2D595CA7&0&VJOYINSTANCE00
+  vJoy device match: vJoy Device ROOT\HIDCLASS\0000
+  vJoy file match: C:\Program Files\vJoy\x64\vJoyInterface.dll
+Runtime status: Simulation Mode Active unless physical input and output writes are both verified.
+Full Live Runtime Ready: governed by the Phase 16 proof gate; false unless fresh input, pipeline, real output verification, output-loop state, telemetry, and safety proof all pass.
+No installers launched. Use -LaunchInstallers with explicit installer paths to request installer launch.
+Dry run only. No installers launched.
+",
+page_navigation_smoke,navigate_registered_pages,pass,1800.02,Check passed.,,,
+help_docs_search_smoke,required_local_queries,pass,3.11,Check passed.,,,
+perf_diagnostics_copy_smoke,copy_diagnostics_truth,pass,963.64,Check passed.,,,
+helm_overlay_smoke,overlay_sections_and_symptom_path,pass,245.37,Check passed.,,,
+live_overlay_smoke,dialog_and_detached_overlay,pass,11.32,Check passed.,,,
+flight_recorder_smoke,page_truth_and_metadata_only_copy,pass,4.82,Check passed.,,,
+packaging_metadata_smoke,packaging_docs_and_icon_truth,pass,0.83,Check passed.,,,
+installer_metadata_smoke,installer_metadata_boundaries,pass,5.23,Check passed.,,,
+installer_metadata_smoke,installer_compile,skipped,0.0,ISCC.exe unavailable; Inno compile skipped by harness.,,,
+runtime_truth_boundary_smoke,runtime_truth_docs_and_boundaries,pass,0.89,Check passed.,,,
+full_live_runtime_ready_gate_smoke,missing_input_and_output_unverified_block_gate,pass,9.59,Check passed.,,,
+safety_boundary_smoke,no_forbidden_runtime_authority,pass,1.64,Check passed.,,,

@@ -98,8 +98,8 @@ def test_phase11a_runtime_setup_article_preserves_runtime_truth_boundaries():
     assert "The UI does not start, stop, restart, spawn, install, or manage the Bridge" in text
     assert "physical HOTAS discovery is discovery-only" in text
     assert "vJoy detected does not equal output verified" in text
-    assert "output_verified remains false until a future output verification phase proves writes" in text
-    assert "Full Live Runtime Ready remains false until future phases prove both input and output" in text
+    assert "output_verified remains false until guarded verification proves writes" in text
+    assert "Full Live Runtime Ready remains false until the Phase 16 gate proves fresh input" in text
     assert "blocked_missing_device" in text
     assert "stale, missing, or invalid telemetry falls back safely" in text
     assert "Run Preflight and Bridge commands are safe requests, not proof of runtime success" in text

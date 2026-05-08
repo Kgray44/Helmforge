@@ -80,7 +80,7 @@ class AppState:
     active_profile: str = "Current Workspace"
     source_config: str = CONFIG_FILENAME
     saved: bool = True
-    status_message: str = "Workspace shell ready. Runtime truth is shown without claiming live output."
+    status_message: str = "Workspace shell ready. Runtime truth is shown without claiming output writes."
     page_switch_timings_ms: dict[str, float] = field(default_factory=dict)
 
     @classmethod
