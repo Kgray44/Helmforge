@@ -1,0 +1,96 @@
+POST REGULAR PHASES - HUMAN WALKTHROUGH
+
+Here is a list of fixes that need to happen:
+the main app window should be a little bit shorter vertically as default, and be able to be resized both vertically and horizontally.
+The left page selection bar should look like its on a card, with clear borders on all sides, and look like its floating, by changing the shadowing
+The status things at the top right should all be placed together (along with the "Status" label) on a card
+Same thing for the Assistant
+Every page should have a clearer border around the whole thing; simple and obvious, but not too obvious.
+For every place that has an input parameter, there should be a little info icon next to the parameter name that you can hover over to see details about the parameter including: what it does, max and min values, and two opposite examples of what it does.
+HELM:
+The button for Helm should not be a light blue normally; it looks as if its pressed when it isnt.  That color should be for when its pressed.
+Pressing the Helm button and opening the helm should not be a seperate app screen like it is.  The helm page should glide out from the right side of the app screen, while at the same time the rest fo the app blurs.  It should be a part of the same app, while looking modern and sleek.
+The single sentence at the top of the helm page describing what it is, has a strange darker color background on it; the back should be the same color as the rest of the page.  this applies to the whole Helm page, not just the top where i first noticed.
+The symptom prompts should be resized to be a little bit smaller and less obvious.
+The typing box for typing the symptom should be a little smaller vertically, but be able to automatically resize to fit the text.
+text in it should wrap once it hits the end of the box horizontally
+The three buttons "Analyze", "Review Changes", and "Cancel" should not look like they are always pressed with the same problem as the "Helm" button on the main app, along with the "Close" button on the helm page top right.
+The "What's wrong" and "What I'd change" boxes should not be locked to the same height vertically.  All boxes on the Helm page should not be locked to each other vertically.  right now this happens so that when a prompt is entered, the text box where you type it gets super long, which is awful.
+In the "What I'd change" section, i like the information, but it should be displayed cleaner; it appears a little too difficult to read and comprehend/understand right now.
+The "What I found" and "Apply / Revert" boxes should also not be bound to each other vertically.
+The "What I found" box displays good information, but is currently too difficult to read/comprehend/understand right now, just like the "What I'd change" box.
+This fix applies to the "Apply / Revert" box as well.  And the two buttons in it should be at the bottom of the box, not in the middle of the text.
+All boxes on this page should be sized to fit their contents rather than sized to fit next to each other vertically.
+The "Helm is active" indicator at the top right looks really bad.  The green icon should be highly polished, with a "bulb" look to the center of it, with a slight camera glare as well, and the outside green should be a gradually faded green, that matches the center bulb color.  The green on the whole thing should pulse once every 2 seconds, to indicate it is alive and working.
+MAPPING PAGE:
+All the text in all the boxes is very hard to read.  All text should not be the same size, and same color.  use different shades for different things.
+In addition, the entirety of the Preflight box should be moved to its own tab, and the contents should be displayed in a cleaner fashion, almost like an actual preflight dashboard.  I am giving you leeway here to design it the best way you think, but i still want it to match the rest of the app and feel like it fits in. also the buttons for this section should highlight when the mouse is over them, just like the fix for the Helm buttons, and not appear to be always on.
+For the Axis, Button, and Hat routing, the background and interior card design appears stark and unfinished.  It should look more polished.  Also, each column should be able to fully fit the contents inside it both horizontally and vertically.  
+All menus should display dropdowns correctly; right now the dropdowns appear empty.
+All buttons on this page should not appear as if they are always on, and should highlight when moused over.
+PROFILES PAGE:
+In the Profile Library, the "Profile" column is the most important one, and should actually display the full name of the profile up to 16 characters as default, and should be able to be expanded manually to see the entire thing.
+All the profiles should be setup with defaults for each one that are different, and fit their name.  either none of the profiles are different right now, or they arent actually viewing correctly, because clicking on a profile in the profile library currently does nothing.
+All the text in each of the boxes on this page should not be mono-styled, and should be more easily readable immediately.  Really, this applies for all pages.
+All buttons on this page should be fixed to not look like they are always pressed, and highlight when moused over.
+MODES PAGE:
+Once again, the cards on this page do not need to line up vertically in both columns.  There should not be any big open gaps on any card in the app at all.  Small, and even medium whitespaces are okay that add to the modern look, but big empty spaces for little reason is not good.
+All of the "menus" on this page should be preset dropdowns!  Right now they are only text boxes which is bad bad bad.
+BASE TUNING PAGE:
+In the "Mapped Axis" block, the none of the axis are currently selectable!
+In the "Parameters" block, all paramaters that aren't numbers, should be dropdown menus, and all the parameters that are numbers, should have builtin caps, so the user can't enter a number that makes no sense.
+The "Live Snapshot" block looks good, but could be a little more readable.
+The "Guidance" block seems to display the right info, but in the wrong way!  It should be broken down a little further, and way more clearly displayed.  Right now its just a small font short sentence at the bottom, with a big empty space in the middle, which is absolutely an awful waste of space and a bad display of information.
+On the "Response Preview" block, the graph should have a dot indicator, where the live axis value currently is. this dot should display on both the regualar line, as well as the output line.
+FILTERING PAGE:
+The "Mapped Axis" block is good, but once again, i cant actually select any axis!
+The parameters here should have the same caps, so users cant input something that clearly cant work.
+Just like the Base Tuning page, the Live Snapshot and the Guidance blocks need to be updated to match it, with the new details.
+COMBAT PROFILE PAGE:
+Same problem with the axis in the "Mapped Axis" block; they cant actually be selected.
+Parameters here should have a cap, so a user cant input a not useable number.  Letters should be rejected on number paremeter inputs on all pages.
+Live Snapshot and Guidance blocks need to be updated to match the fixes/updates on the Filtering and Base Tuning pages again.
+In the Response Preview block, there should be a dot indicator on all three graphed lines, to indicate where the current axis value is, live.  these should be updated frequently, to have it appear as smooth motion.  this applies to Base Tuning as well.
+CONDITIONAL RULES PAGE:
+The "Rule List" block looks somewhat unfinished; it should look polished and modern.
+The colum header and the columns itself should be expanded horizontally to actually fit inside the main box, instead of having a weirdly empty space to the right.
+All buttons on this page need to be fixed to not appear as if they are always pressed, and change color on mouse over.
+In the "Rule Detail" block, all the text should be easier to read once again!
+Also, the sections should be divided more, so its easier to actually distinguish from each other; i dont want a user getting overwhelmed.
+All menu dropdowns need to be fixed to actually display correctly (they are all blank currently).  Each parameter should have all the options that should be under it in the dropdown; i noticed the "Parameter" parameter only has one dropdown, when it should actually contain quite a few, for every single point in the chain from input to output.
+The "Rule Logic" block should be moved to above the "Rule Detail" block, as it details it for the user.  Text should also be easier to read.
+EFFECTIVE RESPONSE STACK PAGE:
+there should be a smooth, subtle, gliding animation from card to card, in a downard motion, to make it obvious how the chain works.
+The Axis selecter dropdown menu at the top currently shows as blank.
+There should be a smallish "Total Change" block under the graph, the same width horizontally as the graph, and it should display in a very clear way the before and after numbers total, and the total delta, along with what stage is affecting it the most currently.
+The stage currently affecting the output the most should have a green subtle highlight on it.
+The 4 blocks beneath the graph on the right side should NOT all be the same size, and should have their contents reformatted to actually display the information in each very clearly.  The boxes should resize to fit everything nicely, with a little bit of whitespace, but not the massive amount there is right now.
+The buttons on this page should not appear to be always pressed, and should change on mouse over.
+LIVE MONITOR PAGE:The graphs should read the axis at at least 30hz, and preferably 60hz.  It should display the last 7 seconds on the graph, and the graph should be scrolling to the left.  This goes for both graphs on this page.
+The Axis menu dropdown selector at the top needs to be fixed; the dropdown currently doesnt display anything.
+The Live State block is good, but currently has way too much information for this page, and its scrunched up into a big block of small font text thats hard to read!! Most of this can be moved to only the Perf / Diagnostics page, and whatever should stay, should be displayed in a very easily readable manner.
+All buttons should not appear as if they are always pressed; needs to change on mousover as well.
+The buttons currently in the "Live State" block should be moved to their own block, right beneath the last graph on the right side of the page.
+The "Buttons / Hats" block is wayyy too big, and should display what it needs to in a clearer manner, and be much smaller, with only a little whitespace, instead of massive empty spaces.
+The "Axis Levels" block looks really good, but each axis should be rotated 90 degrees so that they all line up next to each other vertically.
+The "Live Overlay" section needs to display its information much better and be more readable.
+The "Configure" menu should have the same color background as the rest of the app, not white, and should default to a smaller size vertically, and be able to be resized both horizontally and vertically.
+All content inside it should be resized to fit properly, as multiple sections have rows squished on top of each other currently.
+The page itself should be scrollable.
+In addition, next to the two buttons currently there, there should be a "Presets" dropdown menu, with 5 presets selectable there, which automatically apply their rules when selected.  Default is a regular one.  If a user edits anything in the configure menu, it automatically switches to "Custom".  In the configure menu, there should be an option at the bottom to save this configuration as a new preset, with the option to give it a name as well. If no name is given, it is just named as "Custom x", with x being 1, 2, 3, etc. If the preset is not saved, it just stays as "Custom".
+FLIGHT RECORDER PAGE:
+In the "Recorder Status" block, the recorder status should be displayed in a better manner.
+In the "Recorder Library", the sort dropdown menu should be fixed to actually display options instead oe being blank.|
+In the "Recorder Settings" block, everything there should be actual, editable settings, with dropdowns and inputs! Also, the "Record Curser" selection box is not editable.
+In the "Axis Overlay" block, non of the "Include" selection boxes are editable.THE ENTIRE BACKEND NEEDS TO BE IMPLEMENTED, including: hindsight buffering, capture and buffer backends, etc.
+HELP / DOCS PAGE:
+Every single page has a big white background section right now, which looks awful!! the back color should be the same as the rest of the page, not white.
+Every single page should display a lot of details on each topic, broken down into sections, and very easy to read, with examples, max and min if needed, what it does, what its for, how it works, etc.
+The Sort dropdown menu currently displays nothing; it should display at leas the options "By Category", "By Last Opened", "By Alphabet A - Z", "By Alphabet Z - A", "By Importance", etc.
+The categories in the topics list should NOT be selectable, and should create clear dividers!  The entire section inside this block should actually look more like a fancy folder tree, with collapsable sections and such.
+PERF / DIAGNOSTICS PAGE:
+I like the Runtime Truth block;  I feel like the information could be sorted/displayed a little better still.
+The Bridge / Telemetry block should NOT match the Runtime Truth block in size vertically!  WAY too much blank space.
+I like the Performance Timings!  This section should be expanded though!  These are important and should be displayed better.
+BOTTOM BAR:
+The Page, Axis, Profile, and Source should not be in the bottom bar at all.

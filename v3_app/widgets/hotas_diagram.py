@@ -24,6 +24,7 @@ class HotasDiagramWidget(QFrame):
         self._model = model
         self._markers: list[tuple[HotasDiagramControl, QLabel]] = []
         self._selected_control_id: str | None = None
+        self._active_filter = "All"
         self._build_markers()
 
     def set_model(self, model: HotasDiagramModel) -> None:
@@ -32,6 +33,7 @@ class HotasDiagramWidget(QFrame):
             marker.deleteLater()
         self._markers.clear()
         self._build_markers()
+        self._apply_filter()
         self._position_markers()
         self.update()
 
@@ -91,9 +93,13 @@ class HotasDiagramWidget(QFrame):
             marker.setProperty("hotasDiagramMarker", True)
             marker.setProperty("controlType", control.control_type)
             marker.setProperty("status", control.status)
+            marker.setProperty("hasWarning", bool(control.warning))
+            marker.setProperty("filteredOut", False)
             marker.setProperty("selected", control.control_id == self._selected_control_id)
             marker.setToolTip(format_hotas_control_tooltip(control))
             marker.setAccessibleName(f"{control.display_label} mapping detail")
+            marker.setAccessibleDescription("Focusable mapping marker. Press Enter or Space to inspect this route.")
+            marker.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
             marker.setAlignment(Qt.AlignmentFlag.AlignCenter)
             marker.setWordWrap(True)
             marker.setText(_marker_text(control))
@@ -101,6 +107,30 @@ class HotasDiagramWidget(QFrame):
             marker.control_selected.connect(self.control_selected)
             self._markers.append((control, marker))
         self._position_markers()
+
+    def set_filter(self, filter_name: str) -> None:
+        self._active_filter = filter_name
+        self._apply_filter()
+
+    def focus_adjacent_marker(self, current_control_id: str, step: int) -> None:
+        if not self._markers:
+            return
+        index = next(
+            (index for index, (control, _marker) in enumerate(self._markers) if control.control_id == current_control_id),
+            None,
+        )
+        if index is None:
+            return
+        _control, marker = self._markers[(index + step) % len(self._markers)]
+        marker.setFocus(Qt.FocusReason.TabFocusReason)
+
+    def _apply_filter(self) -> None:
+        for control, marker in self._markers:
+            filtered_out = not _control_matches_filter(control, self._active_filter)
+            marker.setProperty("filteredOut", filtered_out)
+            marker.style().unpolish(marker)
+            marker.style().polish(marker)
+            marker.update()
 
     def _position_markers(self) -> None:
         diagram = self._diagram_rect()
@@ -168,11 +198,30 @@ class HotasDiagramWidget(QFrame):
 
 
 def _marker_text(control: HotasDiagramControl) -> str:
+    prefix = "! " if control.warning else ""
     if control.control_type == "axis":
-        return f"{control.display_label}\n{control.mapped_function}"
+        return f"{prefix}{control.display_label}\n{control.mapped_function}"
     if control.control_type == "button":
-        return f"{control.display_label}\n{control.output_intent_target.removeprefix('Output intent: ')}"
-    return f"{control.display_label}\n{control.mapped_function}"
+        return f"{prefix}{control.display_label}\n{control.output_intent_target.removeprefix('Output intent: ')}"
+    return f"{prefix}{control.display_label}\n{control.mapped_function}"
+
+
+def _control_matches_filter(control: HotasDiagramControl, filter_name: str) -> bool:
+    if filter_name in {"All", "Selected Profile"}:
+        return True
+    if filter_name == "Axes":
+        return control.route_type == "axis"
+    if filter_name == "Buttons":
+        return control.route_type == "button"
+    if filter_name == "Hats":
+        return control.route_type == "hat"
+    if filter_name == "Mapped":
+        return control.status == "mapped"
+    if filter_name == "Unmapped":
+        return control.status == "unmapped"
+    if filter_name == "Warnings":
+        return bool(control.warning)
+    return True
 
 
 class _HotasDiagramMarker(QLabel):
@@ -189,3 +238,22 @@ class _HotasDiagramMarker(QLabel):
             event.accept()
             return
         super().mousePressEvent(event)
+
+    def focusInEvent(self, event) -> None:  # noqa: ANN001
+        self.control_selected.emit(self._control.control_id)
+        super().focusInEvent(event)
+
+    def keyPressEvent(self, event) -> None:  # noqa: ANN001
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+            self.control_selected.emit(self._control.control_id)
+            event.accept()
+            return
+        if event.key() in (Qt.Key.Key_Right, Qt.Key.Key_Down):
+            self.parent().focus_adjacent_marker(self._control.control_id, 1)
+            event.accept()
+            return
+        if event.key() in (Qt.Key.Key_Left, Qt.Key.Key_Up):
+            self.parent().focus_adjacent_marker(self._control.control_id, -1)
+            event.accept()
+            return
+        super().keyPressEvent(event)

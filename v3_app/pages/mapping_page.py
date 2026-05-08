@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QPushButton,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -54,6 +55,7 @@ from shared_core.runtime.vjoy_output import (
 from v3_app.services.app_state import AppState
 from v3_app.services.bridge_client import RuntimeFrameTelemetryPayload
 from v3_app.services.hotas_diagram_model import (
+    HotasDiagramControl,
     HotasDiagramModel,
     build_hotas_diagram_model,
     build_route_inspector,
@@ -66,7 +68,7 @@ from v3_app.services.physical_input_ui import (
     hat_from_physical_snapshot,
     raw_axes_from_physical_snapshot,
 )
-from v3_app.pages.page_helpers import apply_parameter_metadata
+from v3_app.pages.page_helpers import apply_parameter_metadata, parameter_label
 from v3_app.widgets.hotas_diagram import HotasDiagramWidget
 from v3_app.ui.status_chips import action_button, status_chip
 
@@ -156,6 +158,17 @@ class MappingPage(QWidget):
         self._selected_route_control_id = "axis_roll"
         self._syncing_route_selection = False
         self._route_inspector_labels: dict[str, QLabel] = {}
+        self._change_mapping_button: QPushButton | None = None
+        self._route_editor_panel: QFrame | None = None
+        self._route_editor_layout: QVBoxLayout | None = None
+        self._route_editor_dirty_label: QLabel | None = None
+        self._route_editor_preview_label: QLabel | None = None
+        self._route_editor_route_type: str | None = None
+        self._route_editor_route_row: int | None = None
+        self._route_editor_baseline: AxisMapping | ButtonMapping | HatMapping | None = None
+        self._route_filter = "All"
+        self._route_filter_buttons: dict[str, QPushButton] = {}
+        self.setProperty("routeFilter", self._route_filter)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 22, 24, 28)
@@ -298,7 +311,7 @@ class MappingPage(QWidget):
         title = QLabel("HOTAS Diagram")
         title.setObjectName("cardTitle")
         body = QLabel(
-            "See the physical controls, current mappings, and output intent targets in one visual layout."
+            "See the physical controls, current mappings, and output intent targets in one visual layout, with safe workspace draft edits."
         )
         body.setObjectName("cardBody")
         body.setWordWrap(True)
@@ -307,18 +320,42 @@ class MappingPage(QWidget):
         self._hotas_diagram_widget = HotasDiagramWidget(self._hotas_diagram_model)
         self._hotas_diagram_widget.control_selected.connect(self._select_route_by_control_id)
         note = QLabel(
-            "Read-only visual/diagnostic diagram. Physical input samples and simulation/fallback values are display-only; "
-            "Output intent is not output write proof."
+            "Inspect Mode keeps click/hover/select read-only for live values. Editing workspace draft routes changes config intent only. "
+            "Read-only visual/diagnostic diagram values remain display-only; Output intent only - not live output proof. "
+            "Output intent is not output write proof. Save Workspace required to persist changes."
         )
         note.setObjectName("hotasDiagramLegend")
         note.setWordWrap(True)
 
         layout.addWidget(title)
         layout.addWidget(body)
+        layout.addWidget(self._build_route_filter_row())
         layout.addWidget(self._hotas_diagram_widget)
         layout.addWidget(self._build_route_inspector_panel())
+        layout.addWidget(self._build_route_editor_panel())
         layout.addWidget(note)
         return card
+
+    def _build_route_filter_row(self) -> QWidget:
+        row = QWidget()
+        row.setObjectName("routeFilterChips")
+        layout = QHBoxLayout(row)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+
+        label = QLabel("Diagram focus")
+        label.setObjectName("sectionLabel")
+        layout.addWidget(label)
+        for filter_name in ("All", "Axes", "Buttons", "Hats", "Mapped", "Unmapped", "Warnings", "Selected Profile"):
+            button = action_button(filter_name, object_name=f"routeFilterChip{_filter_key(filter_name)}")
+            button.setCheckable(True)
+            button.setChecked(filter_name == self._route_filter)
+            button.setProperty("routeFilterChip", True)
+            button.clicked.connect(lambda _checked=False, name=filter_name: self._set_route_filter(name))
+            self._route_filter_buttons[filter_name] = button
+            layout.addWidget(button)
+        layout.addStretch(1)
+        return row
 
     def _build_route_inspector_panel(self) -> QWidget:
         panel = QFrame()
@@ -334,6 +371,7 @@ class MappingPage(QWidget):
         layout.addWidget(title, 0, 0, 1, 2)
 
         rows = (
+            ("Workspace mode", "routeInspectorModeValue"),
             ("Route type", "routeInspectorTypeValue"),
             ("Selected physical input", "routeInspectorPhysicalValue"),
             ("Mapped virtual output", "routeInspectorOutputValue"),
@@ -353,6 +391,21 @@ class MappingPage(QWidget):
             self._route_inspector_labels[object_name] = value
             layout.addWidget(key, row, 0)
             layout.addWidget(value, row, 1)
+        self._change_mapping_button = action_button("Change Mapping", object_name="changeMappingButton")
+        self._change_mapping_button.clicked.connect(self._open_route_editor)
+        layout.addWidget(self._change_mapping_button, len(rows) + 1, 1, Qt.AlignmentFlag.AlignLeft)
+        return panel
+
+    def _build_route_editor_panel(self) -> QFrame:
+        panel = QFrame()
+        panel.setObjectName("routeEditorPanel")
+        panel.setFrameShape(QFrame.Shape.NoFrame)
+        panel.setHidden(True)
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(14, 12, 14, 14)
+        layout.setSpacing(12)
+        self._route_editor_panel = panel
+        self._route_editor_layout = layout
         return panel
 
     def _build_runtime_preflight_card(self) -> QWidget:
@@ -634,6 +687,7 @@ class MappingPage(QWidget):
             table.setCellWidget(row, 4, checkbox)
             self._set_text_item(table, row, 5, _signed(raw_value))
             self._set_text_item(table, row, 6, _signed(output_value))
+        self._apply_table_warning_state(table)
         table.resizeColumnsToContents()
 
     def _populate_button_table(self) -> None:
@@ -664,6 +718,7 @@ class MappingPage(QWidget):
             )
             self._set_text_item(table, row, 2, "Pressed" if route.raw_state else "Idle")
             self._set_text_item(table, row, 3, "Pressed" if route.output_state else "Idle")
+        self._apply_table_warning_state(table)
         table.resizeColumnsToContents()
 
     def _populate_hat_table(self) -> None:
@@ -709,6 +764,7 @@ class MappingPage(QWidget):
                     metadata_id="mapping.hat_direction_button",
                 )
             self._set_text_item(table, row, 6, self._snapshot.hat_state or route.live_hat_state)
+        self._apply_table_warning_state(table)
         table.resizeColumnsToContents()
 
     def _update_axis_route(self, row: int, **changes) -> None:
@@ -827,6 +883,467 @@ class MappingPage(QWidget):
         self._populate_hat_table()
         self._refresh_counts()
 
+    def _set_route_filter(self, filter_name: str) -> None:
+        self._route_filter = filter_name
+        self.setProperty("routeFilter", filter_name)
+        for name, button in self._route_filter_buttons.items():
+            button.blockSignals(True)
+            button.setChecked(name == filter_name)
+            button.blockSignals(False)
+        self._apply_route_filter()
+
+    def _apply_route_filter(self) -> None:
+        if self._hotas_diagram_widget is not None:
+            self._hotas_diagram_widget.set_filter(self._route_filter)
+        model = self._hotas_diagram_model or self._create_hotas_diagram_model()
+        for control in model.routed_controls:
+            if control.table_object_name is None or control.route_row is None:
+                continue
+            table = self._table_by_object_name(control.table_object_name)
+            if table is None or not 0 <= control.route_row < table.rowCount():
+                continue
+            table.setRowHidden(control.route_row, not _route_filter_matches_control(control, self._route_filter))
+
+    def _apply_table_warning_state(self, table: QTableWidget) -> None:
+        for row in range(table.rowCount()):
+            control_id = self._control_id_for_table_row(table.objectName(), row)
+            warnings = tuple(
+                warning for warning in self._route_warnings if warning.control_id == control_id
+            )
+            message = "; ".join(warning.message for warning in warnings)
+            for column in range(table.columnCount()):
+                item = table.item(row, column)
+                if item is None:
+                    continue
+                if warnings:
+                    item.setData(Qt.ItemDataRole.UserRole, "workspace-config-warning")
+                    item.setToolTip(message)
+                else:
+                    item.setData(Qt.ItemDataRole.UserRole, None)
+                    item.setToolTip("")
+
+    def _refresh_table_warning_states(self) -> None:
+        for table in (self._axis_table, self._button_table, self._hat_table):
+            if table is not None:
+                self._apply_table_warning_state(table)
+
+    def _open_route_editor(self) -> None:
+        context = self._selected_route_context()
+        if context is None:
+            self._status_message("Selected route is not editable in the Mapping workspace draft.")
+            return
+        control, route_type, row, route = context
+        if not control.editable:
+            self._status_message("Selected route is read-only in this Mapping workspace.")
+            return
+        self._render_route_editor(control, route_type, row, route)
+
+    def _selected_route_context(self):
+        model = self._hotas_diagram_model or self._create_hotas_diagram_model()
+        selection = select_hotas_diagram_route(model, self._selected_route_control_id)
+        control = next(
+            (item for item in model.routed_controls if item.control_id == self._selected_route_control_id),
+            None,
+        )
+        if selection is None or control is None or selection.route_row is None:
+            return None
+        route = self._route_at(selection.route_type, selection.route_row)
+        if route is None:
+            return None
+        return control, selection.route_type, selection.route_row, route
+
+    def _route_at(self, route_type: str, row: int):
+        routes = self._routes_for_type(route_type)
+        if routes is None or not 0 <= row < len(routes):
+            return None
+        return routes[row]
+
+    def _routes_for_type(self, route_type: str):
+        if route_type == "axis":
+            return self._workspace.mappings.axis_routes
+        if route_type == "button":
+            return self._workspace.mappings.button_routes
+        if route_type == "hat":
+            return self._workspace.mappings.hat_routes
+        return None
+
+    def _render_route_editor(self, control: HotasDiagramControl, route_type: str, row: int, route) -> None:
+        if self._route_editor_panel is None or self._route_editor_layout is None:
+            return
+        _clear_layout(self._route_editor_layout)
+        self._route_editor_route_type = route_type
+        self._route_editor_route_row = row
+        self._route_editor_baseline = route
+
+        header = QHBoxLayout()
+        mode = QLabel("Editing workspace draft")
+        mode.setObjectName("routeEditorModeLabel")
+        mode.setProperty("inspectorValue", True)
+        truth = QLabel("Output intent only - not live output proof")
+        truth.setObjectName("routeEditorTruthNotice")
+        truth.setWordWrap(True)
+        header.addWidget(mode)
+        header.addStretch(1)
+        header.addWidget(truth)
+        self._route_editor_layout.addLayout(header)
+
+        persist = QLabel("Save Workspace required to persist changes")
+        persist.setObjectName("routeEditorPersistNotice")
+        persist.setWordWrap(True)
+        self._route_editor_layout.addWidget(persist)
+
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(14)
+        grid.setVerticalSpacing(8)
+        if route_type == "axis" and isinstance(route, AxisMapping):
+            self._render_axis_editor(grid, route)
+        elif route_type == "button" and isinstance(route, ButtonMapping):
+            self._render_button_editor(grid, route)
+        elif route_type == "hat" and isinstance(route, HatMapping):
+            self._render_hat_editor(grid, route)
+        else:
+            self._add_editor_readonly(
+                grid,
+                0,
+                "Route",
+                "Read-only: unsupported route shape is deferred.",
+                "routeEditorUnsupportedValue",
+            )
+        self._route_editor_layout.addLayout(grid)
+
+        self._route_editor_preview_label = QLabel("")
+        self._route_editor_preview_label.setObjectName("routeEditorConflictPreview")
+        self._route_editor_preview_label.setWordWrap(True)
+        self._route_editor_layout.addWidget(self._route_editor_preview_label)
+
+        self._route_editor_dirty_label = QLabel("Workspace draft unchanged - Save Workspace required after Apply")
+        self._route_editor_dirty_label.setObjectName("routeEditorDirtyStateValue")
+        self._route_editor_dirty_label.setWordWrap(True)
+        self._route_editor_layout.addWidget(self._route_editor_dirty_label)
+
+        actions = QHBoxLayout()
+        apply = action_button("Apply to Draft", object_name="routeEditorApplyButton")
+        cancel = action_button("Cancel", object_name="routeEditorCancelButton")
+        revert = action_button("Revert Route", object_name="routeEditorRevertButton")
+        apply.clicked.connect(self._apply_route_editor)
+        cancel.clicked.connect(self._cancel_route_editor)
+        revert.clicked.connect(self._revert_route_editor)
+        actions.addWidget(apply)
+        actions.addWidget(cancel)
+        actions.addWidget(revert)
+        actions.addStretch(1)
+        self._route_editor_layout.addLayout(actions)
+
+        self._route_editor_panel.setHidden(False)
+        self._refresh_route_editor_preview()
+        self._refresh_route_inspector(control)
+
+    def _render_axis_editor(self, grid: QGridLayout, route: AxisMapping) -> None:
+        self._add_editor_readonly(grid, 0, "Selected physical input", route.raw_axis_channel, "routeEditorPhysicalValue")
+        self._add_editor_readonly(grid, 1, "Mapped function", route.function_name, "routeEditorFunctionValue")
+        self._add_editor_combo(
+            grid,
+            2,
+            "Physical/raw axis",
+            route.raw_axis_channel,
+            "routeEditorAxisRawCombo",
+            RAW_AXIS_OPTIONS,
+            "mapping.raw_axis",
+        )
+        self._add_editor_combo(
+            grid,
+            3,
+            "Logical output",
+            route.logical_output,
+            "routeEditorAxisLogicalCombo",
+            LOGICAL_OUTPUT_OPTIONS,
+            "mapping.logical_output",
+        )
+        self._add_editor_combo(
+            grid,
+            4,
+            "Output intent axis",
+            route.runtime_vjoy_output,
+            "routeEditorAxisOutputCombo",
+            RUNTIME_VJOY_OPTIONS,
+            "mapping.runtime_output_axis",
+        )
+        self._add_editor_checkbox(grid, 5, "Invert", route.invert, "routeEditorAxisInvertCheckbox", "mapping.invert_axis")
+
+    def _render_button_editor(self, grid: QGridLayout, route: ButtonMapping) -> None:
+        self._add_editor_readonly(grid, 0, "Physical button", f"B{route.hotas_button}", "routeEditorPhysicalValue")
+        self._add_editor_readonly(
+            grid,
+            1,
+            "Mapped function",
+            f"Virtual button {route.output_button}",
+            "routeEditorFunctionValue",
+        )
+        self._add_editor_combo(
+            grid,
+            2,
+            "Output virtual button",
+            str(route.output_button),
+            "routeEditorButtonOutputCombo",
+            VJOY_BUTTON_OPTIONS,
+            "mapping.output_button",
+        )
+
+    def _render_hat_editor(self, grid: QGridLayout, route: HatMapping) -> None:
+        self._add_editor_readonly(grid, 0, "Physical hat", f"Hat {route.hotas_hat}", "routeEditorPhysicalValue")
+        self._add_editor_combo(
+            grid,
+            1,
+            "POV/output target",
+            str(route.vjoy_pov),
+            "routeEditorHatPovCombo",
+            POV_OPTIONS,
+            "mapping.output_pov",
+        )
+        for row, label, field, current, object_name in (
+            (2, "Up direction button", "up_button", route.up_button, "routeEditorHatUpButtonCombo"),
+            (3, "Right direction button", "right_button", route.right_button, "routeEditorHatRightButtonCombo"),
+            (4, "Down direction button", "down_button", route.down_button, "routeEditorHatDownButtonCombo"),
+            (5, "Left direction button", "left_button", route.left_button, "routeEditorHatLeftButtonCombo"),
+        ):
+            self._add_editor_combo(
+                grid,
+                row,
+                label,
+                "None" if current is None else str(current),
+                object_name,
+                DIRECTION_BUTTON_OPTIONS,
+                "mapping.hat_direction_button",
+            )
+
+    def _add_editor_readonly(
+        self,
+        grid: QGridLayout,
+        row: int,
+        label: str,
+        value: str,
+        object_name: str,
+        metadata_id: str | None = None,
+    ) -> QLabel:
+        grid.addWidget(parameter_label(label, metadata_id=metadata_id), row, 0)
+        field = QLabel(value)
+        field.setObjectName(object_name)
+        field.setProperty("inspectorValue", True)
+        field.setWordWrap(True)
+        grid.addWidget(field, row, 1)
+        return field
+
+    def _add_editor_combo(
+        self,
+        grid: QGridLayout,
+        row: int,
+        label: str,
+        current: str,
+        object_name: str,
+        options: tuple[str, ...],
+        metadata_id: str,
+    ) -> QComboBox:
+        grid.addWidget(parameter_label(label, metadata_id=metadata_id), row, 0)
+        combo = QComboBox()
+        combo.setObjectName(object_name)
+        values = list(options)
+        if current not in values:
+            values.append(current)
+        combo.addItems(tuple(dict.fromkeys(values)))
+        apply_parameter_metadata(combo, metadata_id)
+        combo.setCurrentText(current)
+        combo.currentTextChanged.connect(lambda _value: self._refresh_route_editor_preview())
+        grid.addWidget(combo, row, 1)
+        return combo
+
+    def _add_editor_checkbox(
+        self,
+        grid: QGridLayout,
+        row: int,
+        label: str,
+        checked: bool,
+        object_name: str,
+        metadata_id: str,
+    ) -> QCheckBox:
+        grid.addWidget(parameter_label(label, metadata_id=metadata_id), row, 0)
+        checkbox = QCheckBox()
+        checkbox.setObjectName(object_name)
+        checkbox.setChecked(checked)
+        apply_parameter_metadata(checkbox, metadata_id)
+        checkbox.stateChanged.connect(lambda _state: self._refresh_route_editor_preview())
+        grid.addWidget(checkbox, row, 1)
+        return checkbox
+
+    def _route_from_editor(self):
+        if self._route_editor_baseline is None or self._route_editor_route_type is None:
+            return None
+        if self._route_editor_route_type == "axis" and isinstance(self._route_editor_baseline, AxisMapping):
+            raw = self._editor_combo_text("routeEditorAxisRawCombo", self._route_editor_baseline.raw_axis_channel)
+            logical = self._editor_combo_text("routeEditorAxisLogicalCombo", self._route_editor_baseline.logical_output)
+            output = self._editor_combo_text("routeEditorAxisOutputCombo", self._route_editor_baseline.runtime_vjoy_output)
+            invert = self._editor_checkbox_checked("routeEditorAxisInvertCheckbox", self._route_editor_baseline.invert)
+            return replace(
+                self._route_editor_baseline,
+                raw_axis_channel=raw,
+                logical_output=logical,
+                runtime_vjoy_output=output,
+                invert=invert,
+            )
+        if self._route_editor_route_type == "button" and isinstance(self._route_editor_baseline, ButtonMapping):
+            output = int(self._editor_combo_text("routeEditorButtonOutputCombo", str(self._route_editor_baseline.output_button)))
+            return replace(self._route_editor_baseline, output_button=output)
+        if self._route_editor_route_type == "hat" and isinstance(self._route_editor_baseline, HatMapping):
+            return replace(
+                self._route_editor_baseline,
+                vjoy_pov=int(self._editor_combo_text("routeEditorHatPovCombo", str(self._route_editor_baseline.vjoy_pov))),
+                up_button=_parse_direction_button(self._editor_combo_text("routeEditorHatUpButtonCombo", _direction_text(self._route_editor_baseline.up_button))),
+                right_button=_parse_direction_button(self._editor_combo_text("routeEditorHatRightButtonCombo", _direction_text(self._route_editor_baseline.right_button))),
+                down_button=_parse_direction_button(self._editor_combo_text("routeEditorHatDownButtonCombo", _direction_text(self._route_editor_baseline.down_button))),
+                left_button=_parse_direction_button(self._editor_combo_text("routeEditorHatLeftButtonCombo", _direction_text(self._route_editor_baseline.left_button))),
+            )
+        return None
+
+    def _editor_combo_text(self, object_name: str, fallback: str) -> str:
+        if self._route_editor_panel is None:
+            return fallback
+        combo = self._route_editor_panel.findChild(QComboBox, object_name)
+        return combo.currentText() if combo is not None else fallback
+
+    def _editor_checkbox_checked(self, object_name: str, fallback: bool) -> bool:
+        if self._route_editor_panel is None:
+            return fallback
+        checkbox = self._route_editor_panel.findChild(QCheckBox, object_name)
+        return checkbox.isChecked() if checkbox is not None else fallback
+
+    def _refresh_route_editor_preview(self) -> None:
+        if self._route_editor_preview_label is None:
+            return
+        route = self._route_from_editor()
+        if route is None or self._route_editor_route_type is None or self._route_editor_route_row is None:
+            self._route_editor_preview_label.setText("workspace/config conflict preview: route is read-only or unsupported.")
+            return
+        mapping_config = self._mapping_config_with_route(
+            self._workspace.mappings,
+            self._route_editor_route_type,
+            self._route_editor_route_row,
+            route,
+        )
+        if mapping_config is None:
+            self._route_editor_preview_label.setText("workspace/config conflict preview: unsupported route shape.")
+            return
+        candidate_workspace = replace(self._workspace, mappings=mapping_config)
+        warnings = build_workspace_route_warnings(candidate_workspace)
+        control_id = self._control_id_for_route(self._route_editor_route_type, self._route_editor_route_row, candidate_workspace)
+        selected_warnings = tuple(warning for warning in warnings if warning.control_id == control_id)
+        if selected_warnings:
+            text = "; ".join(warning.message for warning in selected_warnings)
+        else:
+            text = "No workspace/config conflicts previewed."
+        self._route_editor_preview_label.setText(f"workspace/config conflict preview: {text}")
+
+    def _apply_route_editor(self) -> None:
+        route = self._route_from_editor()
+        if route is None or self._route_editor_route_type is None or self._route_editor_route_row is None:
+            self._status_message("Route edit is unsupported and was not applied.")
+            return
+        message = (
+            f"Applied {self._route_editor_route_type} mapping to workspace draft. "
+            "Save Workspace required to persist changes."
+        )
+        self._apply_route_to_workspace(self._route_editor_route_type, self._route_editor_route_row, route, message)
+        if self._route_editor_dirty_label is not None:
+            self._route_editor_dirty_label.setText("Workspace draft changed - Save Workspace required")
+        self._refresh_route_editor_preview()
+
+    def _cancel_route_editor(self) -> None:
+        if self._route_editor_panel is not None:
+            self._route_editor_panel.setHidden(True)
+        self._route_editor_route_type = None
+        self._route_editor_route_row = None
+        self._route_editor_baseline = None
+        self._route_editor_dirty_label = None
+        self._route_editor_preview_label = None
+        context = self._selected_route_context()
+        if context is not None:
+            self._refresh_route_inspector(context[0])
+        self._status_message("Mapping edit canceled; workspace draft was not modified.")
+
+    def _revert_route_editor(self) -> None:
+        if self._route_editor_baseline is None or self._route_editor_route_type is None or self._route_editor_route_row is None:
+            return
+        route = self._route_editor_baseline
+        route_type = self._route_editor_route_type
+        row = self._route_editor_route_row
+        self._apply_route_to_workspace(
+            route_type,
+            row,
+            route,
+            f"Reverted {route_type} route to pre-edit workspace draft value. Save Workspace required to persist changes.",
+        )
+        control = self._control_for_route(route_type, row)
+        if control is not None:
+            self._render_route_editor(control, route_type, row, route)
+        if self._route_editor_dirty_label is not None:
+            self._route_editor_dirty_label.setText("Workspace draft reverted - Save Workspace required")
+
+    def _apply_route_to_workspace(self, route_type: str, row: int, route, message: str) -> None:
+        mapping_config = self._mapping_config_with_route(self._workspace.mappings, route_type, row, route)
+        if mapping_config is None:
+            self._status_message("Route edit is unsupported and was not applied.")
+            return
+        self._set_mapping_config(mapping_config, message)
+        if route_type == "axis":
+            self._populate_axis_table()
+            self._refresh_route_summary()
+        elif route_type == "button":
+            self._populate_button_table()
+        elif route_type == "hat":
+            self._populate_hat_table()
+        self._refresh_counts()
+        self._refresh_table_warning_states()
+        self._apply_route_filter()
+
+    def _mapping_config_with_route(self, mapping_config: MappingConfig, route_type: str, row: int, route) -> MappingConfig | None:
+        if route_type == "axis" and isinstance(route, AxisMapping):
+            routes = list(mapping_config.axis_routes)
+            if not 0 <= row < len(routes):
+                return None
+            routes[row] = route
+            return replace(mapping_config, axis_routes=tuple(routes))
+        if route_type == "button" and isinstance(route, ButtonMapping):
+            routes = list(mapping_config.button_routes)
+            if not 0 <= row < len(routes):
+                return None
+            routes[row] = route
+            return replace(mapping_config, button_routes=tuple(routes))
+        if route_type == "hat" and isinstance(route, HatMapping):
+            routes = list(mapping_config.hat_routes)
+            if not 0 <= row < len(routes):
+                return None
+            routes[row] = route
+            return replace(mapping_config, hat_routes=tuple(routes))
+        return None
+
+    def _control_id_for_route(self, route_type: str, row: int, workspace: WorkspaceConfig) -> str | None:
+        model = build_hotas_diagram_model(
+            workspace,
+            raw_axis_values=self._diagram_raw_axis_values(),
+            button_states=self._diagram_button_states(),
+            hat_state=self._diagram_hat_state(),
+            source_label=self._input_source_status.source_label,
+        )
+        for control in model.routed_controls:
+            if control.route_type == route_type and control.route_row == row:
+                return control.control_id
+        return None
+
+    def _control_for_route(self, route_type: str, row: int) -> HotasDiagramControl | None:
+        model = self._hotas_diagram_model or self._create_hotas_diagram_model()
+        return next(
+            (control for control in model.routed_controls if control.route_type == route_type and control.route_row == row),
+            None,
+        )
+
     def _set_mapping_config(self, mapping_config: MappingConfig, message: str) -> None:
         self._workspace = replace(self._workspace, mappings=mapping_config)
         self._refresh_hotas_diagram()
@@ -849,6 +1366,9 @@ class MappingPage(QWidget):
         self._hotas_diagram_model = self._create_hotas_diagram_model()
         if self._hotas_diagram_widget is not None:
             self._hotas_diagram_widget.set_model(self._hotas_diagram_model)
+            self._hotas_diagram_widget.set_filter(self._route_filter)
+        self._refresh_table_warning_states()
+        self._apply_route_filter()
         self._apply_route_selection(self._selected_route_control_id, update_table=False)
 
     def _select_route_by_control_id(self, control_id: str) -> None:
@@ -890,6 +1410,11 @@ class MappingPage(QWidget):
             warnings=self._route_warnings,
         )
         values = {
+            "routeInspectorModeValue": (
+                "Editing workspace draft"
+                if self._route_editor_panel is not None and not self._route_editor_panel.isHidden()
+                else "Inspecting workspace route"
+            ),
             "routeInspectorTypeValue": inspector.route_type,
             "routeInspectorPhysicalValue": inspector.selected_physical_input,
             "routeInspectorOutputValue": inspector.mapped_virtual_output,
@@ -903,6 +1428,14 @@ class MappingPage(QWidget):
             label = self._route_inspector_labels.get(object_name)
             if label is not None:
                 label.setText(text)
+        if self._change_mapping_button is not None:
+            editable = control.editable and control.table_object_name is not None and control.route_row is not None
+            self._change_mapping_button.setEnabled(editable)
+            self._change_mapping_button.setToolTip(
+                "Edit this workspace draft route. Apply does not write live output."
+                if editable
+                else "This route is read-only or unsupported in the Mapping editor."
+            )
 
     def _control_id_for_table_row(self, table_object_name: str, row: int) -> str | None:
         model = self._hotas_diagram_model or self._create_hotas_diagram_model()
@@ -968,11 +1501,11 @@ class MappingPage(QWidget):
     ) -> None:
         combo = QComboBox()
         combo.setObjectName(object_name)
-        apply_parameter_metadata(combo, metadata_id)
         available = list(options)
         if current not in available:
             available.append(current)
         combo.addItems(available)
+        apply_parameter_metadata(combo, metadata_id)
         combo.setCurrentText(current)
         combo.currentTextChanged.connect(on_changed)
         self._set_text_item(table, row, column, current)
@@ -1206,6 +1739,44 @@ def _selected_row(table: QTableWidget) -> int | None:
 
 def _key(value: str) -> str:
     return value.casefold().replace(" ", "_").replace("/", "_")
+
+
+def _filter_key(value: str) -> str:
+    return "".join(part.title() for part in value.split())
+
+
+def _route_filter_matches_control(control: HotasDiagramControl, filter_name: str) -> bool:
+    if filter_name in {"All", "Selected Profile"}:
+        return True
+    if filter_name == "Axes":
+        return control.route_type == "axis"
+    if filter_name == "Buttons":
+        return control.route_type == "button"
+    if filter_name == "Hats":
+        return control.route_type == "hat"
+    if filter_name == "Mapped":
+        return control.status == "mapped"
+    if filter_name == "Unmapped":
+        return control.status == "unmapped"
+    if filter_name == "Warnings":
+        return bool(control.warning)
+    return True
+
+
+def _clear_layout(layout) -> None:  # noqa: ANN001
+    while layout.count():
+        item = layout.takeAt(0)
+        widget = item.widget()
+        if widget is not None:
+            widget.setParent(None)
+            widget.deleteLater()
+        child_layout = item.layout()
+        if child_layout is not None:
+            _clear_layout(child_layout)
+
+
+def _direction_text(value: int | None) -> str:
+    return "None" if value is None else str(value)
 
 
 def _signed(value: float) -> str:

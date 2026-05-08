@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Mapping
 
 from shared_core.models.mappings import AxisMapping, ButtonMapping, HatMapping
@@ -68,7 +68,8 @@ class HotasDiagramModel:
     controls: tuple[HotasDiagramControl, ...]
     source_label: str = "Simulation/fallback"
     truth_note: str = (
-        "Read-only visual/diagnostic diagram. Output intent is not output write proof."
+        "Inspect Mode is click/hover/select only. Editing changes workspace draft routes only. "
+        "Output intent is not output write proof."
     )
 
     @property
@@ -206,6 +207,9 @@ def build_hotas_diagram_model(
         )
     )
 
+    route_warnings = build_workspace_route_warnings(workspace)
+    controls = _attach_route_warnings(controls, route_warnings)
+
     return HotasDiagramModel(controls=tuple(controls), source_label=source_label)
 
 
@@ -291,7 +295,7 @@ def format_hotas_control_tooltip(control: HotasDiagramControl) -> str:
         control.output_intent_target,
         f"Current value/state: {control.current_value_state}",
         f"Status: {control.status}",
-        "Note: Read-only visual/diagnostic only. Output intent is not output write proof.",
+        "Note: Read-only visual/diagnostic only in Inspect Mode. Output intent is not output write proof.",
     ]
     if control.warning:
         lines.insert(6, f"Warning: {control.warning}")
@@ -634,6 +638,27 @@ def _hat_button_suffix(route: HatMapping) -> str:
     if not mapped:
         return ""
     return " + " + ", ".join(mapped)
+
+
+def _attach_route_warnings(
+    controls: list[HotasDiagramControl],
+    warnings: tuple[HotasRouteWarning, ...],
+) -> list[HotasDiagramControl]:
+    warning_messages: dict[str, list[str]] = {}
+    for warning in warnings:
+        warning_messages.setdefault(warning.control_id, []).append(warning.message)
+
+    updated: list[HotasDiagramControl] = []
+    for control in controls:
+        messages = warning_messages.get(control.control_id, [])
+        if not messages:
+            updated.append(control)
+            continue
+        combined = "; ".join(messages)
+        if control.warning:
+            combined = f"{control.warning}; {combined}"
+        updated.append(replace(control, warning=combined))
+    return updated
 
 
 def _signed(value: float) -> str:

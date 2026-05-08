@@ -121,6 +121,12 @@ def app_qss() -> str:
         border-radius: 12px;
     }
 
+    QFrame#routeEditorPanel {
+        background: #0a1622;
+        border: 1px solid #3e6b91;
+        border-radius: 12px;
+    }
+
     QLabel[hotasDiagramMarker="true"] {
         background: #0b1724;
         border: 1px solid #315577;
@@ -155,6 +161,21 @@ def app_qss() -> str:
         background: #123d61;
         border: 2px solid #96ffc5;
         color: #ffffff;
+    }
+
+    QLabel[hotasDiagramMarker="true"][hasWarning="true"] {
+        border: 2px solid #f0c46a;
+        color: #fff1bc;
+    }
+
+    QLabel[hotasDiagramMarker="true"][filteredOut="true"] {
+        background: #08111b;
+        border-color: #20364d;
+        color: #6f8daa;
+    }
+
+    QLabel[hotasDiagramMarker="true"]:focus {
+        border: 2px solid #96ffc5;
     }
 
     QLabel[inspectorValue="true"] {
@@ -344,6 +365,18 @@ def app_qss() -> str:
         background: #0a1520;
         border-color: #263b52;
         color: #6f8daa;
+    }
+
+    QPushButton[routeFilterChip="true"] {
+        padding: 6px 10px;
+        border-radius: 9px;
+        font-size: 12px;
+    }
+
+    QPushButton[routeFilterChip="true"]:checked {
+        background: #153b5a;
+        border-color: #96ffc5;
+        color: #ffffff;
     }
 
     QTableWidget {
