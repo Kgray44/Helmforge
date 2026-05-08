@@ -4,6 +4,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from time import time
 from typing import Protocol
 
 from v3_app.overlay.telemetry_buffer import OverlayTelemetrySample
@@ -27,6 +28,8 @@ class CaptureBackendCapabilities:
     uses_graphics_hooking: bool
     video_encoding_available: bool
     simulated_artifact_available: bool = False
+    one_frame_capture_available: bool = False
+    one_frame_real_capture_supported: bool = False
     warnings: tuple[str, ...] = ()
     errors: tuple[str, ...] = ()
 
@@ -68,6 +71,46 @@ class CaptureFrameResult:
     frame: object | None = None
 
 
+@dataclass(frozen=True)
+class FrameCaptureResult:
+    succeeded: bool
+    message: str
+    backend_name: str
+    backend_kind: str
+    source: CaptureDisplaySource
+    timestamp: float
+    width: int | None = None
+    height: int | None = None
+    pixel_format: str = "unknown"
+    artifact_path: Path | None = None
+    warnings: tuple[str, ...] = ()
+    errors: tuple[str, ...] = ()
+    truth_label: str = "One-frame capture unavailable"
+    real_capture: bool = False
+    simulated_capture: bool = False
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "succeeded": self.succeeded,
+            "message": self.message,
+            "backend_name": self.backend_name,
+            "backend_kind": self.backend_kind,
+            "display_id": self.source.display_id,
+            "display_label": self.source.display_label,
+            "capture_source": self.source.capture_source,
+            "timestamp": self.timestamp,
+            "width": self.width,
+            "height": self.height,
+            "pixel_format": self.pixel_format,
+            "artifact_path": str(self.artifact_path) if self.artifact_path is not None else None,
+            "warnings": list(self.warnings),
+            "errors": list(self.errors),
+            "truth_label": self.truth_label,
+            "real_capture": self.real_capture,
+            "simulated_capture": self.simulated_capture,
+        }
+
+
 class CaptureBackend(Protocol):
     def capabilities(self) -> CaptureBackendCapabilities:
         ...
@@ -79,6 +122,15 @@ class CaptureBackend(Protocol):
         ...
 
     def capture_frame(self, *, source: CaptureDisplaySource | None = None) -> CaptureFrameResult:
+        ...
+
+    def capture_one_frame(
+        self,
+        *,
+        source: CaptureDisplaySource | None = None,
+        artifact_folder: Path | None = None,
+        now: float | None = None,
+    ) -> FrameCaptureResult:
         ...
 
     def create_simulated_artifact(
@@ -129,6 +181,25 @@ class MissingCaptureBackend:
             succeeded=False,
             message="Frame capture unavailable; capture backend missing.",
             source=selected,
+        )
+
+    def capture_one_frame(
+        self,
+        *,
+        source: CaptureDisplaySource | None = None,
+        artifact_folder: Path | None = None,
+        now: float | None = None,
+    ) -> FrameCaptureResult:
+        del artifact_folder
+        selected = source or self.display_sources()[0]
+        return _unavailable_frame_result(
+            capabilities=self.capabilities(),
+            source=selected,
+            timestamp=_timestamp(now),
+            message="One-frame capture unavailable; capture backend missing.",
+            truth_label="One-frame capture unavailable",
+            errors=("No capture backend is active.", *selected.errors),
+            warnings=selected.warnings,
         )
 
     def create_simulated_artifact(
@@ -188,6 +259,26 @@ class SimulatedCaptureBackend:
             succeeded=False,
             message="Frame capture unavailable; simulated backend writes metadata-only artifacts.",
             source=selected,
+        )
+
+    def capture_one_frame(
+        self,
+        *,
+        source: CaptureDisplaySource | None = None,
+        artifact_folder: Path | None = None,
+        now: float | None = None,
+    ) -> FrameCaptureResult:
+        del artifact_folder
+        selected = source or self.display_sources()[0]
+        return _unavailable_frame_result(
+            capabilities=self.capabilities(),
+            source=selected,
+            timestamp=_timestamp(now),
+            message="One-frame capture unavailable; default simulated backend writes metadata-only recorder artifacts.",
+            truth_label="One-frame capture unavailable",
+            warnings=("simulated backend is not real desktop capture", *selected.warnings),
+            errors=("Simulated backend has no deterministic one-frame proof enabled.", *selected.errors),
+            simulated_capture=True,
         )
 
     def create_simulated_artifact(
@@ -257,6 +348,7 @@ class QtScreenCaptureBackend:
     def capabilities(self) -> CaptureBackendCapabilities:
         dependency_note = "Qt dependency available." if self._dependency_available else "Qt dependency unavailable."
         errors = () if self._dependency_available else ("Qt candidate dependency unavailable.",)
+        one_frame_available = self._one_frame_context_available()
         return CaptureBackendCapabilities(
             backend_name=self.backend_name,
             backend_kind="candidate",
@@ -272,9 +364,13 @@ class QtScreenCaptureBackend:
             uses_graphics_hooking=False,
             video_encoding_available=False,
             simulated_artifact_available=False,
+            one_frame_capture_available=one_frame_available,
+            one_frame_real_capture_supported=one_frame_available,
             warnings=(
                 dependency_note,
-                "Post-RC 3A candidate seam only; frame capture is not implemented.",
+                "Post-RC 3C allows only explicit one-frame proof when a safe Qt display context exists."
+                if one_frame_available
+                else "Post-RC 3C one-frame proof is unavailable in this Qt context.",
                 "No video recording, encoding, hotkey registration, game injection, or graphics hooking is active.",
             ),
             errors=errors,
@@ -282,13 +378,18 @@ class QtScreenCaptureBackend:
 
     def refresh_status(self) -> CaptureBackendStatus:
         capabilities = self.capabilities()
-        if capabilities.dependency_available:
-            message = "Qt capture candidate available as a design seam; real frame capture is not implemented in Post-RC 3A."
+        if capabilities.one_frame_capture_available:
+            message = "Qt capture candidate can attempt one explicit still-frame proof; no recording or encoding is active."
+            status = "one_frame_candidate_available"
+        elif capabilities.dependency_available:
+            message = "Qt capture candidate available as a design seam; one-frame proof is unavailable in this context."
+            status = "candidate_unavailable"
         else:
             message = "Qt capture candidate unavailable; dependency is not available and no capture is active."
+            status = "candidate_unavailable"
         return CaptureBackendStatus(
             capabilities=capabilities,
-            status="candidate_unavailable",
+            status=status,
             message=message,
         )
 
@@ -339,6 +440,114 @@ class QtScreenCaptureBackend:
             source=selected,
         )
 
+    def capture_one_frame(
+        self,
+        *,
+        source: CaptureDisplaySource | None = None,
+        artifact_folder: Path | None = None,
+        now: float | None = None,
+    ) -> FrameCaptureResult:
+        timestamp = _timestamp(now)
+        selected = source or self.display_sources()[0]
+        capabilities = self.capabilities()
+        if not capabilities.dependency_available:
+            return _unavailable_frame_result(
+                capabilities=capabilities,
+                source=selected,
+                timestamp=timestamp,
+                message="One-frame capture unavailable; Qt candidate dependency is unavailable.",
+                truth_label="One-frame capture unavailable",
+                warnings=selected.warnings,
+                errors=("Qt candidate dependency unavailable.", *selected.errors),
+            )
+        if _qt_offscreen_context():
+            return _unavailable_frame_result(
+                capabilities=capabilities,
+                source=selected,
+                timestamp=timestamp,
+                message="One-frame capture unavailable in offscreen/test Qt context.",
+                truth_label="Offscreen/test context unavailable",
+                warnings=("offscreen/test context cannot prove real desktop capture", *selected.warnings),
+                errors=selected.errors,
+            )
+        if selected.errors:
+            return _unavailable_frame_result(
+                capabilities=capabilities,
+                source=selected,
+                timestamp=timestamp,
+                message="One-frame capture unavailable; selected display/source is unavailable.",
+                truth_label="One-frame capture unavailable",
+                warnings=selected.warnings,
+                errors=selected.errors,
+            )
+        screen = _qt_screen_for_source(selected)
+        if screen is None:
+            return _unavailable_frame_result(
+                capabilities=capabilities,
+                source=selected,
+                timestamp=timestamp,
+                message="One-frame capture unavailable; no Qt screen is available for the selected source.",
+                truth_label="One-frame capture unavailable",
+                warnings=selected.warnings,
+                errors=("No Qt screen is available for the selected source.",),
+            )
+        try:
+            pixmap = screen.grabWindow(0)
+        except Exception as exc:
+            return _unavailable_frame_result(
+                capabilities=capabilities,
+                source=selected,
+                timestamp=timestamp,
+                message="One-frame capture failed safely; Qt screen grab raised an error.",
+                truth_label="One-frame capture unavailable",
+                warnings=selected.warnings,
+                errors=(f"Qt screen grab failed: {exc}",),
+            )
+        if pixmap.isNull():
+            return _unavailable_frame_result(
+                capabilities=capabilities,
+                source=selected,
+                timestamp=timestamp,
+                message="One-frame capture failed safely; Qt returned an empty frame.",
+                truth_label="One-frame capture unavailable",
+                warnings=selected.warnings,
+                errors=("Qt returned an empty frame.",),
+            )
+        width = int(pixmap.width())
+        height = int(pixmap.height())
+        pixel_format = _qt_pixel_format_label(pixmap)
+        artifact_path, artifact_errors = _write_one_frame_metadata_artifact(
+            artifact_folder=artifact_folder,
+            timestamp=timestamp,
+            backend_name=capabilities.backend_name,
+            backend_kind=capabilities.backend_kind,
+            source=selected,
+            width=width,
+            height=height,
+            pixel_format=pixel_format,
+        )
+        return FrameCaptureResult(
+            succeeded=True,
+            message="One-frame still proof captured; no video recording, encoding, preview, or hotkey was started.",
+            backend_name=capabilities.backend_name,
+            backend_kind=capabilities.backend_kind,
+            source=selected,
+            timestamp=timestamp,
+            width=width,
+            height=height,
+            pixel_format=pixel_format,
+            artifact_path=artifact_path,
+            warnings=(
+                "still-frame proof only; not video recording",
+                "capture proof is not runtime readiness",
+                *selected.warnings,
+            ),
+            errors=artifact_errors,
+            truth_label="Real still-frame proof",
+            real_capture=True,
+            simulated_capture=False,
+        )
+
     def create_simulated_artifact(
         self,
         *,
@@ -352,6 +561,9 @@ class QtScreenCaptureBackend:
             message="Simulated artifact export is not provided by the Qt capture candidate.",
         )
 
+    def _one_frame_context_available(self) -> bool:
+        return bool(self._dependency_available and not _qt_offscreen_context() and _qt_app_available())
+
 
 def _sample_to_dict(sample: OverlayTelemetrySample) -> dict[str, object]:
     return {
@@ -364,6 +576,40 @@ def _sample_to_dict(sample: OverlayTelemetrySample) -> dict[str, object]:
 def _slug(value: str) -> str:
     safe = "".join(character for character in value if character.isalnum())
     return safe or "now"
+
+
+def _timestamp(now: float | None) -> float:
+    return time() if now is None else float(now)
+
+
+def _unavailable_frame_result(
+    *,
+    capabilities: CaptureBackendCapabilities,
+    source: CaptureDisplaySource,
+    timestamp: float,
+    message: str,
+    truth_label: str,
+    warnings: tuple[str, ...] = (),
+    errors: tuple[str, ...] = (),
+    simulated_capture: bool = False,
+) -> FrameCaptureResult:
+    return FrameCaptureResult(
+        succeeded=False,
+        message=message,
+        backend_name=capabilities.backend_name,
+        backend_kind=capabilities.backend_kind,
+        source=source,
+        timestamp=timestamp,
+        width=None,
+        height=None,
+        pixel_format="unavailable",
+        artifact_path=None,
+        warnings=_dedupe((*capabilities.warnings, *warnings)),
+        errors=_dedupe((*capabilities.errors, *errors)),
+        truth_label=truth_label,
+        real_capture=False,
+        simulated_capture=simulated_capture,
+    )
 
 
 def _default_display_source(
@@ -388,3 +634,121 @@ def _qt_dependency_available() -> bool:
     except Exception:
         return False
     return True
+
+
+def _qt_app_available() -> bool:
+    try:
+        from PySide6.QtGui import QGuiApplication
+    except Exception:
+        return False
+    return QGuiApplication.instance() is not None
+
+
+def _qt_offscreen_context() -> bool:
+    try:
+        from PySide6.QtGui import QGuiApplication
+    except Exception:
+        return True
+    app = QGuiApplication.instance()
+    if app is None:
+        return True
+    try:
+        return str(QGuiApplication.platformName()).casefold() == "offscreen"
+    except Exception:
+        return True
+
+
+def _qt_screen_for_source(source: CaptureDisplaySource):
+    try:
+        from PySide6.QtGui import QGuiApplication
+    except Exception:
+        return None
+    app = QGuiApplication.instance()
+    if app is None:
+        return None
+    screens = list(app.screens())
+    if not screens:
+        return None
+    if source.is_primary:
+        return app.primaryScreen() or screens[0]
+    try:
+        index = int(source.display_id) - 1
+    except ValueError:
+        index = -1
+    if 0 <= index < len(screens):
+        return screens[index]
+    return app.primaryScreen() or screens[0]
+
+
+def _qt_pixel_format_label(pixmap) -> str:
+    try:
+        image_format = pixmap.toImage().format()
+        return getattr(image_format, "name", str(image_format))
+    except Exception:
+        return "unknown"
+
+
+def _write_one_frame_metadata_artifact(
+    *,
+    artifact_folder: Path | None,
+    timestamp: float,
+    backend_name: str,
+    backend_kind: str,
+    source: CaptureDisplaySource,
+    width: int,
+    height: int,
+    pixel_format: str,
+) -> tuple[Path | None, tuple[str, ...]]:
+    if artifact_folder is None:
+        return None, ()
+    try:
+        destination = Path(artifact_folder)
+        destination.mkdir(parents=True, exist_ok=True)
+        created = datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        filename = f"one_frame_capture_proof_{_slug(created)}.json"
+        path = _available_path(destination / filename)
+        payload = {
+            "truth": "Still-frame proof metadata; not video recording; not encoded; not previewable video.",
+            "proof": {
+                "backend_name": backend_name,
+                "backend_kind": backend_kind,
+                "display_id": source.display_id,
+                "display_label": source.display_label,
+                "capture_source": source.capture_source,
+                "timestamp": timestamp,
+                "created_at": created,
+                "width": width,
+                "height": height,
+                "pixel_format": pixel_format,
+                "real_capture": True,
+                "simulated_capture": False,
+            },
+        }
+        path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        return path, ()
+    except OSError as exc:
+        return None, (f"Still-frame proof metadata artifact could not be saved: {exc}",)
+
+
+def _available_path(path: Path) -> Path:
+    if not path.exists():
+        return path
+    stem = path.stem
+    suffix = path.suffix
+    for index in range(2, 1000):
+        candidate = path.with_name(f"{stem}_{index}{suffix}")
+        if not candidate.exists():
+            return candidate
+    raise FileExistsError(f"No available one-frame proof filename for {path}")
+
+
+def _dedupe(values: tuple[str, ...]) -> tuple[str, ...]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        text = str(value)
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        result.append(text)
+    return tuple(result)
