@@ -5,13 +5,16 @@ from collections.abc import Callable, Iterable
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QDoubleValidator, QIntValidator
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
+    QDoubleSpinBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -153,14 +156,12 @@ def field_row(
     on_dirty: OnDirty | None = None,
     dirty_message: str = "Workspace edit staged.",
 ) -> QLineEdit:
-    metadata = PARAMETER_HELP.get(metadata_id) if metadata_id else None
-    key = parameter_label(label, metadata)
+    metadata = PARAMETER_HELP.get(metadata_id)
+    key = parameter_label(label, metadata=metadata)
     field = QLineEdit(value)
     field.setObjectName(object_name)
     if metadata is not None:
-        field.setProperty("metadataId", metadata.parameter_id)
-        field.setToolTip(format_parameter_tooltip(metadata))
-        apply_numeric_validator(field, metadata)
+        apply_parameter_metadata(field, metadata.parameter_id)
     if on_dirty is not None:
         field.editingFinished.connect(lambda: on_dirty(dirty_message))
     layout.addWidget(key, row, 0)
@@ -175,22 +176,24 @@ def dropdown_field_row(
     value: str,
     *,
     object_name: str,
-    metadata_id: str,
+    metadata_id: str | None = None,
     options: tuple[str, ...] | None = None,
     on_dirty: OnDirty | None = None,
     dirty_message: str = "Workspace edit staged.",
 ) -> QComboBox:
-    metadata = PARAMETER_HELP.require(metadata_id)
-    dropdown_options = options or metadata.dropdown_options
-    key = parameter_label(label, metadata)
+    metadata = PARAMETER_HELP.get(metadata_id)
+    dropdown_options = options or (metadata.dropdown_options if metadata else ())
+    if not dropdown_options and value:
+        dropdown_options = (value,)
+    key = parameter_label(label, metadata=metadata)
     field = QComboBox()
     field.setObjectName(object_name)
-    field.setProperty("metadataId", metadata.parameter_id)
-    field.setToolTip(format_parameter_tooltip(metadata))
-    field.addItems(dropdown_options)
+    field.addItems(tuple(dict.fromkeys(dropdown_options)))
+    if metadata is not None:
+        apply_parameter_metadata(field, metadata.parameter_id)
     if value in dropdown_options:
         field.setCurrentText(value)
-    elif metadata.default_value in dropdown_options:
+    elif metadata is not None and metadata.default_value in dropdown_options:
         field.setCurrentText(str(metadata.default_value))
     elif dropdown_options:
         field.setCurrentIndex(0)
@@ -201,7 +204,14 @@ def dropdown_field_row(
     return field
 
 
-def parameter_label(label: str, metadata: ParameterMetadata | None = None) -> QWidget:
+def parameter_label(
+    label: str,
+    metadata: ParameterMetadata | None = None,
+    *,
+    metadata_id: str | None = None,
+) -> QWidget:
+    if metadata is None:
+        metadata = PARAMETER_HELP.get(metadata_id)
     if metadata is None:
         key = QLabel(label)
         key.setObjectName("formLabel")
@@ -220,6 +230,25 @@ def parameter_label(label: str, metadata: ParameterMetadata | None = None) -> QW
     layout.addWidget(ParameterInfoIcon(metadata))
     layout.addStretch(1)
     return wrapper
+
+
+def apply_parameter_metadata(widget: QWidget, metadata_id: str | None) -> bool:
+    metadata = PARAMETER_HELP.get(metadata_id)
+    if metadata is None:
+        return False
+    widget.setProperty("metadataId", metadata.parameter_id)
+    widget.setToolTip(format_parameter_tooltip(metadata))
+    if isinstance(widget, QLineEdit):
+        apply_numeric_validator(widget, metadata)
+    elif isinstance(widget, QSpinBox) and metadata.value_range is not None:
+        widget.setRange(int(metadata.min_value), int(metadata.max_value))
+    elif isinstance(widget, QDoubleSpinBox) and metadata.value_range is not None:
+        widget.setRange(float(metadata.min_value), float(metadata.max_value))
+    elif isinstance(widget, QComboBox) and widget.count() == 0 and metadata.dropdown_options:
+        widget.addItems(metadata.dropdown_options)
+    elif isinstance(widget, (QCheckBox, QLabel)):
+        pass
+    return True
 
 
 def apply_numeric_validator(field: QLineEdit, metadata: ParameterMetadata) -> None:

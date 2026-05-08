@@ -11,6 +11,7 @@ from v3_app.pages.page_helpers import (
     card,
     card_header,
     card_layout,
+    dropdown_field_row,
     field_row,
     format_buttons,
     page_intro,
@@ -70,6 +71,7 @@ class ModesPage(QWidget):
             "Precision Hold Buttons",
             format_buttons(self._modes.precision_hold_buttons),
             object_name="precisionHoldButtonsField",
+            metadata_id="modes.precision_hold_buttons",
             on_dirty=self._on_dirty,
             dirty_message=dirty,
         )
@@ -84,10 +86,10 @@ class ModesPage(QWidget):
         layout.addWidget(card_header("Combat Mode", "Buttons that drive combat/zoom behavior."))
         grid = QGridLayout()
         dirty = "Modes combat button edit staged in the current workspace draft."
-        field_row(grid, 0, "Combat Trigger Buttons", format_buttons(self._modes.combat_trigger_buttons), object_name="combatTriggerButtonsField", on_dirty=self._on_dirty, dirty_message=dirty)
-        field_row(grid, 1, "Combat Zoom/Aim Buttons", format_buttons(self._modes.combat_zoom_aim_buttons), object_name="combatZoomButtonsField", on_dirty=self._on_dirty, dirty_message=dirty)
-        field_row(grid, 2, "Combat Extra Buttons", format_buttons(self._modes.combat_extra_buttons), object_name="combatExtraButtonsField", on_dirty=self._on_dirty, dirty_message=dirty)
-        field_row(grid, 3, "Stack Mode", self._modes.precision_combat_stack_mode.value, object_name="stackModeField", on_dirty=self._on_dirty, dirty_message=dirty)
+        field_row(grid, 0, "Combat Trigger Buttons", format_buttons(self._modes.combat_trigger_buttons), object_name="combatTriggerButtonsField", metadata_id="modes.combat_trigger_buttons", on_dirty=self._on_dirty, dirty_message=dirty)
+        field_row(grid, 1, "Combat Zoom/Aim Buttons", format_buttons(self._modes.combat_zoom_aim_buttons), object_name="combatZoomButtonsField", metadata_id="modes.combat_zoom_aim_buttons", on_dirty=self._on_dirty, dirty_message=dirty)
+        field_row(grid, 2, "Combat Extra Buttons", format_buttons(self._modes.combat_extra_buttons), object_name="combatExtraButtonsField", metadata_id="modes.combat_extra_buttons", on_dirty=self._on_dirty, dirty_message=dirty)
+        dropdown_field_row(grid, 3, "Stack Mode", self._modes.precision_combat_stack_mode.value, object_name="stackModeField", metadata_id="modes.stack_mode", on_dirty=self._on_dirty, dirty_message=dirty)
         layout.addLayout(grid)
         layout.addWidget(_muted("Combat Trigger Buttons: Not configured. Combat Extra Buttons: Not configured."))
         layout.addWidget(_muted("Zoom buttons currently do activate combat behavior in the runtime layer."))
