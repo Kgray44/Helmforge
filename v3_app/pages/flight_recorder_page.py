@@ -73,6 +73,7 @@ class FlightRecorderPage(QWidget):
             )
         )
         root.addWidget(self._status_card())
+        root.addWidget(self._review_card())
 
         grid = QGridLayout()
         grid.setHorizontalSpacing(18)
@@ -136,6 +137,46 @@ class FlightRecorderPage(QWidget):
         self.action_status.setObjectName("recorderActionStatus")
         self.action_status.setWordWrap(True)
         layout.addWidget(self.action_status)
+        return frame
+
+    def _review_card(self) -> QWidget:
+        frame = card("recorderReviewCard")
+        layout = card_layout(frame)
+        layout.addWidget(card_header("Recorder Review", "Session summary, timeline, and local export for recorder diagnostics."))
+        self.review_summary = QLabel("No reviewed recorder session yet.\nSimulated/Workspace Only\nRuntime blocked until telemetry proves otherwise.")
+        self.review_summary.setObjectName("recorderReviewSummary")
+        self.review_summary.setWordWrap(True)
+        layout.addWidget(self.review_summary)
+        self.timeline_table = QTableWidget(0, 4)
+        self.timeline_table.setObjectName("recorderTimelineTable")
+        self.timeline_table.setHorizontalHeaderLabels(("When", "Channel", "Change", "Detail"))
+        self.timeline_table.setFrameShape(QFrame.Shape.NoFrame)
+        self.timeline_table.setMinimumHeight(128)
+        layout.addWidget(self.timeline_table)
+        controls = QHBoxLayout()
+        self.review_session_button = action_button("Review Current Session", object_name="reviewCurrentSessionButton")
+        self.review_session_button.clicked.connect(self.review_current_session)
+        self.export_summary_button = action_button("Export Summary JSON", object_name="exportReviewSummaryJsonButton")
+        self.export_summary_button.clicked.connect(self.export_review_summary_json)
+        self.export_samples_button = action_button("Export Samples CSV", object_name="exportReviewSamplesCsvButton")
+        self.export_samples_button.clicked.connect(self.export_review_samples_csv)
+        self.clear_review_button = action_button("Clear Review", object_name="clearReviewSessionButton")
+        self.clear_review_button.clicked.connect(self.clear_review_session)
+        for button in (
+            self.review_session_button,
+            self.export_summary_button,
+            self.export_samples_button,
+            self.clear_review_button,
+        ):
+            controls.addWidget(button)
+        controls.addStretch(1)
+        layout.addLayout(controls)
+        layout.addWidget(
+            _body(
+                "Review exports are local JSON/CSV diagnostics. They include source and runtime truth fields and are not video, output verification, or Full Live Runtime Ready proof."
+            )
+        )
+        self._update_review_widgets()
         return frame
 
     def _recorder_settings_card(self) -> QWidget:
@@ -330,6 +371,78 @@ class FlightRecorderPage(QWidget):
     def _apply_operation_result(self, message: str) -> None:
         self.action_status.setText(message)
         self._populate_library()
+
+    def review_current_session(self) -> None:
+        session = self.controller.review_current_session(runtime_status=self._runtime_status, capture_mode="buffered")
+        if session is None:
+            self.action_status.setText("No recorder samples are available to review.")
+        else:
+            self.action_status.setText("Recorder review session updated; no real capture or output proof was claimed.")
+        self._update_review_widgets()
+
+    def export_review_summary_json(self) -> None:
+        result = self.controller.export_review_summary_json()
+        self.action_status.setText(result.message if result.path is None else f"{result.message} {result.path}")
+        self._update_review_widgets()
+
+    def export_review_samples_csv(self) -> None:
+        result = self.controller.export_review_samples_csv()
+        self.action_status.setText(result.message if result.path is None else f"{result.message} {result.path}")
+        self._update_review_widgets()
+
+    def clear_review_session(self) -> None:
+        self.controller.clear_review_session()
+        self.action_status.setText("Recorder review cleared; no files or workspace settings were deleted.")
+        self._update_review_widgets()
+
+    def _update_review_widgets(self) -> None:
+        session = self.controller.reviewed_session
+        has_session = session is not None
+        self.export_summary_button.setEnabled(has_session)
+        self.export_samples_button.setEnabled(has_session)
+        self.clear_review_button.setEnabled(has_session)
+        if session is None:
+            self.review_summary.setText(
+                "No reviewed recorder session yet.\n"
+                "Simulated/Workspace Only\n"
+                f"Runtime truth\n{self._runtime_status.truth.value}\n"
+                f"Output verified\n{str(self._runtime_status.live_output_writes_verified).lower()}\n"
+                f"Full Live Runtime Ready\n{str(_full_live_runtime_ready(self._runtime_status)).lower()}"
+            )
+            self.timeline_table.setRowCount(0)
+            return
+        axis_channels = ", ".join(session.axis_channels) if session.axis_channels else "None"
+        warnings = "; ".join(session.warnings) if session.warnings else "None"
+        errors = "; ".join(session.errors) if session.errors else "None"
+        self.review_summary.setText(
+            "Latest Session Summary\n"
+            f"{session.truth_label}\n"
+            f"Session id\n{session.session_id}\n"
+            f"Source type\n{session.source_type}\n"
+            f"Capture source\n{session.capture_source}\n"
+            f"Capture mode\n{session.capture_mode}\n"
+            f"Duration\n{session.duration_seconds:.2f} s\n"
+            f"Samples\n{session.sample_count}\n"
+            f"Events\n{session.event_count}\n"
+            f"Axis channels\n{axis_channels}\n"
+            f"Button channels\n{', '.join(session.button_channels) if session.button_channels else 'None'}\n"
+            f"Hat channels\n{', '.join(session.hat_channels) if session.hat_channels else 'None'}\n"
+            f"Runtime truth\n{session.runtime_truth_snapshot['truth']}\n"
+            f"Output verified\n{str(session.runtime_truth_snapshot['output_verified']).lower()}\n"
+            f"Full Live Runtime Ready\n{str(session.runtime_truth_snapshot['full_live_runtime_ready']).lower()}\n"
+            f"Warnings\n{warnings}\n"
+            f"Errors\n{errors}"
+        )
+        self.timeline_table.setRowCount(len(session.timeline_events))
+        for row, event in enumerate(session.timeline_events):
+            values = (
+                f"+{event.relative_seconds:.2f}s",
+                event.channel,
+                f"{event.previous_value:.3f} -> {event.value:.3f}",
+                event.description,
+            )
+            for column, value in enumerate(values):
+                self.timeline_table.setItem(row, column, QTableWidgetItem(value))
 
     def _show_artifact_preview(self, artifact) -> None:
         sample_count = _telemetry_sample_count(artifact.path)
