@@ -35,12 +35,14 @@ class ClipMetadata:
 
     @classmethod
     def from_artifact(cls, artifact: RecorderArtifact, *, telemetry_sample_count: int = 0) -> "ClipMetadata":
+        intermediate = artifact.status == "intermediate_frame_buffer"
+        label = "Intermediate frame buffer artifact" if intermediate else "Simulated artifact" if artifact.is_simulated else artifact.filename
         return cls(
             path=artifact.path,
-            clip=f"{artifact.filename} (Simulated artifact)" if artifact.is_simulated else artifact.filename,
+            clip=f"{artifact.filename} ({label} / No video / Metadata only)" if intermediate else f"{artifact.filename} (Simulated artifact)" if artifact.is_simulated else artifact.filename,
             recorded=artifact.created_at or "Unavailable",
             duration=f"{artifact.duration_seconds:.0f} s" if artifact.duration_seconds else "Unavailable",
-            opened="Metadata only" if artifact.is_simulated else "Not opened",
+            opened="Metadata only" if artifact.is_simulated or intermediate else "Not opened",
             overlay_source=artifact.overlay_source,
             resolution="No video" if not artifact.has_video else "Unavailable",
             length=f"{artifact.duration_seconds:.2f} s" if artifact.duration_seconds else "Unavailable",
@@ -48,7 +50,7 @@ class ClipMetadata:
             has_video=artifact.has_video,
             telemetry_sample_count=telemetry_sample_count,
             artifact_kind=artifact.status,
-            display_name="Simulated artifact" if artifact.is_simulated else artifact.filename,
+            display_name=label,
             manifest_path=artifact.path,
         )
 
@@ -90,6 +92,13 @@ class ClipLibrary:
             return ()
         clips: list[ClipMetadata] = []
         for path in sorted(self.destination_folder.glob("simulated*_*.json"), key=lambda item: item.name.lower()):
+            if not path.is_file():
+                continue
+            artifact = artifact_from_manifest(path)
+            if artifact is None:
+                continue
+            clips.append(ClipMetadata.from_artifact(artifact, telemetry_sample_count=_telemetry_count(path)))
+        for path in sorted(self.destination_folder.glob("intermediate_frame_buffer_*.json"), key=lambda item: item.name.lower()):
             if not path.is_file():
                 continue
             artifact = artifact_from_manifest(path)

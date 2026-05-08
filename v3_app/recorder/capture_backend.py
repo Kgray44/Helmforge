@@ -30,6 +30,7 @@ class CaptureBackendCapabilities:
     simulated_artifact_available: bool = False
     one_frame_capture_available: bool = False
     one_frame_real_capture_supported: bool = False
+    frame_buffer_capture_available: bool = False
     warnings: tuple[str, ...] = ()
     errors: tuple[str, ...] = ()
 
@@ -366,11 +367,12 @@ class QtScreenCaptureBackend:
             simulated_artifact_available=False,
             one_frame_capture_available=one_frame_available,
             one_frame_real_capture_supported=one_frame_available,
+            frame_buffer_capture_available=one_frame_available,
             warnings=(
                 dependency_note,
                 "Post-RC 3C allows only explicit one-frame proof when a safe Qt display context exists."
                 if one_frame_available
-                else "Post-RC 3C one-frame proof is unavailable in this Qt context.",
+                else "Post-RC 3C/3D capture proof and frame buffering are unavailable in this Qt context.",
                 "No video recording, encoding, hotkey registration, game injection, or graphics hooking is active.",
             ),
             errors=errors,
@@ -427,7 +429,7 @@ class QtScreenCaptureBackend:
                     geometry=(geometry.x(), geometry.y(), geometry.width(), geometry.height()),
                     is_primary=screen == primary,
                     capture_source="current display" if screen == primary else "selected display",
-                    warnings=("Capture candidate only; frame buffering begins in a later phase.",),
+                    warnings=("Frame buffering is explicit-start metadata/reference buffering only.",),
                 )
             )
         return tuple(sources) or (_default_display_source(warnings=("No Qt displays reported.",)),)

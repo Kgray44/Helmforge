@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
 from time import time
 
 from v3_app.overlay.telemetry_buffer import OverlayTelemetrySample
@@ -13,7 +16,12 @@ from v3_app.recorder.capture_backend import (
     MissingCaptureBackend,
 )
 from v3_app.recorder.compositor import MissingRecorderCompositor, RecorderCompositor
-from v3_app.recorder.hindsight_buffer import RecorderTelemetryHindsightBuffer
+from v3_app.recorder.hindsight_buffer import (
+    RecorderFrameBufferStatus,
+    RecorderFrameHindsightBuffer,
+    RecorderFrameReference,
+    RecorderTelemetryHindsightBuffer,
+)
 from v3_app.recorder.recorder_artifacts import RecorderArtifact, RecorderExportMetadata
 from v3_app.recorder.recorder_settings import FlightRecorderSettings
 from v3_app.recorder.recorder_state import RecorderState, RecorderStatus
@@ -45,6 +53,22 @@ class OneFrameProofAvailability:
     errors: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True)
+class FrameBufferAvailability:
+    available: bool
+    message: str
+    source: CaptureDisplaySource
+    warnings: tuple[str, ...] = ()
+    errors: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class FrameBufferOperationResult:
+    succeeded: bool
+    message: str
+    status: RecorderFrameBufferStatus
+
+
 class FlightRecorderController:
     def __init__(
         self,
@@ -60,11 +84,18 @@ class FlightRecorderController:
         self.telemetry_buffer = telemetry_buffer or RecorderTelemetryHindsightBuffer(
             history_seconds=self.settings.history_seconds
         )
+        self.frame_buffer = RecorderFrameHindsightBuffer(
+            max_duration_seconds=self.settings.history_seconds,
+            target_fps=self.settings.frame_rate_fps,
+            max_frame_count=_frame_count_budget(self.settings),
+        )
         self.state = RecorderState.default()
         self.last_artifact: RecorderArtifact | None = None
         self.last_export_metadata: RecorderExportMetadata | None = None
         self.reviewed_session: RecorderReviewSession | None = None
         self.last_frame_capture_result: FrameCaptureResult | None = None
+        self._frame_buffer_source: CaptureDisplaySource | None = None
+        self._frame_buffer_failure_count = 0
 
     def refresh_status(self) -> CaptureBackendStatus:
         status = self.capture_backend.refresh_status()
@@ -97,7 +128,19 @@ class FlightRecorderController:
             return self._failed("Recording unavailable; capture backend missing.")
         return self._write_simulated_artifact(now=now, created_at=created_at)
 
-    def save_last_clip(self, *, now: float | None = None, created_at: str | None = None) -> RecorderOperationResult:
+    def save_last_clip(
+        self,
+        *,
+        now: float | None = None,
+        created_at: str | None = None,
+        runtime_status=None,
+    ) -> RecorderOperationResult:
+        if self.frame_buffer.has_usable_frames():
+            return self._write_intermediate_frame_buffer_artifact(
+                now=now,
+                created_at=created_at,
+                runtime_status=runtime_status,
+            )
         status = self.refresh_status()
         if not status.capabilities.simulated_artifact_available:
             return self._failed(
@@ -114,6 +157,7 @@ class FlightRecorderController:
             "Real capture supported": str(capabilities.real_capture_supported).lower(),
             "Frame capture": "available" if capabilities.frame_capture_available else "unavailable",
             "One-frame proof": "available" if capabilities.one_frame_capture_available else "unavailable",
+            "Frame buffer": self.frame_buffer.status().health,
             "Cursor capture": "available" if capabilities.cursor_capture_available else "unavailable",
             "Display enumeration": "available" if capabilities.display_enumeration_available else "unavailable",
             "Video encoding": "available" if capabilities.video_encoding_available else "unavailable",
@@ -194,6 +238,101 @@ class FlightRecorderController:
         )
         self.last_frame_capture_result = result
         return result
+
+    def frame_buffer_status(self) -> RecorderFrameBufferStatus:
+        return self.frame_buffer.status()
+
+    def frame_buffer_availability(self) -> FrameBufferAvailability:
+        status = self.refresh_status()
+        capabilities = status.capabilities
+        source = _first_display_source(self.capture_backend)
+        warnings = _dedupe((*capabilities.warnings, *source.warnings))
+        errors = _dedupe((*capabilities.errors, *source.errors))
+        reasons: list[str] = []
+        if not capabilities.dependency_available:
+            reasons.append("backend dependency unavailable")
+        if not _frame_buffer_capable(capabilities):
+            reasons.append("frame buffer capture unsupported")
+        if source.errors:
+            reasons.append("display/source unavailable")
+        if reasons:
+            return FrameBufferAvailability(
+                available=False,
+                message=f"Frame buffer unavailable: {', '.join(reasons)}.",
+                source=source,
+                warnings=warnings,
+                errors=errors,
+            )
+        return FrameBufferAvailability(
+            available=True,
+            message="Frame buffer can start explicitly. Buffered frames are not encoded video or runtime readiness.",
+            source=source,
+            warnings=warnings,
+            errors=errors,
+        )
+
+    def start_frame_buffer(self, *, now: float | None = None) -> FrameBufferOperationResult:
+        del now
+        availability = self.frame_buffer_availability()
+        if not availability.available:
+            return FrameBufferOperationResult(False, availability.message, self.frame_buffer.status())
+        self.frame_buffer.clear()
+        self.frame_buffer.start()
+        self._frame_buffer_source = availability.source
+        self._frame_buffer_failure_count = 0
+        return FrameBufferOperationResult(
+            True,
+            "Frame buffer started explicitly; no video recording, encoding, preview, or hotkey was started.",
+            self.frame_buffer.status(),
+        )
+
+    def stop_frame_buffer(self) -> FrameBufferOperationResult:
+        self.frame_buffer.stop()
+        return FrameBufferOperationResult(True, "Frame buffer stopped.", self.frame_buffer.status())
+
+    def capture_frame_buffer_sample(self, *, now: float | None = None) -> FrameBufferOperationResult:
+        if not self.frame_buffer.status().active:
+            return FrameBufferOperationResult(
+                False,
+                "Frame buffer is inactive; start it explicitly before capturing frame metadata.",
+                self.frame_buffer.status(),
+            )
+        source = self._frame_buffer_source or _first_display_source(self.capture_backend)
+        timestamp = time() if now is None else float(now)
+        result = self.capture_backend.capture_one_frame(source=source, artifact_folder=None, now=timestamp)
+        self.last_frame_capture_result = result
+        if not result.succeeded:
+            self._frame_buffer_failure_count += 1
+            self.frame_buffer.record_drop(
+                warning="Frame buffer capture attempt failed.",
+                error="; ".join(result.errors) if result.errors else result.message,
+            )
+            if self._frame_buffer_failure_count >= 3:
+                self.frame_buffer.stop()
+                self.frame_buffer.add_error("Frame buffer stopped after repeated capture failures.")
+            return FrameBufferOperationResult(False, result.message, self.frame_buffer.status())
+        self._frame_buffer_failure_count = 0
+        accepted = self.frame_buffer.add_frame(_frame_reference_from_result(result))
+        if not accepted:
+            return FrameBufferOperationResult(False, "Frame metadata was dropped because its timestamp was not monotonic.", self.frame_buffer.status())
+        return FrameBufferOperationResult(
+            True,
+            "Frame metadata captured into the explicit hindsight buffer; not encoded and not playable.",
+            self.frame_buffer.status(),
+        )
+
+    def aligned_telemetry_for_frame_buffer(self) -> tuple[OverlayTelemetrySample, ...]:
+        status = self.frame_buffer.status()
+        if status.oldest_timestamp is None or status.newest_timestamp is None:
+            return ()
+        return tuple(
+            sample
+            for sample in self.telemetry_buffer.samples()
+            if status.oldest_timestamp <= sample.timestamp <= status.newest_timestamp
+        )
+
+    def shutdown(self) -> None:
+        self.frame_buffer.stop()
 
     def review_current_session(
         self,
@@ -280,6 +419,92 @@ class FlightRecorderController:
             return RecorderOperationResult(True, backend_result.message, backend_result.artifact, self.state)
         return self._failed(backend_result.message)
 
+    def _write_intermediate_frame_buffer_artifact(
+        self,
+        *,
+        now: float | None = None,
+        created_at: str | None = None,
+        runtime_status=None,
+    ) -> RecorderOperationResult:
+        status = self.frame_buffer.status()
+        if not status.stored_frame_count:
+            return self._failed("Frame buffer has no usable frame metadata to save.")
+        current = time() if now is None else float(now)
+        created = created_at or datetime.fromtimestamp(current, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        destination = Path(self.settings.destination_folder)
+        destination.mkdir(parents=True, exist_ok=True)
+        filename = f"intermediate_frame_buffer_{_slug(created)}.json"
+        path = _available_path(destination / filename)
+        frames = self.frame_buffer.frames()
+        aligned_samples = self.aligned_telemetry_for_frame_buffer()
+        runtime_truth = _runtime_truth_snapshot(runtime_status)
+        is_simulated = not any(frame.real_capture for frame in frames)
+        source_type = "simulated" if is_simulated else "workspace"
+        review_session = (
+            build_recorder_session_review(
+                settings=self.settings,
+                telemetry_samples=aligned_samples,
+                runtime_status=runtime_status,
+                source_type=source_type,
+                capture_mode="frame_buffer_intermediate",
+                warnings=("Intermediate frame buffer artifact; not encoded and not playable.",),
+            )
+            if runtime_status is not None
+            else None
+        )
+        artifact = RecorderArtifact(
+            clip_id=f"intermediate-{_slug(created)}",
+            filename=filename,
+            path=path,
+            created_at=created,
+            duration_seconds=status.buffer_duration_seconds,
+            frame_rate=status.target_fps,
+            overlay_source=self.settings.overlay_source,
+            capture_source=status.capture_source,
+            display_label=status.display_label,
+            is_simulated=is_simulated,
+            has_video=False,
+            has_overlay=bool(aligned_samples),
+            backend_name=frames[-1].backend_name,
+            status="intermediate_frame_buffer",
+            notes=("intermediate frame buffer artifact", "not encoded", "not playable"),
+            warnings=(
+                "buffered frames are metadata/reference entries only",
+                "not encoded",
+                "not playable",
+                "not runtime readiness",
+            ),
+        )
+        payload = {
+            "truth": "Intermediate frame buffer artifact; not_encoded; not_playable; not a video recording.",
+            "artifact": artifact.to_dict(),
+            "frame_buffer": {
+                **status.to_dict(),
+                "not_encoded": True,
+                "not_playable": True,
+                "frame_storage": "metadata/reference only",
+            },
+            "frames": [frame.to_dict() for frame in frames],
+            "telemetry": {
+                "sample_count": len(aligned_samples),
+                "source": self.settings.overlay_source,
+                "samples": [_sample_to_dict(sample) for sample in aligned_samples],
+            },
+            "runtime_truth": runtime_truth,
+            "timeline_summary": review_session.to_dict() if review_session is not None else None,
+            "warnings": list(artifact.warnings),
+        }
+        path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        self.last_artifact = artifact
+        self.last_export_metadata = None
+        self.state = RecorderState(
+            status=RecorderStatus.SAVING_UNAVAILABLE,
+            message="Intermediate frame buffer artifact saved; not encoded and not playable.",
+            can_record=False,
+            can_save_last_clip=True,
+        )
+        return RecorderOperationResult(True, self.state.message, artifact, self.state)
+
     def _failed(self, message: str) -> RecorderOperationResult:
         self.state = RecorderState(
             status=RecorderStatus.CAPTURE_BACKEND_MISSING,
@@ -311,6 +536,37 @@ def _artifact_from_export(metadata: RecorderExportMetadata) -> RecorderArtifact:
     )
 
 
+def _frame_reference_from_result(result: FrameCaptureResult) -> RecorderFrameReference:
+    return RecorderFrameReference(
+        timestamp=result.timestamp,
+        backend_name=result.backend_name,
+        backend_kind=result.backend_kind,
+        display_id=result.source.display_id,
+        display_label=result.source.display_label,
+        capture_source=result.source.capture_source,
+        width=result.width,
+        height=result.height,
+        pixel_format=result.pixel_format,
+        real_capture=result.real_capture,
+        simulated_capture=result.simulated_capture,
+        artifact_path=str(result.artifact_path) if result.artifact_path is not None else None,
+        warnings=result.warnings,
+        errors=result.errors,
+    )
+
+
+def _frame_buffer_capable(capabilities) -> bool:
+    return bool(
+        getattr(capabilities, "frame_buffer_capture_available", False)
+        or getattr(capabilities, "one_frame_capture_available", False)
+    )
+
+
+def _frame_count_budget(settings: FlightRecorderSettings) -> int:
+    requested = int(max(1.0, settings.history_seconds) * max(1, settings.frame_rate_fps))
+    return max(1, min(600, requested))
+
+
 def _capture_backend_label(capabilities) -> str:
     if capabilities.backend_kind == "simulated":
         return "Simulated"
@@ -331,6 +587,35 @@ def _review_source_type(artifact: RecorderArtifact | None, metadata: RecorderExp
     ):
         return "simulated"
     return "workspace"
+
+
+def _sample_to_dict(sample: OverlayTelemetrySample) -> dict[str, object]:
+    return {
+        "timestamp": sample.timestamp,
+        "source": sample.source,
+        "axes": dict(sample.axes),
+    }
+
+
+def _runtime_truth_snapshot(runtime_status) -> dict[str, object]:
+    if runtime_status is None:
+        return {
+            "mode": "unknown",
+            "truth": "runtime_status_unavailable",
+            "output_verified": False,
+            "full_live_runtime_ready": False,
+            "input_status": "unknown",
+            "output_status": "unknown",
+        }
+    output_verified = bool(runtime_status.live_output_writes_verified)
+    return {
+        "mode": runtime_status.mode.value,
+        "truth": runtime_status.truth.value,
+        "output_verified": output_verified,
+        "full_live_runtime_ready": bool(output_verified and runtime_status.truth.value == "live_verified"),
+        "input_status": runtime_status.input.status.value,
+        "output_status": runtime_status.output.status.value,
+    }
 
 
 def _first_display_source(capture_backend: CaptureBackend) -> CaptureDisplaySource:
@@ -365,3 +650,20 @@ def _dedupe(values: tuple[str, ...]) -> tuple[str, ...]:
         seen.add(text)
         result.append(text)
     return tuple(result)
+
+
+def _available_path(path: Path) -> Path:
+    if not path.exists():
+        return path
+    stem = path.stem
+    suffix = path.suffix
+    for index in range(2, 1000):
+        candidate = path.with_name(f"{stem}_{index}{suffix}")
+        if not candidate.exists():
+            return candidate
+    raise FileExistsError(f"No available recorder artifact filename for {path}")
+
+
+def _slug(value: str) -> str:
+    safe = "".join(character if character.isalnum() else "-" for character in value)
+    return "-".join(part for part in safe.split("-") if part) or "artifact"
