@@ -22,7 +22,15 @@ from PySide6.QtWidgets import (
 from shared_core.models.runtime import RuntimePreflightStatus
 from shared_core.models.workspace import WorkspaceConfig
 from shared_core.runtime.device_discovery import build_runtime_preflight_status
-from v3_app.pages.page_helpers import add_card_to_grid, card, card_header, card_layout, page_intro
+from v3_app.pages.page_helpers import (
+    add_card_to_grid,
+    apply_parameter_metadata,
+    card,
+    card_header,
+    card_layout,
+    page_intro,
+    parameter_label,
+)
 from v3_app.recorder.clip_library import ClipLibrary
 from v3_app.recorder.recorder_controller import FlightRecorderController
 from v3_app.recorder.recorder_settings import FlightRecorderSettings
@@ -134,23 +142,21 @@ class FlightRecorderPage(QWidget):
         frame = card("recorderSettingsCard")
         layout = card_layout(frame)
         layout.addWidget(card_header("Recorder Settings", "Settings are stored in-memory for this UI shell; no video files are written."))
-        layout.addLayout(
-            _row_grid(
-                {
-                    "Destination": str(self.settings.destination_folder),
-                    "Length": f"{self.settings.length_seconds} s",
-                    "Frame Rate": f"{self.settings.frame_rate_fps} fps",
-                    "History": f"{self.settings.history_seconds:.2f} s",
-                    "Overlay Source": self.settings.overlay_source,
-                    "Capture Source": self.settings.capture_source,
-                    "Display": self.settings.display_label,
-                    "Hotkey": self.settings.hotkey,
-                    "Trigger Mode": self.settings.trigger_mode,
-                }
-            )
-        )
+        settings_rows = {
+            "Destination": str(self.settings.destination_folder),
+            "Length": f"{self.settings.length_seconds} s",
+            "Frame Rate": f"{self.settings.frame_rate_fps} fps",
+            "History": f"{self.settings.history_seconds:.2f} s",
+            "Overlay Source": self.settings.overlay_source,
+            "Capture Source": self.settings.capture_source,
+            "Display": self.settings.display_label,
+            "Hotkey": self.settings.hotkey,
+            "Trigger Mode": self.settings.trigger_mode,
+        }
+        layout.addLayout(_row_grid(settings_rows, metadata_ids=_RECORDER_SETTINGS_METADATA))
         cursor = QCheckBox("Record the cursor")
         cursor.setObjectName("recordCursorCheckbox")
+        apply_parameter_metadata(cursor, "flight_recorder.record_cursor")
         cursor.setChecked(self.settings.record_cursor)
         cursor.setEnabled(False)
         layout.addWidget(cursor)
@@ -216,9 +222,10 @@ class FlightRecorderPage(QWidget):
         sort = QComboBox()
         sort.setObjectName("recordingLibrarySortDropdown")
         sort.addItem("Newest First")
+        apply_parameter_metadata(sort, "flight_recorder.library_sort")
         refresh = action_button("Refresh", object_name="recordingLibraryRefreshButton")
         refresh.clicked.connect(self.refresh_library)
-        controls.addWidget(QLabel("Sort"))
+        controls.addWidget(parameter_label("Sort", metadata_id="flight_recorder.library_sort"))
         controls.addWidget(sort)
         controls.addWidget(refresh)
         controls.addStretch(1)
@@ -384,13 +391,28 @@ class FlightRecorderPage(QWidget):
         self.preview_status.setText("Select a recorder artifact to preview.\nNo video preview available.")
 
 
-def _row_grid(values: dict[str, str]) -> QGridLayout:
+_RECORDER_SETTINGS_METADATA = {
+    "Destination": "flight_recorder.destination",
+    "Length": "flight_recorder.length",
+    "Frame Rate": "flight_recorder.frame_rate",
+    "History": "flight_recorder.history",
+    "Overlay Source": "flight_recorder.overlay_source",
+    "Capture Source": "flight_recorder.capture_source",
+    "Display": "flight_recorder.display",
+    "Hotkey": "flight_recorder.hotkey",
+    "Trigger Mode": "flight_recorder.trigger_mode",
+}
+
+
+def _row_grid(values: dict[str, str], *, metadata_ids: dict[str, str] | None = None) -> QGridLayout:
     grid = QGridLayout()
     grid.setHorizontalSpacing(14)
     grid.setVerticalSpacing(8)
     for row, (label, value) in enumerate(values.items()):
-        key = QLabel(label)
-        key.setObjectName("tableMutedText")
+        metadata_id = metadata_ids.get(label) if metadata_ids is not None else None
+        key = parameter_label(label, metadata_id=metadata_id) if metadata_id else QLabel(label)
+        if metadata_id is None:
+            key.setObjectName("tableMutedText")
         val = QLabel(value)
         val.setObjectName("routeSummaryValue")
         val.setWordWrap(True)

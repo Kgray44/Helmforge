@@ -60,6 +60,7 @@ from v3_app.services.physical_input_ui import (
     hat_from_physical_snapshot,
     raw_axes_from_physical_snapshot,
 )
+from v3_app.pages.page_helpers import apply_parameter_metadata
 from v3_app.widgets.hotas_diagram import HotasDiagramWidget
 from v3_app.ui.status_chips import action_button, status_chip
 
@@ -541,6 +542,7 @@ class MappingPage(QWidget):
                 options=RAW_AXIS_OPTIONS,
                 current=route.raw_axis_channel,
                 on_changed=lambda value, index=row: self._update_axis_route(index, raw_axis_channel=value),
+                metadata_id="mapping.raw_axis",
             )
             self._set_combo_cell(
                 table,
@@ -550,6 +552,7 @@ class MappingPage(QWidget):
                 options=LOGICAL_OUTPUT_OPTIONS,
                 current=route.logical_output,
                 on_changed=lambda value, index=row: self._update_axis_route(index, logical_output=value),
+                metadata_id="mapping.logical_output",
             )
             self._set_combo_cell(
                 table,
@@ -559,9 +562,11 @@ class MappingPage(QWidget):
                 options=RUNTIME_VJOY_OPTIONS,
                 current=route.runtime_vjoy_output,
                 on_changed=lambda value, index=row: self._update_axis_route(index, runtime_vjoy_output=value),
+                metadata_id="mapping.runtime_output_axis",
             )
             checkbox = QCheckBox()
             checkbox.setObjectName(f"invert_{_key(route.function_name)}")
+            apply_parameter_metadata(checkbox, "mapping.invert_axis")
             checkbox.setChecked(route.invert)
             checkbox.stateChanged.connect(
                 lambda _state, index=row: self._update_axis_route(index, invert=bool(self._axis_table.cellWidget(index, 4).isChecked()))
@@ -586,6 +591,7 @@ class MappingPage(QWidget):
                 options=HOTAS_BUTTON_OPTIONS,
                 current=f"B{route.hotas_button}",
                 on_changed=lambda value, index=row: self._update_button_route(index, hotas_button=_parse_button(value)),
+                metadata_id="mapping.hotas_button",
             )
             self._set_combo_cell(
                 table,
@@ -595,6 +601,7 @@ class MappingPage(QWidget):
                 options=VJOY_BUTTON_OPTIONS,
                 current=str(route.output_button),
                 on_changed=lambda value, index=row: self._update_button_route(index, output_button=int(value)),
+                metadata_id="mapping.output_button",
             )
             self._set_text_item(table, row, 2, "Pressed" if route.raw_state else "Idle")
             self._set_text_item(table, row, 3, "Pressed" if route.output_state else "Idle")
@@ -614,6 +621,7 @@ class MappingPage(QWidget):
                 options=HAT_OPTIONS,
                 current=str(route.hotas_hat),
                 on_changed=lambda value, index=row: self._update_hat_route(index, hotas_hat=int(value)),
+                metadata_id="mapping.hotas_hat",
             )
             self._set_combo_cell(
                 table,
@@ -623,6 +631,7 @@ class MappingPage(QWidget):
                 options=POV_OPTIONS,
                 current=str(route.vjoy_pov),
                 on_changed=lambda value, index=row: self._update_hat_route(index, vjoy_pov=int(value)),
+                metadata_id="mapping.output_pov",
             )
             for column, field_name, current in (
                 (2, "up_button", route.up_button),
@@ -638,6 +647,7 @@ class MappingPage(QWidget):
                     options=DIRECTION_BUTTON_OPTIONS,
                     current="None" if current is None else str(current),
                     on_changed=lambda value, index=row, field=field_name: self._update_hat_route(index, **{field: _parse_direction_button(value)}),
+                    metadata_id="mapping.hat_direction_button",
                 )
             self._set_text_item(table, row, 6, self._snapshot.hat_state or route.live_hat_state)
         table.resizeColumnsToContents()
@@ -816,9 +826,11 @@ class MappingPage(QWidget):
         options: tuple[str, ...],
         current: str,
         on_changed: Callable[[str], None],
+        metadata_id: str | None = None,
     ) -> None:
         combo = QComboBox()
         combo.setObjectName(object_name)
+        apply_parameter_metadata(combo, metadata_id)
         available = list(options)
         if current not in available:
             available.append(current)
