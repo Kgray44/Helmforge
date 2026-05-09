@@ -11,6 +11,7 @@ from v3_app.recorder.recorder_artifacts import (
     encoded_clip_from_manifest,
     export_metadata_from_manifest,
 )
+from v3_app.recorder.frame_storage import FrameSequenceArtifact, frame_sequence_from_manifest
 
 
 @dataclass(frozen=True)
@@ -31,6 +32,7 @@ class ClipMetadata:
     manifest_path: Path | None = None
     export_metadata: RecorderExportMetadata | None = None
     encoded_clip: EncodedClipArtifact | None = None
+    frame_sequence: FrameSequenceArtifact | None = None
 
     @classmethod
     def from_path(cls, path: Path) -> "ClipMetadata":
@@ -96,6 +98,34 @@ class ClipMetadata:
             encoded_clip=clip,
         )
 
+    @classmethod
+    def from_frame_sequence(cls, sequence: FrameSequenceArtifact) -> "ClipMetadata":
+        readiness = "encoder source" if sequence.encoder_source_ready else "missing frame files"
+        return cls(
+            path=sequence.sequence_folder,
+            clip=f"Image sequence artifact: {sequence.sequence_id} (Not encoded / Not playable / {readiness})",
+            recorded=sequence.created_at or "Unavailable",
+            duration=(
+                f"{(sequence.end_timestamp - sequence.start_timestamp):.0f} s"
+                if sequence.start_timestamp is not None and sequence.end_timestamp is not None
+                else "Unavailable"
+            ),
+            opened="Not playable / encoder source" if sequence.encoder_source_ready else "Not playable / missing frames",
+            overlay_source="Final output",
+            resolution="Image sequence",
+            length=(
+                f"{(sequence.end_timestamp - sequence.start_timestamp):.2f} s"
+                if sequence.start_timestamp is not None and sequence.end_timestamp is not None
+                else "Unavailable"
+            ),
+            is_simulated=not any(frame.real_capture for frame in sequence.frames),
+            has_video=False,
+            artifact_kind="image_sequence",
+            display_name="Image sequence artifact",
+            manifest_path=sequence.manifest_path,
+            frame_sequence=sequence,
+        )
+
 
 class ClipLibrary:
     def __init__(self, destination_folder: Path) -> None:
@@ -143,6 +173,14 @@ class ClipLibrary:
             if encoded is None:
                 continue
             clips.append(ClipMetadata.from_encoded_clip(encoded))
+        for manifest in sorted(
+            self.destination_folder.glob("frame_sequences/*/manifest.json"),
+            key=lambda item: item.parent.name.lower(),
+        ):
+            sequence = frame_sequence_from_manifest(manifest)
+            if sequence is None:
+                continue
+            clips.append(ClipMetadata.from_frame_sequence(sequence))
         return tuple(sorted(clips, key=lambda clip: clip.recorded, reverse=True))
 
 

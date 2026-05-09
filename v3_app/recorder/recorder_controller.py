@@ -35,6 +35,7 @@ from v3_app.recorder.hindsight_buffer import (
     RecorderFrameReference,
     RecorderTelemetryHindsightBuffer,
 )
+from v3_app.recorder.frame_storage import FrameSequenceArtifact, FrameStorageManager
 from v3_app.recorder.recorder_artifacts import EncodedClipArtifact, RecorderArtifact, RecorderExportMetadata
 from v3_app.recorder.recorder_settings import FlightRecorderSettings
 from v3_app.recorder.recorder_state import RecorderState, RecorderStatus
@@ -113,12 +114,14 @@ class FlightRecorderController:
         capture_backend: CaptureBackend | None = None,
         compositor: RecorderCompositor | None = None,
         encoder_backend: EncoderBackend | None = None,
+        frame_storage_manager: FrameStorageManager | None = None,
         telemetry_buffer: RecorderTelemetryHindsightBuffer | None = None,
     ) -> None:
         self.settings = settings or FlightRecorderSettings.defaults()
         self.capture_backend = capture_backend or MissingCaptureBackend()
         self.compositor = compositor or MissingRecorderCompositor()
         self.encoder_backend = encoder_backend or MissingEncoderBackend()
+        self.frame_storage_manager = frame_storage_manager
         self.telemetry_buffer = telemetry_buffer or RecorderTelemetryHindsightBuffer(
             history_seconds=self.settings.history_seconds
         )
@@ -135,7 +138,9 @@ class FlightRecorderController:
         self.last_encoder_result: EncoderResult | None = None
         self.last_export_job: EncoderExportJob | None = None
         self.last_encoded_clip: EncodedClipArtifact | None = None
+        self.last_frame_sequence_artifact: FrameSequenceArtifact | None = None
         self._frame_buffer_source: CaptureDisplaySource | None = None
+        self._frame_storage_sequence = None
         self._frame_buffer_failure_count = 0
 
     def refresh_status(self) -> CaptureBackendStatus:
@@ -199,6 +204,7 @@ class FlightRecorderController:
             "Frame capture": "available" if capabilities.frame_capture_available else "unavailable",
             "One-frame proof": "available" if capabilities.one_frame_capture_available else "unavailable",
             "Frame buffer": self.frame_buffer.status().health,
+            "Frame storage": self.frame_buffer.status().storage_mode,
             "Cursor capture": "available" if capabilities.cursor_capture_available else "unavailable",
             "Display enumeration": "available" if capabilities.display_enumeration_available else "unavailable",
             "Video encoding": "available" if capabilities.video_encoding_available else "unavailable",
@@ -315,17 +321,42 @@ class FlightRecorderController:
         )
 
     def start_frame_buffer(self, *, now: float | None = None) -> FrameBufferOperationResult:
-        del now
         availability = self.frame_buffer_availability()
         if not availability.available:
             return FrameBufferOperationResult(False, availability.message, self.frame_buffer.status())
+        current = time() if now is None else float(now)
+        created = datetime.fromtimestamp(current, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         self.frame_buffer.clear()
         self.frame_buffer.start()
         self._frame_buffer_source = availability.source
+        self._frame_storage_sequence = None
+        self.last_frame_sequence_artifact = None
+        if self.frame_storage_manager is not None and self.frame_storage_manager.storage_available:
+            try:
+                self._frame_storage_sequence = self.frame_storage_manager.create_sequence(
+                    session_id=f"frame-buffer-{_slug(created)}",
+                    created_at=created,
+                    target_fps=self.settings.frame_rate_fps,
+                    warnings=("image sequence artifact is not encoded video", "image sequence artifact is not playable"),
+                )
+                self.frame_buffer.set_frame_storage_status(
+                    storage_mode="file_backed",
+                    sequence_folder=str(self._frame_storage_sequence.sequence_folder),
+                    manifest_path=str(self._frame_storage_sequence.manifest_path),
+                )
+            except OSError as exc:
+                self.frame_buffer.set_frame_storage_status(storage_mode="metadata_only")
+                self.frame_buffer.add_error(f"Frame storage unavailable; metadata-only fallback active: {exc}")
+        else:
+            self.frame_buffer.set_frame_storage_status(storage_mode="metadata_only")
         self._frame_buffer_failure_count = 0
         return FrameBufferOperationResult(
             True,
-            "Frame buffer started explicitly; no video recording, encoding, preview, or hotkey was started.",
+            (
+                "Frame buffer started explicitly with file-backed image storage; image sequences are not encoded video or playable clips."
+                if self._frame_storage_sequence is not None
+                else "Frame buffer started explicitly; no video recording, encoding, preview, or hotkey was started."
+            ),
             self.frame_buffer.status(),
         )
 
@@ -342,7 +373,12 @@ class FlightRecorderController:
             )
         source = self._frame_buffer_source or _first_display_source(self.capture_backend)
         timestamp = time() if now is None else float(now)
-        result = self.capture_backend.capture_one_frame(source=source, artifact_folder=None, now=timestamp)
+        result = _capture_one_frame_for_buffer(
+            self.capture_backend,
+            source=source,
+            frame_storage_sequence=self._frame_storage_sequence,
+            now=timestamp,
+        )
         self.last_frame_capture_result = result
         if not result.succeeded:
             self._frame_buffer_failure_count += 1
@@ -360,7 +396,11 @@ class FlightRecorderController:
             return FrameBufferOperationResult(False, "Frame metadata was dropped because its timestamp was not monotonic.", self.frame_buffer.status())
         return FrameBufferOperationResult(
             True,
-            "Frame metadata captured into the explicit hindsight buffer; not encoded and not playable.",
+            (
+                "Image frame captured into the explicit hindsight buffer; file-backed sequence is not encoded and not playable."
+                if result.encodable_frame_available
+                else "Frame metadata captured into the explicit hindsight buffer; not encoded and not playable."
+            ),
             self.frame_buffer.status(),
         )
 
@@ -432,6 +472,8 @@ class FlightRecorderController:
         export_dir = Path(self.settings.destination_folder) / f"encoded_clip_{_slug(created)}"
         output_path = _available_path(export_dir / f"clip.{requested}")
         source_artifact_path = Path(self.last_artifact.path) if self.last_artifact is not None else None
+        if source_artifact_path is None and self.last_frame_sequence_artifact is not None:
+            source_artifact_path = self.last_frame_sequence_artifact.manifest_path
         if not availability.available:
             encoder_result = blocked_encoder_result(
                 capability=capability,
@@ -629,6 +671,10 @@ class FlightRecorderController:
         frames = self.frame_buffer.frames()
         aligned_samples = self.aligned_telemetry_for_frame_buffer()
         runtime_truth = _runtime_truth_snapshot(runtime_status)
+        frame_sequence_artifact = self._write_frame_sequence_manifest_if_available(
+            telemetry_alignment_status="aligned" if aligned_samples else "no_telemetry_samples",
+            dropped_frame_count=status.dropped_frame_count,
+        )
         is_simulated = not any(frame.real_capture for frame in frames)
         source_type = "simulated" if is_simulated else "workspace"
         review_session = (
@@ -660,7 +706,9 @@ class FlightRecorderController:
             status="intermediate_frame_buffer",
             notes=("intermediate frame buffer artifact", "not encoded", "not playable"),
             warnings=(
-                "buffered frames are metadata/reference entries only",
+                "buffered frames are metadata/reference entries only"
+                if frame_sequence_artifact is None
+                else "buffered frames include file-backed image sequence references",
                 "not encoded",
                 "not playable",
                 "not runtime readiness",
@@ -673,8 +721,9 @@ class FlightRecorderController:
                 **status.to_dict(),
                 "not_encoded": True,
                 "not_playable": True,
-                "frame_storage": "metadata/reference only",
+                "frame_storage": "file_backed" if frame_sequence_artifact is not None else "metadata/reference only",
             },
+            "frame_sequence": frame_sequence_artifact.to_dict() if frame_sequence_artifact is not None else None,
             "frames": [frame.to_dict() for frame in frames],
             "telemetry": {
                 "sample_count": len(aligned_samples),
@@ -695,6 +744,26 @@ class FlightRecorderController:
             can_save_last_clip=True,
         )
         return RecorderOperationResult(True, self.state.message, artifact, self.state)
+
+    def _write_frame_sequence_manifest_if_available(
+        self,
+        *,
+        telemetry_alignment_status: str,
+        dropped_frame_count: int,
+    ) -> FrameSequenceArtifact | None:
+        if self._frame_storage_sequence is None:
+            return None
+        artifact = self._frame_storage_sequence.write_manifest(
+            telemetry_alignment_status=telemetry_alignment_status,
+            dropped_frame_count=dropped_frame_count,
+        )
+        self.last_frame_sequence_artifact = artifact
+        self.frame_buffer.set_frame_storage_status(
+            storage_mode=artifact.storage_mode,
+            sequence_folder=str(artifact.sequence_folder),
+            manifest_path=str(artifact.manifest_path),
+        )
+        return artifact
 
     def _failed(self, message: str) -> RecorderOperationResult:
         self.state = RecorderState(
@@ -813,9 +882,36 @@ def _frame_reference_from_result(result: FrameCaptureResult) -> RecorderFrameRef
         real_capture=result.real_capture,
         simulated_capture=result.simulated_capture,
         artifact_path=str(result.artifact_path) if result.artifact_path is not None else None,
+        frame_storage_mode=result.frame_storage_mode,
+        image_path=str(result.image_path) if result.image_path is not None else None,
+        image_exists=result.image_exists,
+        image_size_bytes=result.image_size_bytes,
+        image_format=result.image_format,
+        checksum=result.checksum,
+        encodable=result.encodable_frame_available,
         warnings=result.warnings,
         errors=result.errors,
     )
+
+
+def _capture_one_frame_for_buffer(
+    capture_backend: CaptureBackend,
+    *,
+    source: CaptureDisplaySource,
+    frame_storage_sequence,
+    now: float,
+) -> FrameCaptureResult:
+    try:
+        return capture_backend.capture_one_frame(
+            source=source,
+            artifact_folder=None,
+            frame_storage_sequence=frame_storage_sequence,
+            now=now,
+        )
+    except TypeError as exc:
+        if "frame_storage_sequence" not in str(exc):
+            raise
+        return capture_backend.capture_one_frame(source=source, artifact_folder=None, now=now)
 
 
 def _frame_buffer_capable(capabilities) -> bool:

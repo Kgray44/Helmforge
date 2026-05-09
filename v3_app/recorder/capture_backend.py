@@ -84,6 +84,14 @@ class FrameCaptureResult:
     height: int | None = None
     pixel_format: str = "unknown"
     artifact_path: Path | None = None
+    artifact_kind: str = "metadata_only"
+    image_path: Path | None = None
+    image_format: str | None = None
+    image_size_bytes: int = 0
+    image_exists: bool = False
+    checksum: str | None = None
+    encodable_frame_available: bool = False
+    frame_storage_mode: str = "metadata_only"
     warnings: tuple[str, ...] = ()
     errors: tuple[str, ...] = ()
     truth_label: str = "One-frame capture unavailable"
@@ -104,6 +112,14 @@ class FrameCaptureResult:
             "height": self.height,
             "pixel_format": self.pixel_format,
             "artifact_path": str(self.artifact_path) if self.artifact_path is not None else None,
+            "artifact_kind": self.artifact_kind,
+            "image_path": str(self.image_path) if self.image_path is not None else None,
+            "image_format": self.image_format,
+            "image_size_bytes": self.image_size_bytes,
+            "image_exists": self.image_exists,
+            "checksum": self.checksum,
+            "encodable_frame_available": self.encodable_frame_available,
+            "frame_storage_mode": self.frame_storage_mode,
             "warnings": list(self.warnings),
             "errors": list(self.errors),
             "truth_label": self.truth_label,
@@ -130,6 +146,7 @@ class CaptureBackend(Protocol):
         *,
         source: CaptureDisplaySource | None = None,
         artifact_folder: Path | None = None,
+        frame_storage_sequence=None,
         now: float | None = None,
     ) -> FrameCaptureResult:
         ...
@@ -189,9 +206,10 @@ class MissingCaptureBackend:
         *,
         source: CaptureDisplaySource | None = None,
         artifact_folder: Path | None = None,
+        frame_storage_sequence=None,
         now: float | None = None,
     ) -> FrameCaptureResult:
-        del artifact_folder
+        del artifact_folder, frame_storage_sequence
         selected = source or self.display_sources()[0]
         return _unavailable_frame_result(
             capabilities=self.capabilities(),
@@ -267,9 +285,10 @@ class SimulatedCaptureBackend:
         *,
         source: CaptureDisplaySource | None = None,
         artifact_folder: Path | None = None,
+        frame_storage_sequence=None,
         now: float | None = None,
     ) -> FrameCaptureResult:
-        del artifact_folder
+        del artifact_folder, frame_storage_sequence
         selected = source or self.display_sources()[0]
         return _unavailable_frame_result(
             capabilities=self.capabilities(),
@@ -447,6 +466,7 @@ class QtScreenCaptureBackend:
         *,
         source: CaptureDisplaySource | None = None,
         artifact_folder: Path | None = None,
+        frame_storage_sequence=None,
         now: float | None = None,
     ) -> FrameCaptureResult:
         timestamp = _timestamp(now)
@@ -528,9 +548,37 @@ class QtScreenCaptureBackend:
             height=height,
             pixel_format=pixel_format,
         )
+        stored_frame = None
+        storage_errors: tuple[str, ...] = ()
+        if frame_storage_sequence is not None:
+            try:
+                stored_frame = frame_storage_sequence.save_qimage_frame(
+                    frame_id=f"frame-{int(timestamp * 1000):013d}",
+                    timestamp=timestamp,
+                    backend_name=capabilities.backend_name,
+                    backend_kind=capabilities.backend_kind,
+                    display_id=selected.display_id,
+                    display_label=selected.display_label,
+                    capture_source=selected.capture_source,
+                    width=width,
+                    height=height,
+                    pixel_format=pixel_format,
+                    qimage=pixmap.toImage(),
+                    real_capture=True,
+                    simulated_capture=False,
+                    warnings=("file-backed still frame; not encoded video",),
+                )
+                storage_errors = stored_frame.errors
+            except Exception as exc:
+                storage_errors = (f"Frame image file could not be saved: {exc}",)
+        image_exists = bool(stored_frame and stored_frame.file_exists)
         return FrameCaptureResult(
             succeeded=True,
-            message="One-frame still proof captured; no video recording, encoding, preview, or hotkey was started.",
+            message=(
+                "One-frame still proof captured with a durable image frame; no video recording, encoding, preview, or hotkey was started."
+                if image_exists
+                else "One-frame still proof captured; no video recording, encoding, preview, or hotkey was started."
+            ),
             backend_name=capabilities.backend_name,
             backend_kind=capabilities.backend_kind,
             source=selected,
@@ -539,13 +587,21 @@ class QtScreenCaptureBackend:
             height=height,
             pixel_format=pixel_format,
             artifact_path=artifact_path,
+            artifact_kind="image_file" if image_exists else "metadata_only",
+            image_path=stored_frame.image_path if stored_frame else None,
+            image_format=stored_frame.image_format if stored_frame else None,
+            image_size_bytes=stored_frame.file_size_bytes if stored_frame else 0,
+            image_exists=image_exists,
+            checksum=stored_frame.checksum if stored_frame else None,
+            encodable_frame_available=bool(stored_frame and stored_frame.encodable),
+            frame_storage_mode="file_backed" if image_exists else "metadata_only",
             warnings=(
                 "still-frame proof only; not video recording",
                 "capture proof is not runtime readiness",
                 *selected.warnings,
             ),
-            errors=artifact_errors,
-            truth_label="Real still-frame proof",
+            errors=_dedupe((*artifact_errors, *storage_errors)),
+            truth_label="Real still-frame proof with file-backed image" if image_exists else "Real still-frame proof",
             real_capture=True,
             simulated_capture=False,
         )

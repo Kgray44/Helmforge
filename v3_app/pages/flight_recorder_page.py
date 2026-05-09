@@ -128,6 +128,7 @@ class FlightRecorderPage(QWidget):
                     "Frame capture": summary["Frame capture"],
                     "One-frame proof": summary["One-frame proof"],
                     "Frame buffer": summary["Frame buffer"],
+                    "Frame storage": summary["Frame storage"],
                     "Cursor capture": summary["Cursor capture"],
                     "Display enumeration": summary["Display enumeration"],
                     "Video encoding": summary["Video encoding"],
@@ -145,7 +146,7 @@ class FlightRecorderPage(QWidget):
         )
         layout.addWidget(
             _body(
-                "Telemetry hindsight buffer available. Intermediate frame-buffer artifacts are not playable clips. "
+                "Telemetry hindsight buffer available. Intermediate frame-buffer artifacts and image sequences are not playable clips. "
                 "Video hindsight buffering is not implemented yet. "
                 "encoding/export remains unavailable unless frame files, an encoder backend, and local output verification all succeed. "
                 "Simulated exports contain telemetry and overlay metadata only."
@@ -226,7 +227,7 @@ class FlightRecorderPage(QWidget):
     def _frame_buffer_card(self) -> QWidget:
         frame = card("recorderFrameBufferCard")
         layout = card_layout(frame)
-        layout.addWidget(card_header("Frame Buffer", "Explicit-start hindsight frame metadata buffer; not encoded video."))
+        layout.addWidget(card_header("Frame Buffer", "Explicit-start hindsight frame buffer with metadata-only or file-backed image storage."))
         self.frame_buffer_summary = QLabel("")
         self.frame_buffer_summary.setObjectName("recorderFrameBufferSummary")
         self.frame_buffer_summary.setWordWrap(True)
@@ -242,7 +243,7 @@ class FlightRecorderPage(QWidget):
         layout.addLayout(controls)
         layout.addWidget(
             _body(
-                "Not encoded / not playable. Buffered frame entries are metadata/reference proof only, "
+                "Not encoded / not playable. Buffered frame entries may be metadata-only or file-backed image sequence sources, "
                 "and capture buffer state is not Full Live Runtime Ready."
             )
         )
@@ -359,7 +360,7 @@ class FlightRecorderPage(QWidget):
     def _recording_library_card(self) -> QWidget:
         frame = card("recordingLibraryCard")
         layout = card_layout(frame)
-        layout.addWidget(card_header("Recording Library", "Metadata-only recorder artifact index for simulated exports."))
+        layout.addWidget(card_header("Recording Library", "Recorder artifact index for metadata, image sequences, and verified local encoded clips."))
         controls = QHBoxLayout()
         sort = QComboBox()
         sort.setObjectName("recordingLibrarySortDropdown")
@@ -503,6 +504,8 @@ class FlightRecorderPage(QWidget):
             else "Unavailable"
         )
         aligned_samples = len(self.controller.aligned_telemetry_for_frame_buffer())
+        storage_path = status.frame_sequence_path or "None"
+        manifest_path = status.frame_sequence_manifest_path or "None"
         self.frame_buffer_summary.setText(
             "Buffer state\n"
             f"{'active' if status.active else 'inactive'}\n"
@@ -526,6 +529,20 @@ class FlightRecorderPage(QWidget):
             f"{dimensions}\n"
             "Pixel format\n"
             f"{status.pixel_format}\n"
+            "Frame Storage\n"
+            f"{status.storage_mode}\n"
+            "Stored image frames\n"
+            f"{status.stored_image_frame_count}\n"
+            "Frame sequence path\n"
+            f"{storage_path}\n"
+            "Frame sequence manifest\n"
+            f"{manifest_path}\n"
+            "Disk/cache usage\n"
+            f"{status.total_image_size_bytes} bytes in current buffer\n"
+            "Encoder source readiness\n"
+            f"{'ready' if status.encoder_source_ready else 'not ready'}\n"
+            "Image sequence truth\n"
+            "not encoded / not playable\n"
             "Telemetry samples aligned\n"
             f"{aligned_samples}\n"
             "Last intermediate save state\n"

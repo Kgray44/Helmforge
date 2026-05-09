@@ -20,6 +20,13 @@ class RecorderFrameReference:
     real_capture: bool
     simulated_capture: bool
     artifact_path: str | None = None
+    frame_storage_mode: str = "metadata_only"
+    image_path: str | None = None
+    image_exists: bool = False
+    image_size_bytes: int = 0
+    image_format: str | None = None
+    checksum: str | None = None
+    encodable: bool = False
     warnings: tuple[str, ...] = ()
     errors: tuple[str, ...] = ()
 
@@ -37,6 +44,13 @@ class RecorderFrameReference:
             "real_capture": self.real_capture,
             "simulated_capture": self.simulated_capture,
             "artifact_path": self.artifact_path,
+            "frame_storage_mode": self.frame_storage_mode,
+            "image_path": self.image_path,
+            "image_exists": self.image_exists,
+            "image_size_bytes": self.image_size_bytes,
+            "image_format": self.image_format,
+            "checksum": self.checksum,
+            "encodable": self.encodable,
             "warnings": list(self.warnings),
             "errors": list(self.errors),
         }
@@ -60,6 +74,12 @@ class RecorderFrameBufferStatus:
     frame_width: int | None
     frame_height: int | None
     pixel_format: str
+    storage_mode: str = "metadata_only"
+    stored_image_frame_count: int = 0
+    frame_sequence_path: str | None = None
+    frame_sequence_manifest_path: str | None = None
+    total_image_size_bytes: int = 0
+    encoder_source_ready: bool = False
     warnings: tuple[str, ...] = ()
     errors: tuple[str, ...] = ()
 
@@ -81,6 +101,12 @@ class RecorderFrameBufferStatus:
             "frame_width": self.frame_width,
             "frame_height": self.frame_height,
             "pixel_format": self.pixel_format,
+            "storage_mode": self.storage_mode,
+            "stored_image_frame_count": self.stored_image_frame_count,
+            "frame_sequence_path": self.frame_sequence_path,
+            "frame_sequence_manifest_path": self.frame_sequence_manifest_path,
+            "total_image_size_bytes": self.total_image_size_bytes,
+            "encoder_source_ready": self.encoder_source_ready,
             "warnings": list(self.warnings),
             "errors": list(self.errors),
         }
@@ -96,6 +122,9 @@ class RecorderFrameHindsightBuffer:
         self._dropped_frame_count = 0
         self._warnings: list[str] = []
         self._errors: list[str] = []
+        self._storage_mode = "metadata_only"
+        self._frame_sequence_path: str | None = None
+        self._frame_sequence_manifest_path: str | None = None
 
     def start(self) -> None:
         self.active = True
@@ -109,6 +138,7 @@ class RecorderFrameHindsightBuffer:
         self._dropped_frame_count = 0
         self._warnings.clear()
         self._errors.clear()
+        self.set_frame_storage_status(storage_mode="metadata_only")
 
     def record_drop(self, *, warning: str | None = None, error: str | None = None) -> None:
         self._dropped_frame_count += 1
@@ -134,6 +164,17 @@ class RecorderFrameHindsightBuffer:
     def has_usable_frames(self) -> bool:
         return bool(self._frames)
 
+    def set_frame_storage_status(
+        self,
+        *,
+        storage_mode: str,
+        sequence_folder: str | None = None,
+        manifest_path: str | None = None,
+    ) -> None:
+        self._storage_mode = storage_mode or "metadata_only"
+        self._frame_sequence_path = sequence_folder
+        self._frame_sequence_manifest_path = manifest_path
+
     def status(self) -> RecorderFrameBufferStatus:
         oldest = self._frames[0].timestamp if self._frames else None
         newest = self._frames[-1].timestamp if self._frames else None
@@ -141,6 +182,11 @@ class RecorderFrameHindsightBuffer:
         health = "active" if self.active else "ready" if self._frames else "empty"
         if self._errors:
             health = "error"
+        image_frames = [frame for frame in self._frames if frame.image_exists and frame.image_size_bytes > 0]
+        encoder_ready = bool(self._frames) and len(image_frames) == len(self._frames) and all(frame.encodable for frame in self._frames)
+        storage_mode = self._storage_mode
+        if storage_mode == "metadata_only" and image_frames:
+            storage_mode = "file_backed"
         return RecorderFrameBufferStatus(
             active=self.active,
             health=health,
@@ -158,6 +204,12 @@ class RecorderFrameHindsightBuffer:
             frame_width=latest.width if latest is not None else None,
             frame_height=latest.height if latest is not None else None,
             pixel_format=latest.pixel_format if latest is not None else "unavailable",
+            storage_mode=storage_mode,
+            stored_image_frame_count=len(image_frames),
+            frame_sequence_path=self._frame_sequence_path,
+            frame_sequence_manifest_path=self._frame_sequence_manifest_path,
+            total_image_size_bytes=sum(frame.image_size_bytes for frame in image_frames),
+            encoder_source_ready=encoder_ready,
             warnings=tuple(self._warnings),
             errors=tuple(self._errors),
         )

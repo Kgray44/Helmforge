@@ -193,15 +193,19 @@ def analyze_frame_source(frames: tuple[RecorderFrameReference, ...]) -> Encodabl
     warnings: list[str] = []
     errors: list[str] = []
     for frame in frames:
-        if not frame.artifact_path:
+        path_text = frame.image_path or frame.artifact_path
+        if not path_text:
             errors.append("Frame pixels not available; frame-buffer entry is metadata/reference only.")
             continue
-        path = Path(frame.artifact_path)
+        path = Path(path_text)
         if path.suffix.casefold() not in _IMAGE_FRAME_SUFFIXES:
             errors.append(f"Frame pixels not available from metadata artifact: {path.name}.")
             continue
         if not path.exists() or not path.is_file():
             errors.append(f"Frame file missing: {path}.")
+            continue
+        if getattr(frame, "image_path", None) and not getattr(frame, "encodable", False):
+            errors.append(f"Frame file is present but not marked encodable: {path}.")
             continue
         frame_paths.append(path)
     if not frame_paths:

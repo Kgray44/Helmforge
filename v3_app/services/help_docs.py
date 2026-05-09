@@ -996,6 +996,46 @@ POST_RC_1D_ARTICLES = (
         ),
     ),
     _structured_article(
+        "Recorder durable frame storage",
+        topic_category="Flight Recorder",
+        category="Analysis",
+        summary="Understand metadata-only versus file-backed frame storage after Post-RC 3F.",
+        keywords=("frame storage budget image sequence file-backed metadata-only durable frames encoder source"),
+        related_topics=("Recorder encoding/export preview", "One-frame capture proof", "Real capture limitations"),
+        open_page_id="flight_recorder",
+        importance=91,
+        sections=(
+            (
+                "What this is",
+                (
+                    "Post-RC 3F adds durable local image-frame storage for the Flight Recorder when a capable frame source succeeds.",
+                    "A file-backed frame sequence can become an encoder source, but the image sequence artifact itself is not encoded video and is not a playable clip.",
+                ),
+            ),
+            (
+                "Storage modes",
+                (
+                    "metadata-only means the recorder kept frame timing and source metadata but no image pixels are available for encoding.",
+                    "file-backed means image files were written under the recorder destination frame_sequences folder and can be checked before export.",
+                ),
+            ),
+            (
+                "Budget and cleanup",
+                (
+                    "Frame storage uses a bounded cache budget, a maximum frame count per sequence, and cleanup for failed temporary sequences.",
+                    "HelmForge does not silently delete user exports or encoded clips as part of frame cache cleanup.",
+                ),
+            ),
+            (
+                "Runtime truth notes",
+                (
+                    "Image sequence artifact means not encoded video, not a playable clip, and not runtime readiness.",
+                    "No global hotkeys, no game injection, no graphics hooks, no cloud upload, and no runtime authority are added by durable frame storage.",
+                ),
+            ),
+        ),
+    ),
+    _structured_article(
         "Parameter Reference",
         topic_category="Parameter Reference",
         category="Reference",
