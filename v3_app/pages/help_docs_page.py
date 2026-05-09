@@ -209,6 +209,7 @@ class HelpDocsPage(QWidget):
         self.article_surface = QFrame()
         self.article_surface.setObjectName("helpArticleSurface")
         self.article_surface.setProperty("helpArticleSurface", True)
+        self.article_surface.setProperty("postRc4eReadable", True)
         self.article_body_layout = QVBoxLayout(self.article_surface)
         self.article_body_layout.setContentsMargins(18, 16, 18, 18)
         self.article_body_layout.setSpacing(14)

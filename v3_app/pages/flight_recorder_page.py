@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 from PySide6.QtCore import Qt
@@ -83,6 +84,7 @@ class FlightRecorderPage(QWidget):
             )
         )
         root.addWidget(self._status_card())
+        root.addWidget(self._workflow_map_card())
         root.addWidget(self._capture_proof_card())
         root.addWidget(self._frame_buffer_card())
         root.addWidget(self._encoding_export_card())
@@ -100,6 +102,7 @@ class FlightRecorderPage(QWidget):
 
     def _status_card(self) -> QWidget:
         frame = card("recorderStatusCard")
+        frame.setProperty("scanFriendlyRows", True)
         layout = card_layout(frame)
         layout.addWidget(card_header("Recorder Status", "Truthful recorder state across capture, buffering, and export readiness."))
         row = QHBoxLayout()
@@ -165,6 +168,24 @@ class FlightRecorderPage(QWidget):
         self.action_status.setObjectName("recorderActionStatus")
         self.action_status.setWordWrap(True)
         layout.addWidget(self.action_status)
+        return frame
+
+    def _workflow_map_card(self) -> QWidget:
+        frame = card("recorderWorkflowMapCard")
+        frame.setProperty("uiRole", "workflowCard")
+        frame.setProperty("postRc4ePolish", True)
+        layout = card_layout(frame)
+        layout.addWidget(card_header("Recorder Workflow", "Settings, proof, buffering, export, and preview stay explicitly separated."))
+        layout.addWidget(
+            _body(
+                "1. Settings - in-memory recorder configuration only.\n"
+                "2. Capture Proof - one still-frame diagnostic, not recording.\n"
+                "3. Frame Buffer / Frame Storage - buffered frames or metadata, not runtime readiness.\n"
+                "4. Save Last Clip / Intermediate Artifact - local metadata or image-sequence artifact, not playable video.\n"
+                "5. Export / encoding - available only after frame files, encoder success, and local verification.\n"
+                "6. Library / Preview - distinguishes metadata, image sequences, encoded files, and playable verified clips."
+            )
+        )
         return frame
 
     def _review_card(self) -> QWidget:
@@ -285,7 +306,8 @@ class FlightRecorderPage(QWidget):
         layout.addLayout(controls)
         layout.addWidget(
             _body(
-                "Intermediate artifacts are not playable clips. Preview stays unavailable until HelmForge has a reliable local playback mechanism; no game injection, graphics hooks, or global recorder hotkeys are used."
+                "Intermediate artifacts are not playable clips. An encoded clip file is considered playable only when encoder success and local output verification allow the playable claim. "
+                "Preview stays unavailable until HelmForge has a reliable local playback mechanism; no game injection, graphics hooks, or global recorder hotkeys are used."
             )
         )
         self.refresh_encoding_export_status()
@@ -311,7 +333,8 @@ class FlightRecorderPage(QWidget):
         cursor.setObjectName("recordCursorCheckbox")
         apply_parameter_metadata(cursor, "flight_recorder.record_cursor")
         cursor.setChecked(self.settings.record_cursor)
-        cursor.setEnabled(False)
+        cursor.setEnabled(True)
+        cursor.toggled.connect(self._set_record_cursor)
         layout.addWidget(cursor)
         button_row = QHBoxLayout()
         browse = action_button("Browse", object_name="recorderBrowseButton")
@@ -359,7 +382,8 @@ class FlightRecorderPage(QWidget):
             include = QCheckBox("Include")
             include.setObjectName(f"recorderAxisInclude_{_key(axis)}")
             include.setChecked(axis_config.include)
-            include.setEnabled(False)
+            include.setEnabled(True)
+            include.toggled.connect(lambda checked, axis_name=axis: self._set_axis_include(axis_name, checked))
             color = QLabel(axis_config.color)
             color.setObjectName(f"recorderAxisColor_{_key(axis)}")
             color.setProperty("uiRole", "statusChip")
@@ -377,7 +401,7 @@ class FlightRecorderPage(QWidget):
         controls = QHBoxLayout()
         sort = QComboBox()
         sort.setObjectName("recordingLibrarySortDropdown")
-        sort.addItem("Newest First")
+        sort.addItems(("Newest First", "Oldest First", "Artifact Type", "Playable First"))
         apply_parameter_metadata(sort, "flight_recorder.library_sort")
         refresh = action_button("Refresh", object_name="recordingLibraryRefreshButton")
         refresh.clicked.connect(self.refresh_library)
@@ -399,6 +423,18 @@ class FlightRecorderPage(QWidget):
         layout.addWidget(self.empty_library_label)
         self._populate_library()
         return frame
+
+    def _set_record_cursor(self, checked: bool) -> None:
+        self.settings = replace(self.settings, record_cursor=bool(checked))
+        self.controller.settings = self.settings
+
+    def _set_axis_include(self, axis: str, checked: bool) -> None:
+        axes = {
+            name: (replace(config, include=bool(checked)) if name == axis else config)
+            for name, config in self.settings.axes.items()
+        }
+        self.settings = replace(self.settings, axes=axes)
+        self.controller.settings = self.settings
 
     def _clip_preview_card(self) -> QWidget:
         frame = card("clipPreviewCard")

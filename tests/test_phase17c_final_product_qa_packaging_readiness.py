@@ -102,7 +102,7 @@ def test_phase17c_all_pages_and_key_dialogs_still_construct_for_final_qa(tmp_pat
 
     dialog = LiveOverlayConfigDialog(config=LiveOverlayConfig.defaults(), on_apply=lambda _config: None)
     assert dialog.minimumWidth() >= 760
-    assert dialog.minimumHeight() >= 600
+    assert 500 <= dialog.minimumHeight() <= 560
 
     overlay = LiveOverlayWindow(
         config=LiveOverlayConfig.defaults(),

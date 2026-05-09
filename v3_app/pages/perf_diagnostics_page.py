@@ -88,6 +88,7 @@ class PerfDiagnosticsPage(QWidget):
                 object_name="diagnosticsTruthLegend",
             )
         )
+        root.addWidget(self._hint_proof_readiness_legend())
 
         grid = QGridLayout()
         grid.setHorizontalSpacing(18)
@@ -194,8 +195,23 @@ class PerfDiagnosticsPage(QWidget):
         )
         return frame
 
+    def _hint_proof_readiness_legend(self) -> QWidget:
+        frame = card("diagnosticsHintProofReadinessLegend")
+        frame.setProperty("postRc4ePolish", True)
+        layout = card_layout(frame)
+        layout.addWidget(card_header("Hint / Proof / Readiness", "Diagnostics are sorted by evidence strength."))
+        layout.addWidget(
+            _body(
+                "Hint: process presence, vJoy detection, packaged smoke, and discovery state.\n"
+                "Proof: fresh telemetry, pipeline proof, guarded output verification, and local encoder verification.\n"
+                "Readiness: Full Live Runtime Ready remains false unless every required input, pipeline, output, telemetry, and safety gate passes."
+            )
+        )
+        return frame
+
     def _bridge_card(self) -> QWidget:
         frame = card("perfBridgeTelemetryCard")
+        frame.setProperty("cardSizing", "content")
         layout = card_layout(frame)
         layout.addWidget(card_header("Bridge / Telemetry", "Bridge presence and telemetry freshness are observational."))
         layout.addLayout(self._row_grid(("Bridge lifecycle", "Bridge telemetry status", "Telemetry age", "Process hint", "HOTAS discovery", "Last command status", "Last command request_id")))
@@ -244,6 +260,7 @@ class PerfDiagnosticsPage(QWidget):
 
     def _timing_card(self) -> QWidget:
         frame = card("perfTimingCard")
+        frame.setProperty("expandedTimingDisplay", True)
         layout = card_layout(frame)
         layout.addWidget(card_header("Performance Timings", "Lightweight UI/app timings. These are not hardware proof."))
         layout.addLayout(self._row_grid(("Page build/switch timings", "Heartbeat/update timing", "Graph draw/update timing", "Startup timing")))

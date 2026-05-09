@@ -107,7 +107,7 @@ def test_phase17a_status_chips_actions_helm_and_overlay_dialog_are_visually_dist
     dialog = LiveOverlayConfigDialog(config=LiveOverlayConfig.defaults(), on_apply=lambda _config: None)
     assert dialog.objectName() == "liveOverlayConfigDialog"
     assert dialog.minimumWidth() >= 760
-    assert dialog.minimumHeight() >= 600
+    assert 500 <= dialog.minimumHeight() <= 560
 
 
 def test_phase17a_runtime_copy_and_forbidden_controls_remain_frozen(tmp_path):

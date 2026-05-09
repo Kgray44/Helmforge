@@ -10,6 +10,7 @@ from PySide6.QtCore import QTimer, Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -182,6 +183,7 @@ class LiveMonitorPage(QWidget):
         root.addWidget(self._build_controls_card())
         root.addWidget(self._build_raw_trace_card())
         root.addWidget(self._build_overlay_card())
+        root.addWidget(self._build_live_monitor_action_block())
 
         status_grid = QGridLayout()
         status_grid.setHorizontalSpacing(18)
@@ -192,13 +194,6 @@ class LiveMonitorPage(QWidget):
 
         root.addWidget(self._build_axis_levels_card())
         root.addWidget(self._build_live_overlay_card())
-
-        button_grid = QGridLayout()
-        button_grid.setHorizontalSpacing(18)
-        button_grid.setVerticalSpacing(18)
-        add_card_to_grid(button_grid, self._build_hotas_buttons_card(), 0, 0)
-        add_card_to_grid(button_grid, self._build_output_buttons_card(), 0, 1)
-        root.addLayout(button_grid)
         root.addStretch(1)
 
         self._timer = QTimer(self)
@@ -328,7 +323,10 @@ class LiveMonitorPage(QWidget):
         layout.addWidget(_body("Recent raw HOTAS input for the selected axis."))
         self.raw_trace_graph = GraphPreview(object_name="liveRawTraceGraph")
         layout.addWidget(self.raw_trace_graph)
-        layout.addWidget(_body("Newest samples are on the right edge."))
+        self.history_seconds_label = _body("History window: 7 seconds")
+        self.history_seconds_label.setObjectName("liveMonitorHistorySecondsLabel")
+        layout.addWidget(self.history_seconds_label)
+        layout.addWidget(_body("Newest samples are on the right edge. The UI keeps the runtime source read-only."))
         return frame
 
     def _build_overlay_card(self) -> QWidget:
@@ -341,16 +339,45 @@ class LiveMonitorPage(QWidget):
         layout.addWidget(_body("Recent processed output leaving the bridge for the selected axis."))
         self.overlay_graph = GraphPreview(object_name="liveRawFinalOverlayGraph")
         layout.addWidget(self.overlay_graph)
-        layout.addWidget(_body("Raw and final output are overlaid for direct comparison."))
+        self.graph_cadence_label = _body("UI cadence: diagnostic refresh every 750 ms; telemetry cadence is Bridge-owned.")
+        self.graph_cadence_label.setObjectName("liveMonitorGraphCadenceLabel")
+        layout.addWidget(self.graph_cadence_label)
+        layout.addWidget(_body("Raw and final output are overlaid for direct comparison. Output intent is not output write proof."))
         return frame
 
     def _build_live_state_card(self) -> QWidget:
-        frame = card("liveStateCard")
+        frame = card("liveMonitorCompactState")
+        frame.setProperty("legacyObjectName", "liveStateCard")
+        frame.setProperty("postRc4ePolish", True)
         layout = card_layout(frame)
-        layout.addWidget(card_header("Live State", "Current mode state, Bridge telemetry, and diagnostic hints."))
+        layout.addWidget(card_header("Live State", "Compact runtime truth, source, and proof posture."))
+        compact_grid = QGridLayout()
+        compact_grid.setHorizontalSpacing(14)
+        compact_grid.setVerticalSpacing(8)
+        self.compact_runtime_truth = QLabel("")
+        self.compact_runtime_truth.setObjectName("liveMonitorCompactRuntimeTruth")
+        self.compact_output_truth = QLabel("")
+        self.compact_output_truth.setObjectName("liveMonitorCompactOutputTruth")
+        self.compact_source_truth = QLabel("")
+        self.compact_source_truth.setObjectName("liveMonitorCompactSourceTruth")
+        for row, (label, widget) in enumerate(
+            (
+                ("Runtime truth", self.compact_runtime_truth),
+                ("Output proof", self.compact_output_truth),
+                ("Telemetry source", self.compact_source_truth),
+            )
+        ):
+            key = QLabel(label)
+            key.setObjectName("tableMutedText")
+            widget.setObjectName(widget.objectName())
+            widget.setWordWrap(True)
+            compact_grid.addWidget(key, row, 0)
+            compact_grid.addWidget(widget, row, 1)
+        layout.addLayout(compact_grid)
         self.live_state_label = QLabel("")
         self.live_state_label.setObjectName("liveStateText")
         self.live_state_label.setWordWrap(True)
+        self.live_state_label.setProperty("detailDensity", "diagnostic")
         layout.addWidget(self.live_state_label)
         self.bridge_health_label = QLabel("")
         self.bridge_health_label.setObjectName("bridgeHealthText")
@@ -365,7 +392,13 @@ class LiveMonitorPage(QWidget):
         self.command_status_label.setObjectName("bridgeCommandStatusText")
         self.command_status_label.setWordWrap(True)
         layout.addWidget(self.command_status_label)
+        return frame
 
+    def _build_live_monitor_action_block(self) -> QWidget:
+        frame = card("liveMonitorActionBlock")
+        frame.setProperty("postRc4ePolish", True)
+        layout = card_layout(frame)
+        layout.addWidget(card_header("Bridge Request Actions", "Request files only; telemetry must confirm later."))
         command_grid = QGridLayout()
         command_grid.setHorizontalSpacing(10)
         command_grid.setVerticalSpacing(10)
@@ -398,10 +431,20 @@ class LiveMonitorPage(QWidget):
         self.buttons_hats_label.setObjectName("buttonsHatsText")
         self.buttons_hats_label.setWordWrap(True)
         layout.addWidget(self.buttons_hats_label)
+        compact_button_grid = QGridLayout()
+        compact_button_grid.setHorizontalSpacing(8)
+        compact_button_grid.setVerticalSpacing(8)
+        hotas = self._build_hotas_buttons_card()
+        output = self._build_output_buttons_card()
+        compact_button_grid.addWidget(hotas, 0, 0)
+        compact_button_grid.addWidget(output, 0, 1)
+        layout.addLayout(compact_button_grid)
         return frame
 
     def _build_axis_levels_card(self) -> QWidget:
-        frame = card("axisLevelsCard")
+        frame = card("liveMonitorAxisLevelsVertical")
+        frame.setProperty("legacyObjectName", "axisLevelsCard")
+        frame.setProperty("axisLevelLayout", "vertical-bars")
         layout = card_layout(frame)
         layout.addWidget(card_header("Axis Levels", "Raw and final values for every mapped axis. Blue is raw input, green is final output."))
         grid = QGridLayout()
@@ -430,7 +473,7 @@ class LiveMonitorPage(QWidget):
             self.axis_level_widgets[axis_name] = axis_row
             self._axis_value_labels[axis_name] = (raw_label, final_label)
             self._axis_bars[axis_name] = (raw_bar, final_bar)
-            grid.addWidget(axis_row, row // 2, row % 2)
+            grid.addWidget(axis_row, 0, row)
         layout.addLayout(grid)
         return frame
 
@@ -719,6 +762,11 @@ class LiveMonitorPage(QWidget):
             "Output path remains unverified. vJoy writes are not active unless the Phase 15C output loop is explicitly enabled with a verified backend. "
             f"Full Live Runtime Ready {_runtime_frame_full_ready(runtime_frame)}."
         )
+        self.compact_runtime_truth.setText(runtime_truth)
+        self.compact_output_truth.setText(
+            f"Output verified: {str(output_verified).lower()} | Full Live Runtime Ready: {_runtime_frame_full_ready(runtime_frame)}"
+        )
+        self.compact_source_truth.setText(f"{self.telemetry_source_label} ({bridge_result.status.value})")
         self.bridge_health_label.setText(
             self._bridge_health_text(
                 bridge_result,

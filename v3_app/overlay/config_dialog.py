@@ -8,8 +8,12 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
+    QFrame,
     QGridLayout,
     QLabel,
+    QLineEdit,
+    QPushButton,
+    QScrollArea,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -18,6 +22,61 @@ from PySide6.QtWidgets import (
 from shared_core.models.runtime import AXIS_NAMES
 from v3_app.overlay.overlay_config import LiveOverlayConfig, OverlayAxisConfig
 from v3_app.pages.page_helpers import apply_parameter_metadata, card, card_header, card_layout, parameter_label
+
+
+OVERLAY_PRESET_NAMES = ("Regular", "Compact", "High Contrast", "Telemetry Focus", "Minimal", "Custom")
+_OVERLAY_PRESETS: dict[str, dict[str, object]] = {
+    "Regular": {
+        "history_seconds": 7.5,
+        "height": 0.6,
+        "opacity": 0.66,
+        "background": 0.82,
+        "line_thickness": 2.8,
+        "show_legend": True,
+        "show_live_values": True,
+        "fps_cap": 60,
+    },
+    "Compact": {
+        "history_seconds": 7.0,
+        "height": 0.42,
+        "opacity": 0.74,
+        "background": 0.88,
+        "line_thickness": 2.4,
+        "show_legend": False,
+        "show_live_values": True,
+        "fps_cap": 60,
+    },
+    "High Contrast": {
+        "history_seconds": 7.0,
+        "height": 0.62,
+        "opacity": 0.82,
+        "background": 0.94,
+        "line_thickness": 3.5,
+        "show_legend": True,
+        "show_live_values": True,
+        "fps_cap": 60,
+    },
+    "Telemetry Focus": {
+        "history_seconds": 10.0,
+        "height": 0.68,
+        "opacity": 0.70,
+        "background": 0.86,
+        "line_thickness": 2.6,
+        "show_legend": True,
+        "show_live_values": False,
+        "fps_cap": 48,
+    },
+    "Minimal": {
+        "history_seconds": 5.0,
+        "height": 0.32,
+        "opacity": 0.58,
+        "background": 0.76,
+        "line_thickness": 2.0,
+        "show_legend": False,
+        "show_live_values": False,
+        "fps_cap": 30,
+    },
+}
 
 
 class LiveOverlayConfigDialog(QDialog):
@@ -30,13 +89,17 @@ class LiveOverlayConfigDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self.setObjectName("liveOverlayConfigDialog")
+        self.setProperty("postRc4eStyled", True)
         self.setWindowTitle("Live Overlay Configuration - HOTAS Control Panel V3")
-        self.setMinimumSize(780, 620)
+        self.setMinimumSize(780, 520)
+        self.resize(820, 560)
         self.setSizeGripEnabled(True)
         self._on_apply = on_apply
         self._draft = config
         self._axis_include_boxes: dict[str, QCheckBox] = {}
         self._axis_color_labels: dict[str, QLabel] = {}
+        self._loading = False
+        self._custom_counter = 0
 
         root = QVBoxLayout(self)
         root.setContentsMargins(22, 20, 22, 22)
@@ -48,11 +111,25 @@ class LiveOverlayConfigDialog(QDialog):
         intro.setObjectName("cardBody")
         intro.setWordWrap(True)
         root.addWidget(intro)
-        root.addWidget(self._placement_card())
-        root.addWidget(self._appearance_card())
-        root.addWidget(self._behavior_card())
-        root.addWidget(self._data_card())
-        root.addWidget(self._axes_card())
+        root.addWidget(self._preset_card())
+
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setObjectName("liveOverlayConfigScrollArea")
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        scroll_content = QWidget()
+        scroll_content.setObjectName("liveOverlayConfigScrollContent")
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setContentsMargins(0, 0, 0, 0)
+        scroll_layout.setSpacing(14)
+        scroll_layout.addWidget(self._placement_card())
+        scroll_layout.addWidget(self._appearance_card())
+        scroll_layout.addWidget(self._behavior_card())
+        scroll_layout.addWidget(self._data_card())
+        scroll_layout.addWidget(self._axes_card())
+        scroll_layout.addStretch(1)
+        self.scroll_area.setWidget(scroll_content)
+        root.addWidget(self.scroll_area, 1)
 
         self.buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok
@@ -67,6 +144,31 @@ class LiveOverlayConfigDialog(QDialog):
             restore.clicked.connect(self.restore_defaults)
         root.addWidget(self.buttons)
         self._load_config(self._draft)
+
+    def _preset_card(self) -> QWidget:
+        frame = card("liveOverlayPresetCard")
+        layout = card_layout(frame)
+        layout.addWidget(card_header("Presets", "Preset changes update this local overlay configuration draft only."))
+        row = QGridLayout()
+        row.setHorizontalSpacing(10)
+        row.setVerticalSpacing(8)
+        self.preset_dropdown = QComboBox()
+        self.preset_dropdown.setObjectName("liveOverlayPresetDropdown")
+        self.preset_dropdown.addItems(OVERLAY_PRESET_NAMES)
+        self.preset_dropdown.currentTextChanged.connect(self._apply_preset)
+        self.preset_name_input = QLineEdit()
+        self.preset_name_input.setObjectName("liveOverlayPresetNameInput")
+        self.preset_name_input.setPlaceholderText("Custom preset name")
+        self.save_preset_button = QPushButton("Save Preset")
+        self.save_preset_button.setObjectName("liveOverlaySavePresetButton")
+        self.save_preset_button.setProperty("uiRole", "actionButton")
+        self.save_preset_button.clicked.connect(self.save_custom_preset)
+        row.addWidget(parameter_label("Presets", metadata_id="live_overlay.preset"), 0, 0)
+        row.addWidget(self.preset_dropdown, 0, 1)
+        row.addWidget(self.preset_name_input, 0, 2)
+        row.addWidget(self.save_preset_button, 0, 3)
+        layout.addLayout(row)
+        return frame
 
     def _placement_card(self) -> QWidget:
         frame = card("overlayPlacementCard")
@@ -201,6 +303,21 @@ class LiveOverlayConfigDialog(QDialog):
         layout.addLayout(grid)
         return frame
 
+    def save_custom_preset(self) -> None:
+        name = self.preset_name_input.text().strip()
+        if not name:
+            self._custom_counter += 1
+            name = f"Custom {self._custom_counter}"
+        existing = {self.preset_dropdown.itemText(index) for index in range(self.preset_dropdown.count())}
+        base = name
+        suffix = 2
+        while name in existing:
+            name = f"{base} {suffix}"
+            suffix += 1
+        self.preset_dropdown.addItem(name)
+        self.preset_dropdown.setCurrentText(name)
+        self.setProperty("selectedPreset", name)
+
     def restore_defaults(self) -> None:
         self._draft = LiveOverlayConfig.defaults()
         self._load_config(self._draft)
@@ -225,6 +342,7 @@ class LiveOverlayConfigDialog(QDialog):
                 "click_through": self.click_through.isChecked(),
                 "fps_cap": self.fps_cap.value(),
                 "history_seconds": self.history.value(),
+                "preset": self.preset_dropdown.currentText() or "Custom",
                 "axes": {
                     axis: OverlayAxisConfig(
                         include=box.isChecked(),
@@ -237,6 +355,11 @@ class LiveOverlayConfigDialog(QDialog):
         return LiveOverlayConfig.from_dict(payload)
 
     def _load_config(self, config: LiveOverlayConfig) -> None:
+        self._loading = True
+        if config.preset and self.preset_dropdown.findText(config.preset) < 0:
+            self.preset_dropdown.addItem(config.preset)
+        self.preset_dropdown.setCurrentText(config.preset or "Custom")
+        self.setProperty("selectedPreset", self.preset_dropdown.currentText())
         self.margin.setValue(config.margin_px)
         self.height.setValue(config.height)
         self.opacity.setValue(config.opacity)
@@ -252,6 +375,59 @@ class LiveOverlayConfigDialog(QDialog):
         for axis, box in self._axis_include_boxes.items():
             box.setChecked(config.axes[axis].include)
             self._axis_color_labels[axis].setText(config.axes[axis].color)
+        self._connect_custom_markers()
+        self._loading = False
+
+    def _apply_preset(self, name: str) -> None:
+        if self._loading:
+            self.setProperty("selectedPreset", name)
+            return
+        preset = _OVERLAY_PRESETS.get(name)
+        if preset is None:
+            self.setProperty("selectedPreset", name or "Custom")
+            return
+        self._loading = True
+        self.history.setValue(float(preset["history_seconds"]))
+        self.height.setValue(float(preset["height"]))
+        self.opacity.setValue(float(preset["opacity"]))
+        self.background.setValue(float(preset["background"]))
+        self.line_thickness.setValue(float(preset["line_thickness"]))
+        self.show_legend.setChecked(bool(preset["show_legend"]))
+        self.show_values.setChecked(bool(preset["show_live_values"]))
+        self.fps_cap.setValue(int(preset["fps_cap"]))
+        self._loading = False
+        self.setProperty("selectedPreset", name)
+
+    def _connect_custom_markers(self) -> None:
+        for widget in (
+            self.margin,
+            self.height,
+            self.opacity,
+            self.background,
+            self.line_thickness,
+            self.show_legend,
+            self.show_values,
+            self.auto_hide,
+            self.always_on_top,
+            self.click_through,
+            self.fps_cap,
+            self.history,
+            *self._axis_include_boxes.values(),
+        ):
+            if widget.property("customMarkerConnected"):
+                continue
+            if isinstance(widget, QCheckBox):
+                widget.toggled.connect(self._mark_custom)
+            else:
+                widget.valueChanged.connect(self._mark_custom)
+            widget.setProperty("customMarkerConnected", True)
+
+    def _mark_custom(self) -> None:
+        if self._loading:
+            return
+        if self.preset_dropdown.currentText() != "Custom":
+            self.preset_dropdown.setCurrentText("Custom")
+        self.setProperty("selectedPreset", "Custom")
 
     def showEvent(self, event) -> None:  # noqa: N802
         self._load_config(self._draft)

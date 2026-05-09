@@ -6,6 +6,8 @@ Status vocabulary: Fixed, Partial, Not Fixed, Deferred, Cannot Verify Without Vi
 
 Post-RC 4D update: the Mapping, Profiles, Modes, Base Tuning, Filtering, Combat Profile, Conditional Rules, and Effective Response Stack sections were re-audited for control-editing page polish. Rows in those sections use "Fix included in 4D" language where this pass changed or verified code.
 
+Post-RC 4E update: Live Monitor, Live Overlay, Flight Recorder, Help / Docs, and Perf / Diagnostics were re-audited for runtime/status-heavy walkthrough polish and final acceptance prep. Rows in those sections use "Fix included in 4E" language where this pass changed or verified code.
+
 ## Global / Shell
 
 | Original issue summary | Current status | Evidence from code or tests | Fix included in 4C | Deferred phase | Notes |
@@ -123,45 +125,79 @@ Post-RC 4D update: the Mapping, Profiles, Modes, Base Tuning, Filtering, Combat 
 
 ## Live Monitor
 
-| Original issue summary | Current status | Evidence from code or tests | Fix included in 4C | Deferred phase | Notes |
+| Original issue summary | Current status | Evidence from code or tests | Fix included in 4E | Deferred phase | Notes |
 |---|---|---|---|---|---|
-| Graphs should read at 30/60 Hz and scroll 7 seconds. | Deferred | Would change telemetry/runtime rendering behavior. | None. | Later runtime/monitor phase | Outside 4C. |
-| Axis dropdown should display options. | Fixed | 1A tests verify `liveMonitorAxisSelector`. | Verified. | None | |
-| Live State block should be less dense. | Partial | 4B added truth notice; deeper layout deferred. | None. | Post-RC 4D | |
-| Buttons in Live State should move to own block. | Deferred | Page-specific layout work. | None. | Post-RC 4D | |
-| Buttons/Hats block too large. | Cannot Verify Without Visible QA | Needs visible layout inspection. | None. | Post-RC 4D | |
-| Axis Levels should rotate 90 degrees. | Deferred | Page-specific chart visual change. | None. | Post-RC 4D or later | |
-| Live Overlay section should be more readable. | Partial | Shared typography and metadata exist. | None. | Post-RC 4D | |
-| Configure menu should be themed/resizable and content fit. | Cannot Verify Without Visible QA | Requires opening the configure dialog. | None. | Post-RC 4D | |
-| Page should be scrollable. | Fixed | Shell wraps pages in `QScrollArea#pageScrollArea`. | Verified. | None | |
-| Add preset dropdown/save custom preset behavior. | Deferred | This is new behavior and persistence-adjacent. | None. | Later explicit feature phase | Outside 4C. |
+| Graphs should read at 30/60 Hz and scroll 7 seconds. | Partial | `liveMonitorGraphCadenceLabel` documents the current diagnostic UI refresh; `LiveOverlayConfig.defaults()` keeps 7.5 seconds and 4E labels the page graph history as 7 seconds. | Added explicit cadence/history labels without changing the runtime telemetry model. | Later runtime/monitor phase | Timer remains 750 ms to avoid changing runtime behavior in a polish pass; true 30/60 Hz graph refresh needs a separate runtime/monitor decision. |
+| Axis dropdown should display options. | Fixed | `liveMonitorAxisSelector` is populated from `AXIS_DISPLAY_NAMES`; 1A and 4E tests verify visible options/current text. | Verified. | None | |
+| Live State block should be less dense. | Partial | `liveMonitorCompactState` now exposes compact runtime truth, output proof, and telemetry-source rows above the diagnostic detail text. | Added compact state rows and 4E test coverage. | Visible QA | Detailed diagnostic text remains available for truth preservation; manual QA should judge final density. |
+| Buttons in Live State should move to own block. | Fixed | 4E adds `liveMonitorActionBlock` for Bridge request buttons outside `liveMonitorCompactState`. | Moved commands into dedicated action card. | None | Buttons remain request-file actions only. |
+| Buttons/Hats block too large. | Partial | HOTAS and output button grids are nested inside the `buttonsHatsCard` summary area instead of occupying a separate large lower grid. | Reduced footprint structurally. | Visible QA | Human QA still needed for perceived size. |
+| Axis Levels should rotate 90 degrees / line up vertically. | Partial | 4E adds `liveMonitorAxisLevelsVertical` with `axisLevelLayout="vertical-bars"` and lays all axis rows across one horizontal row. | Added testable vertical-layout marker and revised layout. | Visible QA | True rotated text/bars are deferred because current progress bars are horizontal Qt widgets. |
+| Live Overlay section should be more readable. | Fixed | `liveOverlayCard` already uses scan rows; 4E keeps truth rows and adds config preset support. | Verified with 4E tests. | None | |
+| Page should be scrollable. | Fixed | Shell wraps pages in `QScrollArea#pageScrollArea`; 1A/4E construction passes offscreen. | Verified. | None | |
+
+## Live Overlay
+
+| Original issue summary | Current status | Evidence from code or tests | Fix included in 4E | Deferred phase | Notes |
+|---|---|---|---|---|---|
+| Configure menu should use dark app background, not white. | Partial | `liveOverlayConfigDialog` now has `postRc4eStyled=True`, scroll-area/content object names, and shared QSS covers dialogs/cards. | Added styled/testable dialog surface. | Visible QA | Offscreen tests cannot prove final perceived color. |
+| Configure dialog default vertical size should be smaller and resizable both ways. | Fixed | `LiveOverlayConfigDialog` minimum height lowered to 520, default `resize(820, 560)`, and `setSizeGripEnabled(True)`. | Implemented. | None | Existing product-polish test updated to the smaller height contract. |
+| Content should fit with no rows squished and page/dialog should be scrollable. | Fixed | 4E wraps cards in `liveOverlayConfigScrollArea` with `widgetResizable=True`. | Implemented. | None | |
+| Presets dropdown next to existing buttons with 5 presets; selecting preset applies rules. | Fixed | `liveOverlayPresetDropdown` lists Regular, Compact, High Contrast, Telemetry Focus, Minimal, and Custom; `_apply_preset()` updates local draft fields. | Implemented local app-owned presets. | None | Presets affect only overlay config draft. |
+| Default preset regular. | Partial | Regular exists as the first preset, but existing accepted defaults and Phase 12A tests still expect `LiveOverlayConfig.defaults().preset == "Custom"`. | Added Regular without breaking the persisted default contract. | Later explicit preset-default migration | Changing the default preset is deferred to avoid breaking established config/backward tests in a polish pass. |
+| Editing settings switches preset to Custom. | Fixed | `_mark_custom()` switches `liveOverlayPresetDropdown` to Custom when supported settings change. | Implemented. | None | |
+| Save custom preset with provided/default name. | Partial | `liveOverlaySavePresetButton` and `liveOverlayPresetNameInput` add a named preset to the current dialog instance, defaulting to `Custom 1`, `Custom 2`, etc. | Implemented dialog-local save. | Later persistence phase | Saved custom presets are not persisted across app launches; no auto-save added. |
 
 ## Flight Recorder
 
-| Original issue summary | Current status | Evidence from code or tests | Fix included in 4C | Deferred phase | Notes |
+| Original issue summary | Current status | Evidence from code or tests | Fix included in 4E | Deferred phase | Notes |
 |---|---|---|---|---|---|
-| Recorder Status block should be displayed better. | Partial | 4B verifies recorder workflow truth cards. | None. | Post-RC 4D | |
-| Recorder Library sort dropdown should show options. | Fixed | 1A tests verify `recordingLibrarySortDropdown` has current text/items. | Verified. | None | |
-| Recorder Settings should be editable dropdowns/inputs. | Partial | Parameter metadata for recorder settings exists; current runtime capture remains simulated/unavailable. | None. | Later explicit recorder settings phase | Must not imply real capture. |
-| Axis Overlay include boxes editable. | Cannot Verify Without Visible QA | Needs page-specific inspection. | None. | Post-RC 4D | |
-| Entire backend including hindsight/capture/buffer should be implemented. | Partial | Post-RC 3A-3F reports exist; hard boundaries forbid runtime capture expansion in 4C. | None. | Later recorder runtime phase | 4C preserves truth boundaries. |
+| Recorder Status block should be displayed better. | Partial | `recorderStatusCard` has `scanFriendlyRows=True`; 4E adds workflow map before proof/buffer/export/review cards. | Added scan-friendly marker and workflow card. | Visible QA | Dense truth rows remain to preserve accepted recorder proof boundaries. |
+| Recorder Library sort dropdown should show options. | Fixed | `recordingLibrarySortDropdown` now lists Newest First, Oldest First, Artifact Type, and Playable First; 4E tests verify. | Added visible options. | None | Sorting behavior itself remains existing scan order unless explicitly expanded later. |
+| Recorder Settings should be editable dropdowns/inputs. | Partial | Record Cursor is now editable and safely updates in-memory `FlightRecorderSettings`; supported button states remain capability-bound. | Enabled supported cursor setting safely. | Later recorder settings phase | Broader destination/frame-rate/source editing is deferred to avoid recorder model churn. |
+| Record Cursor checkbox should be editable if supported. | Fixed | `recordCursorCheckbox` is enabled and toggles the in-memory settings object. | Implemented. | None | No persistence or auto-save added. |
+| Axis Overlay include boxes editable if supported. | Fixed | `recorderAxisInclude_*` checkboxes are enabled and update in-memory axis include settings. | Implemented. | None | No runtime or compositor authority added. |
+| Workflow should distinguish settings/proof/buffer/artifact/export/library. | Fixed | 4E adds `recorderWorkflowMapCard` listing the six workflow steps and truth boundaries. | Implemented. | None | |
+| Distinguish intermediate JSON, image sequence, encoded clip, playable verified clip. | Fixed | Existing 3D/3E/3F labels preserved; 4E strengthens Export / Encoding copy with encoded-clip/playable-verification wording. | Implemented wording polish. | None | |
+| Entire backend including hindsight/capture/buffer should be implemented. | Partial | Post-RC 3A-3F recorder seams exist; 4E intentionally does not add new capture/encoding/storage backend features. | Verified/preserved existing surfaces. | Later recorder runtime phase | Hard boundaries forbid new runtime capture, global hotkeys, or encoder backend work in 4E. |
 
 ## Help / Docs
 
-| Original issue summary | Current status | Evidence from code or tests | Fix included in 4C | Deferred phase | Notes |
+| Original issue summary | Current status | Evidence from code or tests | Fix included in 4E | Deferred phase | Notes |
 |---|---|---|---|---|---|
-| White article backgrounds should match app. | Fixed | QSS includes `QFrame#helpArticleSurface` dark background; 4B tests verify Help page. | Verified. | None | |
-| Pages should display detailed, sectioned topic content. | Fixed | Post-RC 1D report and 4B tests verify parameter reference/readability. | Verified. | None | |
-| Sort dropdown should show options. | Fixed | 1A tests verify `helpDocsSortDropdown`. | Verified. | None | |
-| Categories should be dividers/collapsible folder tree. | Partial | 4B test verifies `helpDocsTopicTree`; deeper category behavior not reworked. | None. | Post-RC 4D | |
+| White article backgrounds should match app. | Fixed | QSS includes dark `QFrame#helpArticleSurface`; 1D/4E tests verify article surface object/properties. | Verified and marked `postRc4eReadable=True`. | None | |
+| Pages should display detailed, sectioned topic content. | Fixed | `HelpArticle.sections`, parameter reference blocks, and 1D tests cover structured sections. | Verified. | None | |
+| Sort dropdown should show options. | Fixed | `HELP_SORT_OPTIONS` and `helpDocsSortDropdown` list five modes; 1D/4E tests verify. | Verified. | None | |
+| Categories should be dividers/collapsible folder tree. | Partial | `helpDocsTopicTree` uses top-level category items with no article `UserRole`; 1D tests verify non-article categories. | Verified existing tree; no architecture redo. | Visible QA | Manual QA should check spacing/selection polish. |
+| Final recorder export/storage truth docs. | Fixed | Help service contains Recorder encoding/export preview and Recorder durable frame storage articles with truth boundaries. | Verified existing 3E/3F docs in 4E scope. | None | |
 
 ## Perf / Diagnostics
 
-| Original issue summary | Current status | Evidence from code or tests | Fix included in 4C | Deferred phase | Notes |
+| Original issue summary | Current status | Evidence from code or tests | Fix included in 4E | Deferred phase | Notes |
 |---|---|---|---|---|---|
-| Runtime Truth block should be sorted/displayed better. | Partial | 4B tests verify diagnostics truth legend and Full Live Runtime Ready wording. | None. | Post-RC 4D | |
-| Bridge / Telemetry block should not match Runtime Truth height. | Cannot Verify Without Visible QA | Requires rendered layout inspection. | None. | Post-RC 4D | |
-| Performance Timings should be expanded/displayed better. | Partial | Existing diagnostics collector/page surface timing data. | None. | Post-RC 4D | |
+| Runtime Truth block should be sorted/displayed better. | Partial | 4E adds `diagnosticsHintProofReadinessLegend` to separate hints, proof, and readiness above detailed cards. | Added evidence-strength legend. | Visible QA | The Runtime Truth row list remains intentionally exhaustive. |
+| Bridge / Telemetry block should not match Runtime Truth height. | Partial | `perfBridgeTelemetryCard` now exposes `cardSizing="content"` and keeps shorter scan rows. | Added content-sizing marker. | Visible QA | Qt grid equalization still needs visible QA. |
+| Performance Timings should be expanded/displayed better. | Partial | `perfTimingCard` has `expandedTimingDisplay=True` and retains page/heartbeat/graph/startup metrics. | Added testable expanded timing marker. | Later diagnostics metrics phase | New metrics were not invented where collector data does not exist. |
+| Diagnostics should distinguish hints, proof, and readiness. | Fixed | 4E legend text explicitly defines Hint, Proof, and Readiness; tests verify. | Implemented. | None | |
+
+## Final Walkthrough Acceptance Summary
+
+| Category | Count | Notes |
+|---|---:|---|
+| Fully Fixed | 45 | Rows with code/test evidence or existing accepted tests covering the issue. |
+| Partially Fixed | 28 | Rows improved structurally or textually but still needing visible QA or larger follow-up. |
+| Deferred | 5 | Rows requiring runtime/animation/persistence/backend changes outside 4E. |
+| Cannot Verify Without Visible QA | 4 | Remaining perception/layout items that need a real desktop walkthrough. |
+
+## Recommended 5A manual visible QA checks
+
+| Area | Check |
+|---|---|
+| Live Monitor | Verify graph readability, compact-state density, command-card placement, Buttons/Hats footprint, and axis-level orientation on a real desktop. |
+| Live Overlay | Open Configure and verify dark styling, scroll behavior, preset application, custom naming, and row spacing at default and resized dimensions. |
+| Flight Recorder | Verify workflow scan order, status-card readability, library dropdown rendering, editable cursor/axis include controls, and disabled-button explanations. |
+| Help / Docs | Verify topic-tree spacing/selection, article typography, parameter-reference blocks, search behavior, sort behavior, and page navigation buttons. |
+| Perf / Diagnostics | Verify Runtime Truth grouping, Bridge/Telemetry height/content sizing, Performance Timings readability, and Hint/Proof/Readiness legend clarity. |
 
 ## Bottom Bar
 

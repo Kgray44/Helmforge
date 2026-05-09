@@ -526,6 +526,7 @@ AUXILIARY_ARTICLES = (
         summary="Use the app-owned detached overlay without mistaking it for game injection or capture.",
         keywords=("live overlay", "overlay", "hotkey", "click-through", "detached"),
         related_topics=("Live Monitor", "Flight Recorder", "Runtime Indicators"),
+        open_page_id="live_monitor",
         paragraphs=(
             "Live Overlay is an app-owned detached Qt overlay window that can render simulation or telemetry-backed traces already available to the UI. It does not inject into games, hook graphics APIs, capture the screen, or prove output writes.",
             "Hotkey status, click-through support, always-on-top behavior, and active/inactive state are truth-labeled. A visible overlay means the overlay window is visible; it does not mean physical input, vJoy output, or Full Live Runtime Ready have been proven.",
@@ -538,6 +539,7 @@ AUXILIARY_ARTICLES = (
         summary="Inspect simulation, Bridge telemetry, runtime frame, physical input sample, and output-intent truth.",
         keywords=("live monitor", "runtime_frame", "telemetry", "input source", "output intent"),
         related_topics=("Runtime Indicators", "Runtime Setup / vJoy Setup", "Mapping"),
+        open_page_id="live_monitor",
         paragraphs=(
             "Live Monitor can display runtime_frame input source, pipeline status, output intent readiness, output loop state, and last output write status when fresh Bridge telemetry includes the compact Phase 16B runtime_frame section.",
             "Phase 16C adds input proof, pipeline proof, output proof, runtime candidate, blocked reason, and proof summary. If output loop is disabled, Live Monitor labels final values as intent only. If physical input is stale or missing, the frame remains blocked or falls back safely instead of claiming live readiness.",
