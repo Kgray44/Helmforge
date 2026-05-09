@@ -246,8 +246,12 @@ def test_phase10a_boundaries_remain_frozen():
         if "v3_app" in path.parts and ("helm" in path.parts or path.name in {"shell.py", "header.py"})
     )
 
-    for token in ("UpdateVJD", "SetAxis", "SetBtn", "AcquireVJD"):
-        assert token not in combined
+    shared_vjoy_source = (PROJECT_ROOT / "shared_core" / "runtime" / "vjoy_output.py").read_text(encoding="utf-8")
+    for token in ("SetAxis", "SetBtn", "AcquireVJD"):
+        assert token in shared_vjoy_source
+        assert token not in bridge_sources
+        assert token not in helm_sources
+    assert "UpdateVJD" not in combined
     for token in ("subprocess.Popen", "QProcess", "startDetached", "Start-Process"):
         assert token not in helm_sources
     for token in ("win32serviceutil", "schtasks", "pystray"):

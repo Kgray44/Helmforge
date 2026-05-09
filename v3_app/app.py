@@ -6,6 +6,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QMainWindow
 
 from v3_app.services.app_state import AppState
+from v3_app.services.embedded_bridge_runtime import EmbeddedBridgeRuntime
 from v3_app.theme.qss import app_qss
 from v3_app.theme.tokens import Layout
 from v3_app.ui.shell import HelmForgeShell
@@ -32,8 +33,23 @@ class HelmForgeMainWindow(QMainWindow):
         if icon_file.exists():
             self.setWindowIcon(QIcon(str(icon_file)))
         self.shell = HelmForgeShell(state)
+        self.embedded_bridge_runtime = None
+        self._embedded_bridge_started = False
+        if state is None:
+            self.embedded_bridge_runtime = EmbeddedBridgeRuntime(on_telemetry=self.shell.apply_bridge_telemetry, parent=self)
         self.setCentralWidget(self.shell)
         self.setStyleSheet(app_qss())
+
+    def showEvent(self, event) -> None:  # type: ignore[override]
+        super().showEvent(event)
+        if self.embedded_bridge_runtime is not None and not self._embedded_bridge_started:
+            self.embedded_bridge_runtime.start()
+            self._embedded_bridge_started = True
+
+    def closeEvent(self, event) -> None:  # type: ignore[override]
+        if self.embedded_bridge_runtime is not None:
+            self.embedded_bridge_runtime.stop()
+        super().closeEvent(event)
 
 
 def build_window(*, title: str, state: AppState | None = None) -> HelmForgeMainWindow:

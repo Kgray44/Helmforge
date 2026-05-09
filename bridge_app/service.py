@@ -12,6 +12,7 @@ from bridge_app.state import BridgeProcessState, lifecycle_for_preflight
 from shared_core.math.pipeline import WorkspaceSignalPipeline
 from shared_core.math.stack import ModeState
 from shared_core.models.runtime import RuntimePreflightStatus
+from shared_core.models.runtime import InputDeviceDetection, InputStatus, OutputBackendDetection, OutputStatus, RuntimeMode, RuntimeTruth
 from shared_core.rules.evaluator import status_counts
 from shared_core.runtime.bridge_contracts import BridgeCommandRequest, BridgeCommandType
 from shared_core.runtime.bridge_lifecycle import BridgeLifecycleState
@@ -21,7 +22,9 @@ from shared_core.runtime.hotas_discovery import (
     HotasDiscoveryResult,
     discover_supported_hotas,
 )
+from shared_core.runtime.hotas_input import PhysicalInputBackend, PhysicalInputSampler, build_default_physical_input_backend
 from shared_core.runtime.runtime_orchestrator import RuntimeOrchestrator, RuntimeOrchestratorConfig
+from shared_core.runtime.runtime_orchestrator import RuntimeFrameSource
 from shared_core.runtime.simulated_runtime import SimulatedRuntime
 from shared_core.runtime.telemetry import (
     AxisTelemetrySnapshot,
@@ -32,6 +35,8 @@ from shared_core.runtime.telemetry import (
     OutputVerificationState,
     RuleStateSummary,
 )
+from shared_core.runtime.vjoy_output import RealVJoyOutputBackend, VirtualOutputBackend, VirtualOutputWriteLoop, build_safe_vjoy_verification_intent
+from shared_core.runtime.vjoy_output import VirtualOutputVerificationResult
 
 
 @dataclass(frozen=True)
@@ -40,9 +45,15 @@ class BridgeServiceOptions:
     command_path: Path = DEFAULT_COMMAND_PATH
     config_path: Path | None = None
     simulate: bool = True
-    tick_interval_ms: int = 50
+    tick_interval_ms: int = 16
     command_stale_after_seconds: int = 30
     discovery_backend: DeviceDiscoveryBackend | None = None
+    physical_input_backend: PhysicalInputBackend | None = None
+    virtual_output_backend: VirtualOutputBackend | None = None
+    enable_live_input: bool = True
+    enable_output_verification: bool = True
+    enable_output_loop: bool = True
+    clock: object | None = None
 
 
 class BridgeService:
@@ -63,21 +74,22 @@ class BridgeService:
         )
         self.pipeline = WorkspaceSignalPipeline(self.config.workspace)
         self.pipeline_state = self.pipeline.initial_state()
+        self.physical_input_backend = self.options.physical_input_backend or build_default_physical_input_backend()
+        self.physical_sampler: PhysicalInputSampler | None = None
+        self.virtual_output_backend = self.options.virtual_output_backend or RealVJoyOutputBackend()
+        self.virtual_output_verification = None
+        self.virtual_output_loop: VirtualOutputWriteLoop | None = None
         self._stop_requested = False
         self._consumed_command_request_ids: set[str] = set()
         self._last_command: BridgeCommandStatusSnapshot | None = None
         self.command_execution_count = 0
         self.refresh_device_discovery()
+        self._refresh_runtime_io()
 
     def reload_config(self, config_path: str | Path | None = None) -> None:
         requested_path = Path(config_path) if config_path else self.options.config_path
         self.config = load_bridge_workspace(requested_path)
         self.simulation = SimulatedRuntime(deterministic=False, workspace=self.config.workspace)
-        self.runtime_orchestrator = RuntimeOrchestrator(
-            workspace=self.config.workspace,
-            runtime_status=self.runtime_status,
-            config=RuntimeOrchestratorConfig(deterministic_simulation=False),
-        )
         self.pipeline = WorkspaceSignalPipeline(self.config.workspace)
         self.pipeline_state = self.pipeline.initial_state()
         self.state = self.state.with_messages(warnings=self.config.warnings, errors=self.config.errors)
@@ -85,6 +97,7 @@ class BridgeService:
     def run_once(self) -> BridgeTelemetrySnapshot:
         self._consume_pending_command()
         self.refresh_device_discovery()
+        self._refresh_runtime_io()
 
         lifecycle_state = BridgeLifecycleState.STOPPING if self._stop_requested else lifecycle_for_preflight(
             self.runtime_status,
@@ -93,10 +106,9 @@ class BridgeService:
         self.state = self.state.with_lifecycle(
             lifecycle_state,
             self.runtime_status,
-            message="Simulation-only Bridge tick completed.",
+            message="Bridge tick completed.",
         )
-        snapshot = self.simulation.snapshot(self.runtime_status)
-        telemetry = self._telemetry_from_snapshot(snapshot, lifecycle_state)
+        telemetry = self._telemetry_from_runtime(lifecycle_state)
         write_telemetry(self.options.telemetry_path, self._telemetry_payload(telemetry))
         self.state = self.state.next_tick()
         return telemetry
@@ -140,6 +152,64 @@ class BridgeService:
         input_names = (self.device_discovery.device_name,) if self.device_discovery.matched and self.device_discovery.device_name else ()
         self.runtime_status = build_runtime_preflight_status(input_device_names=input_names)
         return self.device_discovery
+
+    def _refresh_runtime_io(self) -> None:
+        latest_snapshot = None
+        selected_device_id = self._select_physical_device_id()
+        if self.options.enable_live_input and selected_device_id:
+            if self.physical_sampler is None or self.physical_sampler.selected_device_id != selected_device_id:
+                if self.physical_sampler is not None:
+                    self.physical_sampler.close()
+                self.physical_sampler = PhysicalInputSampler(self.physical_input_backend, selected_device_id=selected_device_id)
+                self.physical_sampler.open()
+            latest_snapshot = self.physical_sampler.read_once()
+        elif self.physical_sampler is not None:
+            self.physical_sampler.close()
+            self.physical_sampler = None
+
+        if self.options.simulate or not self.options.enable_output_verification:
+            self.virtual_output_verification = None
+        elif self.virtual_output_verification is None or not self.virtual_output_verification.real_output_verified:
+            self.virtual_output_verification = self.virtual_output_backend.verify_output_write(
+                build_safe_vjoy_verification_intent()
+            )
+        self.virtual_output_loop = VirtualOutputWriteLoop(
+            backend=self.virtual_output_backend,
+            verification=self.virtual_output_verification,
+            clock=self.options.clock,
+        )
+        if self.options.enable_output_loop and not self.options.simulate and latest_snapshot is not None and latest_snapshot.sampling_active:
+            self.virtual_output_loop.enable()
+        else:
+            self.virtual_output_loop.disable()
+
+        self.runtime_status = _runtime_status_for_live_chain(
+            base=self.runtime_status,
+            physical_snapshot=latest_snapshot,
+            output_verification=self.virtual_output_verification,
+        )
+        self.runtime_orchestrator = RuntimeOrchestrator(
+            workspace=self.config.workspace,
+            runtime_status=self.runtime_status,
+            physical_input_snapshot=latest_snapshot,
+            virtual_output_backend=self.virtual_output_backend,
+            virtual_output_verification=self.virtual_output_verification,
+            virtual_output_loop=self.virtual_output_loop,
+            config=RuntimeOrchestratorConfig(
+                preferred_input_source=RuntimeFrameSource.PHYSICAL if latest_snapshot is not None else RuntimeFrameSource.SIMULATION,
+                deterministic_simulation=False,
+                allow_simulation_fallback=True,
+                allow_output_loop_tick=bool(self.options.enable_output_loop),
+            ),
+            clock=self.options.clock,
+        )
+
+    def _select_physical_device_id(self) -> str | None:
+        if self.options.simulate or not self.options.enable_live_input:
+            return None
+        devices = self.physical_input_backend.enumerate_devices()
+        supported = next((device for device in devices if device.is_supported), None)
+        return supported.device_id if supported is not None else None
 
     def _consume_pending_command(self) -> None:
         command = read_command(self.options.command_path)
@@ -197,9 +267,21 @@ class BridgeService:
             message=f"{command.command.value} command completed by simulation-only Bridge.",
         )
 
-    def _telemetry_from_snapshot(self, snapshot, lifecycle_state: BridgeLifecycleState) -> BridgeTelemetrySnapshot:
+    def _telemetry_from_runtime(self, lifecycle_state: BridgeLifecycleState) -> BridgeTelemetrySnapshot:
+        frame = self.runtime_orchestrator.build_frame()
+        raw_axes = dict(frame.pipeline.raw_axis_values)
+        final_axes = dict(frame.pipeline.final_output_values)
+        buttons = {f"B{index}": False for index in range(1, 16)}
+        if self.physical_sampler is not None and self.physical_sampler.latest_snapshot is not None:
+            for button in self.physical_sampler.latest_snapshot.buttons:
+                name = f"B{button.button_index}"
+                if name in buttons:
+                    buttons[name] = bool(button.pressed)
+        hat_state = "Centered"
+        if self.physical_sampler is not None and self.physical_sampler.latest_snapshot is not None and self.physical_sampler.latest_snapshot.hats:
+            hat_state = self.physical_sampler.latest_snapshot.hats[0].normalized_direction
         pipeline_result = self.pipeline.process(
-            snapshot.raw_axis_values,
+            raw_axes,
             mode_state=ModeState(),
             state=self.pipeline_state,
         )
@@ -210,30 +292,26 @@ class BridgeService:
             blocked_count=counts["blocked"],
             disabled_count=counts["disabled"],
         )
-        runtime_frame = self.runtime_orchestrator.build_frame_from_runtime_snapshot(
-            snapshot,
-            runtime_status=self.runtime_status,
-        )
         return BridgeTelemetrySnapshot(
             runtime_truth=self.runtime_status.truth,
             lifecycle_state=lifecycle_state,
             input_status=self.runtime_status.input.status,
             output_status=self.runtime_status.output.status,
-            raw_axes=AxisTelemetrySnapshot(snapshot.raw_axis_values),
-            final_axes=AxisTelemetrySnapshot(snapshot.final_output_values),
+            raw_axes=AxisTelemetrySnapshot(raw_axes),
+            final_axes=AxisTelemetrySnapshot(final_axes),
             controls=ButtonHatTelemetrySnapshot(
-                buttons=snapshot.button_states,
-                hats={"HOTAS Hat": snapshot.hat_state, "Output Hat": snapshot.hat_state},
+                buttons=buttons,
+                hats={"HOTAS Hat": hat_state, "Output Hat": hat_state},
             ),
             active_modes=ModeStateTelemetrySnapshot(),
             active_profile="Current Workspace",
             rule_summary=rule_summary,
             output_verification=OutputVerificationState(
-                verified=False,
+                verified=self.runtime_status.live_output_writes_verified,
                 backend_name=self.runtime_status.detected_output_backend_name,
-                message="Live output writes are not verified.",
+                message="Live output writes are verified." if self.runtime_status.live_output_writes_verified else "Live output writes are not verified.",
             ),
-            runtime_frame=runtime_frame.to_telemetry_dict(sequence=self.state.tick_count + 1),
+            runtime_frame=frame.to_telemetry_dict(sequence=self.state.tick_count + 1),
             last_command=self._last_command,
             device_discovery=self.device_discovery,
             warnings=(*self.runtime_status.warnings, *self.state.warnings),
@@ -255,3 +333,48 @@ class BridgeService:
             }
         )
         return payload
+
+
+def _runtime_status_for_live_chain(
+    *,
+    base: RuntimePreflightStatus,
+    physical_snapshot,
+    output_verification: VirtualOutputVerificationResult | None,
+) -> RuntimePreflightStatus:
+    input_detected = physical_snapshot is not None and physical_snapshot.sampling_active
+    output_verified = bool(output_verification and output_verification.real_output_verified)
+    output_name = output_verification.backend_name if output_verification is not None else base.detected_output_backend_name
+    input_detection = InputDeviceDetection(
+        status=InputStatus.DETECTED if input_detected else base.input.status,
+        detected_device_names=(physical_snapshot.device_name,) if input_detected else base.detected_device_names,
+        messages=("Physical HOTAS sample is active.",) if input_detected else base.input.messages,
+        warnings=base.input.warnings,
+        errors=base.input.errors,
+    )
+    output_detection = OutputBackendDetection(
+        status=OutputStatus.OUTPUT_VERIFIED if output_verified else base.output.status,
+        backend_name=output_name,
+        live_output_writes_verified=output_verified,
+        messages=("Real vJoy guarded verification succeeded.",) if output_verified else base.output.messages,
+        warnings=base.output.warnings,
+        errors=base.output.errors,
+    )
+    if input_detected and output_verified:
+        return RuntimePreflightStatus(
+            mode=RuntimeMode.FULL_LIVE,
+            truth=RuntimeTruth.LIVE_VERIFIED,
+            input=input_detection,
+            output=output_detection,
+            messages=("Physical HOTAS input and real vJoy output verification are active.",),
+            warnings=(),
+            errors=base.errors,
+        )
+    return RuntimePreflightStatus(
+        mode=RuntimeMode.SIMULATED,
+        truth=base.truth,
+        input=input_detection,
+        output=output_detection,
+        messages=base.messages,
+        warnings=base.warnings,
+        errors=base.errors,
+    )

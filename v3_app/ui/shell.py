@@ -6,10 +6,17 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QScrollArea, QStackedWidget, QVBoxLayout, QWidget
 
-from shared_core.models.runtime import RuntimePreflightStatus
+from shared_core.models.runtime import (
+    InputDeviceDetection,
+    OutputBackendDetection,
+    RuntimeMode,
+    RuntimePreflightStatus,
+    RuntimeTruth,
+)
 from shared_core.models.workspace import CONFIG_FILENAME, WorkspaceConfig, create_default_workspace
 from shared_core.persistence.workspace_store import WorkspaceJsonError, load_workspace, save_workspace
 from shared_core.runtime.device_discovery import build_runtime_preflight_status
+from shared_core.runtime.telemetry import BridgeTelemetrySnapshot
 from v3_app.pages.base_tuning_page import BaseTuningPage
 from v3_app.pages.combat_profile_page import CombatProfilePage
 from v3_app.pages.conditional_rules_page import ConditionalRulesPage
@@ -25,6 +32,7 @@ from v3_app.pages.perf_diagnostics_page import PerfDiagnosticsPage
 from v3_app.pages.profiles_page import ProfilesPage
 from v3_app.helm.helm_overlay import HelmOverlay
 from v3_app.services.app_state import AppState, build_initial_app_state
+from v3_app.services.bridge_client import BridgeTelemetryClient
 from v3_app.services.perf_diagnostics import DiagnosticsCollector
 from v3_app.ui.footer import Footer
 from v3_app.ui.header import Header
@@ -45,10 +53,11 @@ class HelmForgeShell(QWidget):
         self.setObjectName("helmforgeShell")
         self.state = state or build_initial_app_state()
         self.workspace_path = Path(workspace_path or CONFIG_FILENAME)
+        self._bridge_telemetry_path = None if state is None else self.workspace_path.parent / f".{self.workspace_path.name}.fixture_bridge_telemetry.json"
         self.workspace = workspace or self._load_initial_workspace()
         self._last_saved_workspace = self.workspace
         self.state.source_config = str(self.workspace_path)
-        self.runtime_status = runtime_status or build_runtime_preflight_status()
+        self.runtime_status = runtime_status or _runtime_status_from_state(self.state)
         self.active_page_id = self.state.active_page_id
         self.page_widgets: dict[str, QScrollArea] = {}
         self.helm_overlay: HelmOverlay | None = None
@@ -165,7 +174,11 @@ class HelmForgeShell(QWidget):
         if page_id == "effective_response_stack":
             return EffectiveResponseStackPage(**common, diagnostics_collector=self.diagnostics_collector)
         if page_id == "live_monitor":
-            return LiveMonitorPage(**common, diagnostics_collector=self.diagnostics_collector)
+            return LiveMonitorPage(
+                **common,
+                diagnostics_collector=self.diagnostics_collector,
+                telemetry_path=self._bridge_telemetry_path,
+            )
         if page_id == "flight_recorder":
             return FlightRecorderPage(**common)
         if page_id == "help_docs":
@@ -175,6 +188,9 @@ class HelmForgeShell(QWidget):
                 **common,
                 workspace_path=self.workspace_path,
                 diagnostics_collector=self.diagnostics_collector,
+                telemetry_client=BridgeTelemetryClient(telemetry_path=self._bridge_telemetry_path)
+                if self._bridge_telemetry_path is not None
+                else None,
             )
         return create_placeholder_page(page, runtime_label=self.state.runtime.runtime_card_label)
 
@@ -191,6 +207,19 @@ class HelmForgeShell(QWidget):
     def set_status_message(self, message: str) -> None:
         self.state.status_message = message
         self.footer.update_state(self.state, page_definition_by_id(self.active_page_id))
+
+    def apply_bridge_telemetry(self, telemetry: BridgeTelemetrySnapshot) -> None:
+        self.runtime_status = _runtime_status_from_bridge_telemetry(telemetry)
+        self.state.runtime = AppState.from_runtime_status(
+            self.runtime_status,
+            driver_detected=self.state.runtime.driver_detected,
+        ).runtime
+        self.header.update_state(self.state)
+        self.footer.update_state(self.state, page_definition_by_id(self.active_page_id))
+        scroll = self.page_widgets.get(self.active_page_id)
+        content = scroll.widget() if scroll is not None else None
+        if hasattr(content, "update_runtime_status"):
+            content.update_runtime_status(self.runtime_status)
 
     def import_profile_placeholder(self) -> None:
         self.set_status_message("Import Profile is reserved for a later import phase; no workspace file was changed.")
@@ -258,6 +287,40 @@ class HelmForgeShell(QWidget):
         content = self.page_widgets[page_id].widget()
         if hasattr(content, "refresh_diagnostics"):
             content.refresh_diagnostics()
+
+
+def _runtime_status_from_state(state: AppState) -> RuntimePreflightStatus:
+    if state is None:
+        return build_runtime_preflight_status()
+    return RuntimePreflightStatus(
+        mode=RuntimeMode.FULL_LIVE
+        if state.runtime.truth is RuntimeTruth.LIVE_VERIFIED and state.runtime.output_verified
+        else RuntimeMode.SIMULATED,
+        truth=state.runtime.truth,
+        input=InputDeviceDetection(status=state.runtime.input_status),
+        output=OutputBackendDetection(
+            status=state.runtime.output_status,
+            backend_name=state.runtime.backend_name,
+            live_output_writes_verified=state.runtime.output_verified,
+        ),
+    )
+
+
+def _runtime_status_from_bridge_telemetry(telemetry: BridgeTelemetrySnapshot) -> RuntimePreflightStatus:
+    return RuntimePreflightStatus(
+        mode=RuntimeMode.FULL_LIVE
+        if telemetry.runtime_truth is RuntimeTruth.LIVE_VERIFIED and telemetry.output_verified
+        else RuntimeMode.SIMULATED,
+        truth=telemetry.runtime_truth,
+        input=InputDeviceDetection(status=telemetry.input_status),
+        output=OutputBackendDetection(
+            status=telemetry.output_status,
+            backend_name=telemetry.output_verification.backend_name,
+            live_output_writes_verified=telemetry.output_verified,
+        ),
+        warnings=telemetry.warnings,
+        errors=telemetry.errors,
+    )
 
 
 class _LazyPageScrollArea(QScrollArea):

@@ -70,6 +70,7 @@ from v3_app.services.bridge_presence import (
     build_live_monitor_diagnostic_rows,
     compose_bridge_lifecycle_diagnostics,
 )
+from v3_app.services.live_refresh import LIVE_REFRESH_INTERVAL_MS, LIVE_TRACE_HISTORY_SECONDS, LIVE_TRACE_SAMPLE_RATE_HZ
 from v3_app.services.perf_diagnostics import DiagnosticsCollector
 from v3_app.services.physical_input_ui import (
     buttons_from_physical_snapshot,
@@ -151,7 +152,10 @@ class LiveMonitorPage(QWidget):
         self.latest_command_request_id: str | None = None
         self.latest_command_name: str | None = None
         self._sample_index = 0
-        self.history = BoundedTelemetryHistory(capacity=240)
+        self.history = BoundedTelemetryHistory.for_seconds(
+            history_seconds=LIVE_TRACE_HISTORY_SECONDS,
+            sample_rate_hz=LIVE_TRACE_SAMPLE_RATE_HZ,
+        )
         self.axis_level_widgets: dict[str, QWidget] = {}
         self._axis_value_labels: dict[str, tuple[QLabel, QLabel]] = {}
         self._axis_bars: dict[str, tuple[QProgressBar, QProgressBar]] = {}
@@ -197,7 +201,7 @@ class LiveMonitorPage(QWidget):
         root.addStretch(1)
 
         self._timer = QTimer(self)
-        self._timer.setInterval(750)
+        self._timer.setInterval(LIVE_REFRESH_INTERVAL_MS)
         self._timer.timeout.connect(self._tick)
         self._timer.start()
 
@@ -339,7 +343,7 @@ class LiveMonitorPage(QWidget):
         layout.addWidget(_body("Recent processed output leaving the bridge for the selected axis."))
         self.overlay_graph = GraphPreview(object_name="liveRawFinalOverlayGraph")
         layout.addWidget(self.overlay_graph)
-        self.graph_cadence_label = _body("UI cadence: diagnostic refresh every 750 ms; telemetry cadence is Bridge-owned.")
+        self.graph_cadence_label = _body("UI cadence: 60 Hz refresh target; telemetry cadence is Bridge-owned.")
         self.graph_cadence_label.setObjectName("liveMonitorGraphCadenceLabel")
         layout.addWidget(self.graph_cadence_label)
         layout.addWidget(_body("Raw and final output are overlaid for direct comparison. Output intent is not output write proof."))
@@ -970,11 +974,12 @@ class LiveMonitorPage(QWidget):
         latest = self.history.latest
         marker = None
         if latest is not None:
-            marker = (float(latest.index), latest.raw_axes.get(self.selected_axis, 0.0))
+            marker = (0.0, latest.raw_axes.get(self.selected_axis, 0.0))
         self.raw_trace_graph.plot_series_with_marker(
             (("Raw", raw_points, "#53b7ff"),),
             marker=marker,
         )
+        self.raw_trace_graph.plot.setXRange(-LIVE_TRACE_HISTORY_SECONDS, 0.0, padding=0)
 
         overlay_series = []
         if self.show_raw_and_output_together:
@@ -983,8 +988,9 @@ class LiveMonitorPage(QWidget):
         self.overlay_series_count = len(overlay_series)
         final_marker = None
         if latest is not None:
-            final_marker = (float(latest.index), latest.final_axes.get(self.selected_axis, 0.0))
+            final_marker = (0.0, latest.final_axes.get(self.selected_axis, 0.0))
         self.overlay_graph.plot_series_with_marker(tuple(overlay_series), marker=final_marker)
+        self.overlay_graph.plot.setXRange(-LIVE_TRACE_HISTORY_SECONDS, 0.0, padding=0)
         self._record_timing("graph", started_at)
 
 

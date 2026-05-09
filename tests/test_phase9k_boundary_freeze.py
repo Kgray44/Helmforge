@@ -297,8 +297,12 @@ def test_phase9k_runtime_authority_static_boundaries_stay_frozen():
         )
     )
 
-    for token in ("UpdateVJD", "SetAxis", "SetBtn", "AcquireVJD"):
-        assert token not in combined
+    shared_vjoy_source = (PROJECT_ROOT / "shared_core" / "runtime" / "vjoy_output.py").read_text(encoding="utf-8")
+    for token in ("SetAxis", "SetBtn", "AcquireVJD"):
+        assert token in shared_vjoy_source
+        assert token not in bridge_sources
+        assert token not in ui_bridge_sources
+    assert "UpdateVJD" not in combined
     for token in ("subprocess.Popen", "QProcess", "startDetached", "Start-Process"):
         assert token not in ui_bridge_sources
     for token in ("win32serviceutil", "schtasks", "StartupApproved", "Shell_Startup", "pystray"):

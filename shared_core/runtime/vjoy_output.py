@@ -55,6 +55,20 @@ RECOVERED_AXIS_OUTPUT_ROUTES: dict[str, str] = {
     "Aux 2": "RZ",
 }
 
+_VJOY_AXIS_USAGE = {
+    "X": 0x30,
+    "Y": 0x31,
+    "Z": 0x32,
+    "RX": 0x33,
+    "RY": 0x34,
+    "RZ": 0x35,
+}
+_VJOY_STATUS_OWN = 0
+_VJOY_STATUS_FREE = 1
+_VJOY_STATUS_BUSY = 2
+_VJOY_STATUS_MISSING = 3
+_VJOY_STATUS_UNKNOWN = 4
+
 
 @dataclass(frozen=True)
 class VirtualAxisOutput:
@@ -477,34 +491,123 @@ class VJoyProviderOperationResult:
 
 class _DefaultVJoyDetectionProvider:
     backend_name = "Real vJoy"
-    dependency_available = False
-    driver_detected = False
-    write_supported = False
-    verification_supported = False
+    write_supported = True
+    verification_supported = True
 
-    def __init__(self) -> None:
-        self.backend_path = find_vjoy_backend_name()
-        available = self.backend_path is not None
-        self.dependency_available = available
-        self.driver_detected = available
+    def __init__(self, *, dll_path: str | None = None) -> None:
+        self.backend_path = dll_path or find_vjoy_backend_name()
+        self._dll = None
+        self.errors: tuple[str, ...] = ()
+        if self.backend_path is not None:
+            try:
+                self._dll = ctypes.WinDLL(str(self.backend_path))
+                self._bind()
+            except Exception as exc:
+                self._dll = None
+                self.errors = (f"vJoyInterface load failed: {exc}",)
+        self.dependency_available = self._dll is not None
+        self.driver_detected = bool(self._dll is not None and self._enabled())
+        self.warnings = () if self.driver_detected else ("vJoy DLL is present but vJoy is not enabled.",)
 
     def enumerate_devices(self) -> tuple[VirtualOutputDeviceInfo, ...]:
-        return ()
+        if self._dll is None or not self.driver_detected:
+            return ()
+        devices: list[VirtualOutputDeviceInfo] = []
+        for device_id in range(1, 17):
+            status = int(self._dll.GetVJDStatus(device_id))
+            if status == _VJOY_STATUS_MISSING:
+                continue
+            supported = status in {_VJOY_STATUS_OWN, _VJOY_STATUS_FREE}
+            devices.append(
+                VirtualOutputDeviceInfo(
+                    device_id=str(device_id),
+                    display_name=f"vJoy Device {device_id}",
+                    backend_name=self.backend_name,
+                    is_selected=device_id == 1,
+                    is_supported=supported,
+                    axis_support=tuple(_VJOY_AXIS_USAGE),
+                    button_count=32,
+                    hat_support="POV1",
+                    acquisition_status=_vjoy_status_text(status),
+                    warnings=() if supported else (f"vJoy device status is {_vjoy_status_text(status)}.",),
+                )
+            )
+        return tuple(devices)
 
     def acquire(self, device_id: str) -> VJoyProviderOperationResult:
-        _ = device_id
-        return VJoyProviderOperationResult(False, "unsupported", "Default real vJoy provider has no guarded write provider.")
+        if self._dll is None:
+            return VJoyProviderOperationResult(False, "dependency_missing", "vJoyInterface.dll is unavailable.")
+        rid = _device_number(device_id)
+        status = int(self._dll.GetVJDStatus(rid))
+        if status == _VJOY_STATUS_OWN:
+            return VJoyProviderOperationResult(True, "already_acquired", f"vJoy device {rid} is already owned by this process.")
+        if status != _VJOY_STATUS_FREE:
+            return VJoyProviderOperationResult(False, _vjoy_status_text(status), f"vJoy device {rid} is {_vjoy_status_text(status)}.")
+        if not bool(self._dll.AcquireVJD(rid)):
+            return VJoyProviderOperationResult(False, "acquisition_failed", f"Could not acquire vJoy device {rid}.")
+        return VJoyProviderOperationResult(True, "acquired", f"Acquired vJoy device {rid}.")
 
     def write_intent(self, device_id: str, intent: VirtualOutputIntent) -> VJoyProviderOperationResult:
-        _ = device_id, intent
-        return VJoyProviderOperationResult(False, "unsupported", "Default real vJoy provider has no guarded write provider.")
+        if self._dll is None:
+            return VJoyProviderOperationResult(False, "dependency_missing", "vJoyInterface.dll is unavailable.")
+        rid = _device_number(device_id)
+        try:
+            for axis in intent.axes:
+                usage = _VJOY_AXIS_USAGE.get(axis.axis_name.upper())
+                if usage is None:
+                    continue
+                value = _axis_to_vjoy_value(axis.value)
+                if not bool(self._dll.SetAxis(value, rid, usage)):
+                    return VJoyProviderOperationResult(False, "write_failed", f"SetAxis failed for {axis.axis_name}.")
+            for index, button in enumerate(intent.buttons, start=1):
+                if not bool(self._dll.SetBtn(bool(button.pressed), rid, index)):
+                    return VJoyProviderOperationResult(False, "write_failed", f"SetBtn failed for button {index}.")
+            for index, hat in enumerate(intent.hats, start=1):
+                value = _hat_to_vjoy_value(hat.value)
+                if not bool(self._dll.SetContPov(value, rid, index)):
+                    return VJoyProviderOperationResult(False, "write_failed", f"SetContPov failed for POV {index}.")
+        except Exception as exc:
+            return VJoyProviderOperationResult(False, "write_failed", f"vJoy write failed: {exc}", errors=(str(exc),))
+        return VJoyProviderOperationResult(True, "real_write_succeeded", f"Real vJoy write succeeded for device {rid}.")
 
     def restore_neutral(self, device_id: str) -> VJoyProviderOperationResult:
-        _ = device_id
-        return VJoyProviderOperationResult(False, "unsupported", "Default real vJoy provider has no guarded write provider.")
+        if self._dll is None:
+            return VJoyProviderOperationResult(False, "dependency_missing", "vJoyInterface.dll is unavailable.")
+        rid = _device_number(device_id)
+        if bool(self._dll.ResetVJD(rid)):
+            return VJoyProviderOperationResult(True, "neutral_restored", f"vJoy device {rid} reset to neutral.")
+        return VJoyProviderOperationResult(False, "neutral_restore_failed", f"Could not reset vJoy device {rid} to neutral.")
 
     def release(self, device_id: str) -> None:
-        _ = device_id
+        if self._dll is None:
+            return
+        self._dll.RelinquishVJD(_device_number(device_id))
+
+    def _bind(self) -> None:
+        assert self._dll is not None
+        self._dll.vJoyEnabled.restype = ctypes.c_bool
+        self._dll.GetVJDStatus.argtypes = [ctypes.c_uint]
+        self._dll.GetVJDStatus.restype = ctypes.c_int
+        self._dll.AcquireVJD.argtypes = [ctypes.c_uint]
+        self._dll.AcquireVJD.restype = ctypes.c_bool
+        self._dll.RelinquishVJD.argtypes = [ctypes.c_uint]
+        self._dll.RelinquishVJD.restype = None
+        self._dll.ResetVJD.argtypes = [ctypes.c_uint]
+        self._dll.ResetVJD.restype = ctypes.c_bool
+        self._dll.SetAxis.argtypes = [ctypes.c_long, ctypes.c_uint, ctypes.c_uint]
+        self._dll.SetAxis.restype = ctypes.c_bool
+        self._dll.SetBtn.argtypes = [ctypes.c_bool, ctypes.c_uint, ctypes.c_ubyte]
+        self._dll.SetBtn.restype = ctypes.c_bool
+        self._dll.SetContPov.argtypes = [ctypes.c_uint, ctypes.c_uint, ctypes.c_ubyte]
+        self._dll.SetContPov.restype = ctypes.c_bool
+
+    def _enabled(self) -> bool:
+        if self._dll is None:
+            return False
+        try:
+            return bool(self._dll.vJoyEnabled())
+        except Exception:
+            return False
 
 
 class RealVJoyOutputBackend(VirtualOutputBackend):
@@ -1178,6 +1281,49 @@ def _provider_warnings(provider: object) -> tuple[str, ...]:
 
 def _provider_errors(provider: object) -> tuple[str, ...]:
     return tuple(str(item) for item in _sequence(_provider_attr(provider, "errors", ())))
+
+
+def _device_number(device_id: str) -> int:
+    try:
+        return max(1, int(str(device_id).replace("vjoy:", "")))
+    except ValueError:
+        return 1
+
+
+def _vjoy_status_text(status: int) -> str:
+    return {
+        _VJOY_STATUS_OWN: "own",
+        _VJOY_STATUS_FREE: "free",
+        _VJOY_STATUS_BUSY: "device_busy",
+        _VJOY_STATUS_MISSING: "device_missing",
+        _VJOY_STATUS_UNKNOWN: "unknown",
+    }.get(int(status), "unknown")
+
+
+def _axis_to_vjoy_value(value: float) -> int:
+    clamped = max(-1.0, min(1.0, float(value)))
+    return int(round(1 + ((clamped + 1.0) / 2.0) * 32767))
+
+
+def _hat_to_vjoy_value(value: str) -> int:
+    text = str(value or "Centered").strip().lower().replace("-", " ")
+    if text in {"center", "centered", "neutral", "none"}:
+        return 0xFFFFFFFF
+    degrees = {
+        "north": 0,
+        "up": 0,
+        "north east": 45,
+        "east": 90,
+        "right": 90,
+        "south east": 135,
+        "south": 180,
+        "down": 180,
+        "south west": 225,
+        "west": 270,
+        "left": 270,
+        "north west": 315,
+    }.get(text, 0)
+    return int(degrees * 100)
 
 
 def _coerce_device_info(value: object, *, backend_name: str) -> VirtualOutputDeviceInfo:

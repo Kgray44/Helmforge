@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import re
+import ctypes
+import os
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -28,6 +30,57 @@ _SUPPORTED_HOTAS_NAMES = (
 SUPPORTED_HOTAS_AXIS_HINTS = ("Roll", "Pitch", "Throttle", "Yaw", "Aux 1", "Aux 2")
 SUPPORTED_HOTAS_BUTTON_HINTS = tuple(f"B{index}" for index in range(1, 16))
 SUPPORTED_HOTAS_HAT_HINTS = ("Hat 1",)
+
+_JOY_RETURN_ALL = 0x000000FF
+_JOYCAPS_HASPOV = 0x0010
+_JOY_POVCENTERED = 0xFFFF
+
+
+class _JOYCAPSW(ctypes.Structure):
+    _fields_ = [
+        ("wMid", ctypes.c_ushort),
+        ("wPid", ctypes.c_ushort),
+        ("szPname", ctypes.c_wchar * 32),
+        ("wXmin", ctypes.c_uint),
+        ("wXmax", ctypes.c_uint),
+        ("wYmin", ctypes.c_uint),
+        ("wYmax", ctypes.c_uint),
+        ("wZmin", ctypes.c_uint),
+        ("wZmax", ctypes.c_uint),
+        ("wNumButtons", ctypes.c_uint),
+        ("wPeriodMin", ctypes.c_uint),
+        ("wPeriodMax", ctypes.c_uint),
+        ("wRmin", ctypes.c_uint),
+        ("wRmax", ctypes.c_uint),
+        ("wUmin", ctypes.c_uint),
+        ("wUmax", ctypes.c_uint),
+        ("wVmin", ctypes.c_uint),
+        ("wVmax", ctypes.c_uint),
+        ("wCaps", ctypes.c_uint),
+        ("wMaxAxes", ctypes.c_uint),
+        ("wNumAxes", ctypes.c_uint),
+        ("wMaxButtons", ctypes.c_uint),
+        ("szRegKey", ctypes.c_wchar * 32),
+        ("szOEMVxD", ctypes.c_wchar * 260),
+    ]
+
+
+class _JOYINFOEX(ctypes.Structure):
+    _fields_ = [
+        ("dwSize", ctypes.c_uint),
+        ("dwFlags", ctypes.c_uint),
+        ("dwXpos", ctypes.c_uint),
+        ("dwYpos", ctypes.c_uint),
+        ("dwZpos", ctypes.c_uint),
+        ("dwRpos", ctypes.c_uint),
+        ("dwUpos", ctypes.c_uint),
+        ("dwVpos", ctypes.c_uint),
+        ("dwButtons", ctypes.c_uint),
+        ("dwButtonNumber", ctypes.c_uint),
+        ("dwPOV", ctypes.c_uint),
+        ("dwReserved1", ctypes.c_uint),
+        ("dwReserved2", ctypes.c_uint),
+    ]
 
 
 class PhysicalInputBackendError(RuntimeError):
@@ -298,6 +351,7 @@ class FakePhysicalInputBackend(PhysicalInputBackend):
         clock=None,
         disconnected: bool = False,
         sampling_error: str | None = None,
+        sample_source: str = "fake",
     ) -> None:
         self._devices = tuple(devices)
         self._backend_name = backend_name
@@ -306,6 +360,7 @@ class FakePhysicalInputBackend(PhysicalInputBackend):
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._disconnected = disconnected
         self._sampling_error = sampling_error
+        self._sample_source = sample_source
         self._open_device_id: str | None = None
         self._sequence = 0
 
@@ -423,7 +478,7 @@ class FakePhysicalInputBackend(PhysicalInputBackend):
             return _empty_snapshot(
                 backend_name=self._backend_name,
                 status=PhysicalInputSamplingStatus.INACTIVE,
-                sample_source="fake",
+                sample_source=self._sample_source,
                 errors=("No physical input device is open.",),
             )
         device = self._device_by_id(self._open_device_id)
@@ -433,7 +488,7 @@ class FakePhysicalInputBackend(PhysicalInputBackend):
                 device_name=device.display_name if device else "Missing",
                 backend_name=self._backend_name,
                 status=PhysicalInputSamplingStatus.DEVICE_MISSING,
-                sample_source="fake",
+                sample_source=self._sample_source,
                 errors=("Fake physical input device disconnected.",),
             )
         if self._sampling_error:
@@ -442,7 +497,7 @@ class FakePhysicalInputBackend(PhysicalInputBackend):
                 device_name=device.display_name,
                 backend_name=self._backend_name,
                 status=PhysicalInputSamplingStatus.ERROR,
-                sample_source="fake",
+                sample_source=self._sample_source,
                 errors=(self._sampling_error,),
             )
 
@@ -454,7 +509,7 @@ class FakePhysicalInputBackend(PhysicalInputBackend):
             backend_name=self._backend_name,
             sampled_at=self._clock(),
             sequence=self._sequence,
-            sample_source="fake",
+            sample_source=self._sample_source,
         )
 
     def _device_by_id(self, device_id: str) -> PhysicalInputDeviceInfo | None:
@@ -493,11 +548,157 @@ class WindowsPhysicalInputDiscoveryBackend(PhysicalInputBackend):
         )
 
 
-def build_default_physical_input_backend() -> PhysicalInputBackend:
-    import os
+class WindowsJoystickInputBackend(PhysicalInputBackend):
+    def __init__(self, *, backend_name: str = "windows_winmm_joystick") -> None:
+        self._backend_name = backend_name
+        self._open_device_id: str | None = None
+        self._sequence = 0
 
+    def enumerate_devices(self) -> tuple[PhysicalInputDeviceInfo, ...]:
+        if os.name != "nt":
+            return ()
+        devices: list[PhysicalInputDeviceInfo] = []
+        try:
+            for device_index in range(int(_winmm().joyGetNumDevs())):
+                caps = _JOYCAPSW()
+                result = _winmm().joyGetDevCapsW(device_index, ctypes.byref(caps), ctypes.sizeof(caps))
+                if result != 0:
+                    continue
+                name = str(caps.szPname).strip() or f"Joystick {device_index + 1}"
+                devices.append(
+                    build_physical_input_device_info(
+                        device_id=f"winmm:{device_index}",
+                        display_name=name,
+                        manufacturer="Thrustmaster" if "thrustmaster" in name.lower() else "",
+                        vendor_id=f"{int(caps.wMid):04x}" if caps.wMid else None,
+                        product_id=f"{int(caps.wPid):04x}" if caps.wPid else None,
+                        axis_count=int(caps.wNumAxes) if caps.wNumAxes else None,
+                        button_count=int(caps.wNumButtons) if caps.wNumButtons else None,
+                        hat_count=1 if caps.wCaps & _JOYCAPS_HASPOV else 0,
+                        backend_name=self._backend_name,
+                    )
+                )
+        except Exception:
+            return ()
+        return tuple(devices)
+
+    def get_backend_status(self) -> PhysicalInputBackendStatus:
+        if os.name != "nt":
+            return PhysicalInputBackendStatus(
+                status="backend_unavailable",
+                backend_name=self._backend_name,
+                message="Windows joystick sampling is only available on Windows.",
+            )
+        return PhysicalInputBackendStatus(
+            status="available",
+            backend_name=self._backend_name,
+            message="Windows joystick sampling is available through winmm.",
+        )
+
+    def get_capabilities(self) -> PhysicalInputBackendCapabilities:
+        available = os.name == "nt"
+        return PhysicalInputBackendCapabilities(
+            backend_name=self._backend_name,
+            backend_kind="windows_winmm",
+            backend_available=available,
+            device_enumeration_available=available,
+            physical_sampling_available=available,
+            warnings=("Windows joystick sampling is read-only and does not write vJoy.",),
+        )
+
+    def open_device(self, device_id: str) -> PhysicalInputBackendStatus:
+        if not any(device.device_id == device_id for device in self.enumerate_devices()):
+            return PhysicalInputBackendStatus(
+                status=PhysicalInputSamplingStatus.DEVICE_MISSING.value,
+                backend_name=self._backend_name,
+                message=f"Selected joystick device is not available: {device_id}.",
+            )
+        self._open_device_id = device_id
+        return PhysicalInputBackendStatus(
+            status=PhysicalInputSamplingStatus.ACTIVE.value,
+            backend_name=self._backend_name,
+            message=f"Windows joystick sampling active for {device_id}.",
+        )
+
+    def close_device(self) -> PhysicalInputBackendStatus:
+        self._open_device_id = None
+        return PhysicalInputBackendStatus(
+            status=PhysicalInputSamplingStatus.INACTIVE.value,
+            backend_name=self._backend_name,
+            message="Windows joystick sampling stopped.",
+        )
+
+    def get_sampling_status(self) -> PhysicalInputBackendStatus:
+        if self._open_device_id is None:
+            return PhysicalInputBackendStatus(
+                status=PhysicalInputSamplingStatus.INACTIVE.value,
+                backend_name=self._backend_name,
+                message="Windows joystick backend is idle.",
+            )
+        return PhysicalInputBackendStatus(
+            status=PhysicalInputSamplingStatus.ACTIVE.value,
+            backend_name=self._backend_name,
+            message="Windows joystick sampling is active.",
+        )
+
+    def read_current_state(self) -> PhysicalInputSnapshot:
+        if self._open_device_id is None:
+            return _empty_snapshot(
+                backend_name=self._backend_name,
+                status=PhysicalInputSamplingStatus.INACTIVE,
+                sample_source="winmm",
+                errors=("No physical input device is open.",),
+            )
+        try:
+            device_index = int(self._open_device_id.split(":", 1)[1])
+        except (IndexError, ValueError):
+            return _empty_snapshot(
+                device_id=self._open_device_id,
+                backend_name=self._backend_name,
+                status=PhysicalInputSamplingStatus.DEVICE_MISSING,
+                sample_source="winmm",
+                errors=("Invalid Windows joystick device id.",),
+            )
+        device = next((item for item in self.enumerate_devices() if item.device_id == self._open_device_id), None)
+        if device is None:
+            return _empty_snapshot(
+                device_id=self._open_device_id,
+                device_name="Missing",
+                backend_name=self._backend_name,
+                status=PhysicalInputSamplingStatus.DEVICE_MISSING,
+                sample_source="winmm",
+                errors=("Selected Windows joystick is no longer present.",),
+            )
+        info = _JOYINFOEX()
+        info.dwSize = ctypes.sizeof(_JOYINFOEX)
+        info.dwFlags = _JOY_RETURN_ALL
+        result = _winmm().joyGetPosEx(device_index, ctypes.byref(info))
+        if result != 0:
+            return _empty_snapshot(
+                device_id=device.device_id,
+                device_name=device.display_name,
+                backend_name=self._backend_name,
+                status=PhysicalInputSamplingStatus.ERROR,
+                sample_source="winmm",
+                errors=(f"joyGetPosEx failed with code {result}.",),
+            )
+        caps = _JOYCAPSW()
+        _winmm().joyGetDevCapsW(device_index, ctypes.byref(caps), ctypes.sizeof(caps))
+        self._sequence += 1
+        frame = _winmm_frame(info, caps)
+        return _snapshot_from_frame(
+            frame,
+            device=device,
+            backend_name=self._backend_name,
+            sampled_at=datetime.now(timezone.utc),
+            sequence=self._sequence,
+            sample_source="winmm",
+        )
+
+
+def build_default_physical_input_backend() -> PhysicalInputBackend:
     if os.name == "nt":
-        return WindowsPhysicalInputDiscoveryBackend()
+        return WindowsJoystickInputBackend()
     return MissingPhysicalInputBackend(reason="Physical input discovery is not available on this platform yet.")
 
 
@@ -935,6 +1136,62 @@ def _hat_direction(value: object) -> str:
         return "Centered"
     text = str(value).strip()
     return text or "Centered"
+
+
+def _winmm():
+    dll = ctypes.WinDLL("winmm")
+    dll.joyGetNumDevs.restype = ctypes.c_uint
+    dll.joyGetDevCapsW.argtypes = [ctypes.c_uint, ctypes.POINTER(_JOYCAPSW), ctypes.c_uint]
+    dll.joyGetDevCapsW.restype = ctypes.c_uint
+    dll.joyGetPosEx.argtypes = [ctypes.c_uint, ctypes.POINTER(_JOYINFOEX)]
+    dll.joyGetPosEx.restype = ctypes.c_uint
+    return dll
+
+
+def _winmm_frame(info: _JOYINFOEX, caps: _JOYCAPSW) -> dict[str, object]:
+    axes = (
+        _winmm_axis("X", "Roll", info.dwXpos, caps.wXmin, caps.wXmax),
+        _winmm_axis("Y", "Pitch", info.dwYpos, caps.wYmin, caps.wYmax),
+        _winmm_axis("Z", "Throttle", info.dwZpos, caps.wZmin, caps.wZmax, one_sided=True),
+        _winmm_axis("R", "Yaw", info.dwRpos, caps.wRmin, caps.wRmax),
+        _winmm_axis("U", "Aux 1", info.dwUpos, caps.wUmin, caps.wUmax),
+        _winmm_axis("V", "Aux 2", info.dwVpos, caps.wVmin, caps.wVmax),
+    )
+    buttons = {index: bool(info.dwButtons & (1 << (index - 1))) for index in range(1, 16)}
+    return {"axes": axes, "buttons": buttons, "hats": {1: _winmm_pov(info.dwPOV)}}
+
+
+def _winmm_axis(raw_name: str, logical_name: str, value: int, raw_min: int, raw_max: int, *, one_sided: bool = False) -> dict[str, object]:
+    return {
+        "raw_name": raw_name,
+        "logical_name": logical_name,
+        "raw_value": int(value),
+        "raw_min": int(raw_min),
+        "raw_max": int(raw_max),
+        "center": (float(raw_min) + float(raw_max)) / 2.0,
+        "one_sided": one_sided,
+    }
+
+
+def _winmm_pov(value: int) -> str:
+    if int(value) == _JOY_POVCENTERED:
+        return "Centered"
+    degrees = (int(value) % 36000) / 100.0
+    if degrees >= 337.5 or degrees < 22.5:
+        return "North"
+    if degrees < 67.5:
+        return "North East"
+    if degrees < 112.5:
+        return "East"
+    if degrees < 157.5:
+        return "South East"
+    if degrees < 202.5:
+        return "South"
+    if degrees < 247.5:
+        return "South West"
+    if degrees < 292.5:
+        return "West"
+    return "North West"
 
 
 def _optional_float(value: object) -> float | None:

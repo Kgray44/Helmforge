@@ -33,6 +33,8 @@ from v3_app.pages.page_helpers import (
     truth_notice,
 )
 from v3_app.services.app_state import AppState
+from v3_app.services.live_input_source import LiveAxisSampleSource
+from v3_app.services.live_refresh import LIVE_REFRESH_INTERVAL_MS
 from v3_app.services.parameter_metadata import PARAMETER_HELP
 
 
@@ -65,6 +67,7 @@ class FilteringPage(QWidget):
             preflight_status=self._runtime_status,
             deterministic_simulation=False,
         )
+        self._live_axis_source = LiveAxisSampleSource(self._runtime_bridge)
         self._axis_name = state.selected_axis
         self._axis_id = axis_by_name(self._axis_name).axis_id.value
         self._settings = self._workspace.filtering.axes[self._axis_id]
@@ -94,7 +97,7 @@ class FilteringPage(QWidget):
         self._refresh_live_sample()
 
         self._timer = QTimer(self)
-        self._timer.setInterval(500)
+        self._timer.setInterval(LIVE_REFRESH_INTERVAL_MS)
         self._timer.timeout.connect(self._tick)
         self._timer.start()
 
@@ -346,10 +349,7 @@ class FilteringPage(QWidget):
 
     def _refresh_live_sample(self, *, raw_axis_values: dict[str, float] | None = None) -> None:
         if raw_axis_values is None:
-            snapshot = self._runtime_bridge.snapshot()
-            raw_axis_values = {
-                axis: float(snapshot.raw_axis_values.get(axis, 0.0)) for axis in AXIS_DISPLAY_NAMES
-            }
+            raw_axis_values = self._live_axis_source.raw_axes()
         self._latest_raw_values = {
             axis: float(raw_axis_values.get(axis, 0.0)) for axis in AXIS_DISPLAY_NAMES
         }
@@ -357,14 +357,14 @@ class FilteringPage(QWidget):
         output = filtering_adjusted_value(self._settings, raw)
         if self._snapshot_value is not None:
             self._snapshot_value.setText(signed(output))
-        self._set_snapshot_row("Input Source", "Simulation/fallback sample")
+        self._set_snapshot_row("Input Source", self._live_axis_source.last_source_label)
         self._set_snapshot_row("Selected Axis", self._axis_name)
         self._set_snapshot_row("Raw Value", signed(raw))
         self._set_snapshot_row("Output Intent", signed(output))
-        self._set_snapshot_row("Runtime Truth", self._runtime_status.truth.value)
+        self._set_snapshot_row("Runtime Truth", self._live_axis_source.last_runtime_truth)
         self._set_snapshot_row(
             "Output Verification",
-            f"Output writes verified: {str(self._runtime_status.live_output_writes_verified).lower()}",
+            f"Output writes verified: {str(self._live_axis_source.last_output_verified).lower()}",
         )
         if self._graph is not None:
             self._graph.update_markers(self._marker_points(), marker_colors=LIVE_MARKER_COLORS)

@@ -32,6 +32,7 @@ from v3_app.pages.graph_widgets import GraphPreview
 from v3_app.pages.page_helpers import add_card_to_grid, card, card_header, card_layout, page_intro, signed, truth_notice, value_grid
 from v3_app.services.app_state import AppState
 from v3_app.services.perf_diagnostics import DiagnosticsCollector
+from v3_app.services.live_refresh import LIVE_REFRESH_INTERVAL_MS
 from v3_app.services.physical_input_ui import build_input_source_status, raw_axes_from_physical_snapshot
 from v3_app.ui.status_chips import action_button, status_chip
 
@@ -174,7 +175,7 @@ class EffectiveResponseStackPage(QWidget):
         root.addLayout(main, 1)
 
         self._timer = QTimer(self)
-        self._timer.setInterval(1200)
+        self._timer.setInterval(LIVE_REFRESH_INTERVAL_MS)
         self._timer.timeout.connect(self._tick)
         self._timer.start()
 

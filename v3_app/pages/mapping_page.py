@@ -150,6 +150,8 @@ class MappingPage(QWidget):
         ).snapshot()
         self._axis_route_labels: list[QLabel] = []
         self._count_labels: dict[str, QLabel] = {}
+        self._status_chips: dict[str, QLabel] = {}
+        self._runtime_preflight_rows: dict[str, QLabel] = {}
         self._axis_table: QTableWidget | None = None
         self._button_table: QTableWidget | None = None
         self._hat_table: QTableWidget | None = None
@@ -234,13 +236,22 @@ class MappingPage(QWidget):
         layout.setSpacing(8)
 
         layout.addWidget(status_chip("Current Workspace", tone="success"))
-        layout.addWidget(status_chip(self._runtime_chip_label(), tone=self._state.runtime.tone))
+        runtime = status_chip(self._runtime_chip_label(), tone=self._state.runtime.tone)
+        hotas = status_chip("HOTAS Not Connected", tone="warning")
+        vjoy = status_chip("vJoy Detected", tone="caution")
+        output = status_chip("Output Unverified", tone="warning")
+        self._status_chips = {
+            "runtime": runtime,
+            "hotas": hotas,
+            "vjoy": vjoy,
+            "output": output,
+        }
+        layout.addWidget(runtime)
         layout.addWidget(status_chip("Mapping Ready", tone="success"))
-        if self._runtime_status.input.status is InputStatus.MISSING:
-            layout.addWidget(status_chip("HOTAS Not Connected", tone="warning"))
-        if self._runtime_status.output.status is OutputStatus.VJOY_DETECTED:
-            layout.addWidget(status_chip("vJoy Detected", tone="caution"))
-            layout.addWidget(status_chip("Output Unverified", tone="warning"))
+        layout.addWidget(hotas)
+        layout.addWidget(vjoy)
+        layout.addWidget(output)
+        self._refresh_status_chips()
         layout.addStretch(1)
         return row
 
@@ -530,6 +541,7 @@ class MappingPage(QWidget):
             val = QLabel(value)
             val.setObjectName("routeSummaryValue")
             val.setWordWrap(True)
+            self._runtime_preflight_rows[label] = val
             grid.addWidget(key, index, 0)
             grid.addWidget(val, index, 1)
 
@@ -547,6 +559,49 @@ class MappingPage(QWidget):
         layout.addLayout(grid)
         layout.addWidget(caution)
         return card
+
+    def update_runtime_status(self, runtime_status: RuntimePreflightStatus) -> None:
+        self._runtime_status = runtime_status
+        self._snapshot = RuntimeBridge(
+            preflight_status=self._runtime_status,
+            deterministic_simulation=True,
+        ).snapshot()
+        self._refresh_status_chips()
+        updates = {
+            "Input device status": self._input_status_label(),
+            "Output / vJoy status": self._output_status_label(),
+            "Runtime truth": self._runtime_truth_label(),
+            "Output verified": str(self._output_verified()).lower(),
+            "Output verification": f"Output writes verified: {str(self._output_verified()).lower()}",
+            "Full Live Runtime Ready": str(
+                self._runtime_status.truth is RuntimeTruth.LIVE_VERIFIED
+                and self._runtime_status.live_output_writes_verified
+            ).lower(),
+        }
+        for label, value in updates.items():
+            row = self._runtime_preflight_rows.get(label)
+            if row is not None:
+                row.setText(value)
+
+    def _refresh_status_chips(self) -> None:
+        runtime = self._status_chips.get("runtime")
+        if runtime is not None:
+            runtime.setText(self._runtime_chip_label())
+            runtime.setProperty("chipTone", self._state.runtime.tone)
+        hotas = self._status_chips.get("hotas")
+        if hotas is not None:
+            hotas.setVisible(self._runtime_status.input.status is InputStatus.MISSING)
+        vjoy = self._status_chips.get("vjoy")
+        if vjoy is not None:
+            vjoy.setVisible(self._runtime_status.output.status in {OutputStatus.VJOY_DETECTED, OutputStatus.OUTPUT_VERIFIED})
+            vjoy.setText("vJoy Verified" if self._runtime_status.output.status is OutputStatus.OUTPUT_VERIFIED else "vJoy Detected")
+            vjoy.setProperty(
+                "chipTone",
+                "success" if self._runtime_status.output.status is OutputStatus.OUTPUT_VERIFIED else "caution",
+            )
+        output = self._status_chips.get("output")
+        if output is not None:
+            output.setVisible(not self._runtime_status.live_output_writes_verified)
 
     def _build_axis_routing_card(self) -> QWidget:
         card = self._card("axisRoutingCard")

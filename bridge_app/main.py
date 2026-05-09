@@ -27,7 +27,10 @@ def main(argv: list[str] | None = None) -> int:
             telemetry_path=args.telemetry_path,
             command_path=args.command_path,
             config_path=args.config_path,
-            simulate=True,
+            simulate=bool(args.simulate),
+            enable_live_input=not bool(args.simulate),
+            enable_output_verification=not bool(args.simulate),
+            enable_output_loop=not bool(args.simulate),
         )
     )
 

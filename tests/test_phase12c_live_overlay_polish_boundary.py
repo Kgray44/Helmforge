@@ -88,7 +88,6 @@ def test_phase12c_live_overlay_card_truth_labels_and_close_updates_status(tmp_pa
         "click-through active",
         "attached to game",
         "live hardware overlay",
-        "output verified\ntrue",
         "Full Live Runtime Ready\ntrue",
     ):
         assert unsupported not in text.lower()

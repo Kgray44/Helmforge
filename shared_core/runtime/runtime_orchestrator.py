@@ -743,7 +743,7 @@ def _proof_state(
         f"pipeline={pipeline_proof}",
         f"output={output_proof.replace(' ', '_')}",
         f"loop={loop_proof}",
-        f"ready={str(False).lower()}",
+        "ready=candidate" if candidate else "ready=false",
     ]
     if candidate:
         summary_parts.append("candidate=true")

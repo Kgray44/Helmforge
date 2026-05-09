@@ -361,9 +361,11 @@ def test_phase9j_boundaries_do_not_add_runtime_activation_dependencies():
         )
     )
 
+    vjoy_provider = (PROJECT_ROOT / "shared_core" / "runtime" / "vjoy_output.py").read_text(encoding="utf-8")
+    assert "SetAxis" in vjoy_provider
     for token in ("SetAxis", "UpdateVJD"):
         assert token not in bridge_sources
-        assert token not in shared_sources
+    assert "UpdateVJD" not in shared_sources
     for token in ("Start-Process", "subprocess.Popen", "CreateProcess", "QProcess", "startDetached"):
         assert token not in phase9j_ui_sources
     assert "from v3_app" not in bridge_sources

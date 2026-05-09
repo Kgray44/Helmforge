@@ -205,15 +205,18 @@ def test_phase15a_perf_diagnostics_and_help_docs_preserve_output_truth(tmp_path)
     assert "Fake output verified" in diagnostics
 
 
-def test_phase15a_no_real_output_authority_or_runtime_controls_were_added():
+def test_phase15a_real_output_authority_stays_inside_shared_provider():
     source_paths = (
-        PROJECT_ROOT / "shared_core" / "runtime" / "vjoy_output.py",
         PROJECT_ROOT / "v3_app" / "pages" / "mapping_page.py",
         PROJECT_ROOT / "v3_app" / "pages" / "live_monitor_page.py",
         PROJECT_ROOT / "v3_app" / "pages" / "perf_diagnostics_page.py",
         PROJECT_ROOT / "v3_app" / "services" / "perf_diagnostics.py",
     )
     sources = "\n".join(path.read_text(encoding="utf-8") for path in source_paths if path.exists())
+    vjoy_provider = (PROJECT_ROOT / "shared_core" / "runtime" / "vjoy_output.py").read_text(encoding="utf-8")
+
+    for required in ("SetAxis", "SetBtn", "AcquireVJD"):
+        assert required in vjoy_provider
 
     for forbidden in (
         "SetAxis",
@@ -236,4 +239,3 @@ def test_phase15a_no_real_output_authority_or_runtime_controls_were_added():
     ):
         assert forbidden not in sources
     assert "pyvjoy" not in sources.lower()
-    assert "fake_verified" in sources

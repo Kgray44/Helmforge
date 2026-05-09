@@ -31,9 +31,16 @@ class TelemetrySample:
 
 
 class BoundedTelemetryHistory:
-    def __init__(self, *, capacity: int = 240) -> None:
+    def __init__(self, *, capacity: int = 240, sample_rate_hz: int = 60, right_anchor: bool = False) -> None:
         self.capacity = max(1, int(capacity))
+        self.sample_rate_hz = max(1, int(sample_rate_hz))
+        self.right_anchor = bool(right_anchor)
         self._samples: deque[TelemetrySample] = deque(maxlen=self.capacity)
+
+    @classmethod
+    def for_seconds(cls, *, history_seconds: float, sample_rate_hz: int) -> "BoundedTelemetryHistory":
+        capacity = max(1, int(round(float(history_seconds) * int(sample_rate_hz))))
+        return cls(capacity=capacity, sample_rate_hz=sample_rate_hz, right_anchor=True)
 
     def __len__(self) -> int:
         return len(self._samples)
@@ -56,10 +63,20 @@ class BoundedTelemetryHistory:
         )
 
     def raw_points(self, axis_name: str) -> tuple[tuple[float, float], ...]:
-        return tuple((float(sample.index), sample.raw_axes.get(axis_name, 0.0)) for sample in self._samples)
+        return tuple((x, sample.raw_axes.get(axis_name, 0.0)) for x, sample in self._right_anchored_samples())
 
     def final_points(self, axis_name: str) -> tuple[tuple[float, float], ...]:
-        return tuple((float(sample.index), sample.final_axes.get(axis_name, 0.0)) for sample in self._samples)
+        return tuple((x, sample.final_axes.get(axis_name, 0.0)) for x, sample in self._right_anchored_samples())
+
+    def _right_anchored_samples(self) -> tuple[tuple[float, TelemetrySample], ...]:
+        samples = tuple(self._samples)
+        if not self.right_anchor:
+            return tuple((float(sample.index), sample) for sample in samples)
+        count = len(samples)
+        return tuple(
+            (((index - (count - 1)) / float(self.sample_rate_hz)), sample)
+            for index, sample in enumerate(samples)
+        )
 
 
 def clamp_axis_value(value: float) -> float:
