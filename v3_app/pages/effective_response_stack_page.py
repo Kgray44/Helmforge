@@ -147,6 +147,7 @@ class EffectiveResponseStackPage(QWidget):
         self._current_result: WorkspaceSignalPipelineResult | None = None
         self.stage_widgets: dict[str, StageCard] = {}
         self._stage_by_name: dict[str, StageResult] = {}
+        self._total_change_labels: dict[str, QLabel] = {}
 
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 22, 24, 28)
@@ -242,9 +243,38 @@ class EffectiveResponseStackPage(QWidget):
         layout.addWidget(card_header("Raw vs Final", "The live marker rides on the effective response line for the selected axis."))
         self.graph = GraphPreview(object_name="effectiveResponseStackGraph")
         layout.addWidget(self.graph)
+        layout.addWidget(self._build_total_change_card())
         caption = QLabel("Raw input on X, effective output intent on Y. Center and marker states remain diagnostics only.")
         caption.setObjectName("cardBody")
         layout.addWidget(caption)
+        return frame
+
+    def _build_total_change_card(self) -> QFrame:
+        frame = card("stackTotalChangeCard")
+        frame.setProperty("deterministicSummary", True)
+        layout = card_layout(frame)
+        layout.addWidget(card_header("Total Change", "Deterministic before/after summary for the selected axis."))
+        rows = QGridLayout()
+        rows.setHorizontalSpacing(16)
+        rows.setVerticalSpacing(8)
+        for row, (label, object_name) in enumerate(
+            (
+                ("Before", "stackTotalBefore"),
+                ("After", "stackTotalAfter"),
+                ("Delta", "stackTotalDelta"),
+                ("Most impact", "stackMostImpactfulStage"),
+            )
+        ):
+            key = QLabel(label)
+            key.setObjectName("tableMutedText")
+            value = QLabel("unavailable")
+            value.setObjectName(object_name)
+            value.setProperty("metricValue", True)
+            value.setWordWrap(True)
+            rows.addWidget(key, row, 0)
+            rows.addWidget(value, row, 1)
+            self._total_change_labels[object_name] = value
+        layout.addLayout(rows)
         return frame
 
     def _build_mode_state_card(self) -> QFrame:
@@ -397,6 +427,7 @@ class EffectiveResponseStackPage(QWidget):
         self._update_graph(raw_axis_values)
         self._update_mode_state()
         self._update_summary(result)
+        self._update_total_change(result)
         self._update_rule_driver_values(result)
         if not self.frozen:
             self.runtime_chip.setText(self._state.runtime.header_truth_label)
@@ -442,6 +473,7 @@ class EffectiveResponseStackPage(QWidget):
     def _update_summary(self, result: WorkspaceSignalPipelineResult) -> None:
         axis_result = result.axis_results[self.selected_axis]
         largest = max(axis_result.stages, key=lambda stage: abs(stage.delta))
+        self._mark_most_impactful_stage(largest.stage_name)
         active_rules = sum(1 for rule in result.rule_evaluations if rule.status is RuleStatus.ACTIVE)
         source_note = (
             "Stack preview uses a read-only physical input sample; diagnostic only."
@@ -459,6 +491,32 @@ class EffectiveResponseStackPage(QWidget):
             f"Active rules: {active_rules}. Output writes verified: "
             f"{str(self._runtime_status.live_output_writes_verified).lower()}."
         )
+
+    def _update_total_change(self, result: WorkspaceSignalPipelineResult) -> None:
+        axis_result = result.axis_results[self.selected_axis]
+        first = axis_result.stages[0]
+        final = axis_result.stages[-1]
+        delta = final.output_value - first.input_value
+        largest = max(axis_result.stages, key=lambda stage: abs(stage.delta), default=None)
+        values = {
+            "stackTotalBefore": signed(first.input_value),
+            "stackTotalAfter": signed(final.output_value),
+            "stackTotalDelta": signed(delta),
+            "stackMostImpactfulStage": largest.stage_name if largest is not None else "impact unavailable",
+        }
+        for object_name, text in values.items():
+            label = self._total_change_labels.get(object_name)
+            if label is not None:
+                label.setText(text)
+        impact = self._total_change_labels.get("stackMostImpactfulStage")
+        if impact is not None:
+            impact.setProperty("impactSource", "stage-delta" if largest is not None else "unavailable")
+
+    def _mark_most_impactful_stage(self, stage_name: str) -> None:
+        for name, widget in self.stage_widgets.items():
+            widget.setProperty("mostImpactful", name == stage_name)
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
 
     def _update_selected_stage_panel(self) -> None:
         stage = self._stage_by_name.get(self.selected_stage)

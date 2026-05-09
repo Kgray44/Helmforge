@@ -68,6 +68,7 @@ class ModesPage(QWidget):
 
     def _build_precision_card(self) -> QWidget:
         frame = card("precisionModeCard")
+        frame.setProperty("controlPolish", "post-rc-4d")
         layout = card_layout(frame)
         layout.addWidget(card_header("Precision Mode", "Buttons that enable precision scaling."))
         grid = QGridLayout()
@@ -89,6 +90,7 @@ class ModesPage(QWidget):
 
     def _build_combat_card(self) -> QWidget:
         frame = card("combatModeCard")
+        frame.setProperty("controlPolish", "post-rc-4d")
         layout = card_layout(frame)
         layout.addWidget(card_header("Combat Mode", "Buttons that drive combat/zoom behavior."))
         grid = QGridLayout()
@@ -104,6 +106,7 @@ class ModesPage(QWidget):
 
     def _build_live_state_card(self) -> QWidget:
         frame = card("liveModeStateCard")
+        frame.setProperty("controlPolish", "post-rc-4d")
         layout = card_layout(frame)
         layout.addWidget(card_header("Live Mode State", "Current runtime mode evaluation from bridge telemetry."))
         state_label = QLabel("Normal")
@@ -126,6 +129,7 @@ class ModesPage(QWidget):
 
     def _build_notes_card(self) -> QWidget:
         frame = card("modeNotesCard")
+        frame.setProperty("controlPolish", "post-rc-4d")
         layout = card_layout(frame)
         layout.addWidget(card_header("Mode Notes", "Quick reading for the current configuration."))
         note = QLabel(

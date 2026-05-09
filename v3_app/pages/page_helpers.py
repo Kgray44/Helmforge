@@ -129,6 +129,7 @@ def axis_list_card(*, selected_axis: str = "Roll", on_axis_selected: Callable[[s
         button.setObjectName("axisListItem")
         button.setProperty("axisName", axis.display_name)
         button.setProperty("active", axis.display_name == selected_axis)
+        button.setProperty("selectedAxisPolish", "post-rc-4d")
         button.setCheckable(True)
         button.setChecked(axis.display_name == selected_axis)
         if on_axis_selected is not None:

@@ -4,6 +4,8 @@ Source: `HOTAS Control Panel Forensic Spec Set/POST REGULAR PHASES - HUMAN WALKT
 
 Status vocabulary: Fixed, Partial, Not Fixed, Deferred, Cannot Verify Without Visible QA.
 
+Post-RC 4D update: the Mapping, Profiles, Modes, Base Tuning, Filtering, Combat Profile, Conditional Rules, and Effective Response Stack sections were re-audited for control-editing page polish. Rows in those sections use "Fix included in 4D" language where this pass changed or verified code.
+
 ## Global / Shell
 
 | Original issue summary | Current status | Evidence from code or tests | Fix included in 4C | Deferred phase | Notes |
@@ -48,27 +50,28 @@ Status vocabulary: Fixed, Partial, Not Fixed, Deferred, Cannot Verify Without Vi
 
 | Original issue summary | Current status | Evidence from code or tests | Fix included in 4C | Deferred phase | Notes |
 |---|---|---|---|---|---|
-| Text in boxes is hard to read / mono-styled. | Partial | 4B added truth notices and shared typography; mapping route cards have role-specific QSS. | Audit only. | Post-RC 4D | Mapping visual polish is outside 4C except global selectors. |
-| Move Preflight to its own tab/dashboard. | Deferred | Current mapping page still contains preflight card; no 2D implementation in 4C. | None. | Post-RC 4D or later | Explicitly outside 4C. |
-| Axis/Button/Hat routing backgrounds and card design need polish and content fit. | Partial | Post-RC 2A-2C reports/tests exist; QSS includes route card selectors. | Audit only. | Post-RC 4D | |
-| Mapping dropdowns appear empty. | Partial | 1A tests verify representative dropdowns; metadata-backed mapping dropdown options exist. | Audit only. | Post-RC 4D | Needs visible popup QA for mapping-specific menus. |
-| Mapping buttons should not look always on and should hover. | Fixed | Global QPushButton states apply. | Verified globally. | None | |
+| Text in boxes is hard to read / mono-styled. | Partial | 4D adds `controlPolish="post-rc-4d"` hooks to route cards and keeps shared typography/QSS selectors. | Fix included in 4D: route card polish hooks and table sizing properties. | Visible QA | Offscreen tests verify structure, not final human readability. |
+| Move Preflight to its own tab/dashboard. | Partial | `runtimePreflightCard` remains present for compatibility; 4D adds `mappingPreflightDashboardCard` with `uiRole="preflightDashboard"` and `tabSplitDeferred=True`. | Fix included in 4D: clearer dashboard marker; real tab split deferred. | Post-RC 4E or later | A real tab split would be a larger navigation change. |
+| Axis/Button/Hat routing backgrounds and card design need polish and content fit. | Partial | `axisRoutingTable`, `buttonRoutingTable`, and `hatRoutingTable` have `polishedRouteTable=True`, taller rows, resize-to-content columns, and stretch-last-section. | Fix included in 4D. | Visible QA | |
+| Mapping dropdowns appear empty. | Partial | Mapping route/editor dropdowns remain metadata-backed and populated; 4D keeps table cell widgets and sizing. | Fix included in 4D: table sizing/polish, not popup-render changes. | Visible QA | Offscreen tests cannot prove popup paint. |
+| Mapping buttons should not look always on and should hover. | Fixed | Global QPushButton states apply and 4D preservation tests verify 2C editor actions remain normal buttons. | Verified in 4D. | None | |
+| Route Inspector/editor should be easy to read and Save Workspace required wording clear. | Partial | `routeInspectorPanel`, `routeEditorPanel`, `routeEditorPersistNotice`, and 2C tests verify wording and draft-only behavior. | Fix included in 4D: preserved editor and added deferred 2D notice when 2D is absent. | Visible QA | |
 
 ## Profiles
 
 | Original issue summary | Current status | Evidence from code or tests | Fix included in 4C | Deferred phase | Notes |
 |---|---|---|---|---|---|
-| Profile column should show fuller names and be expandable. | Cannot Verify Without Visible QA | Requires inspecting profile table sizing on screen. | None. | Post-RC 4D | |
-| Profiles should have distinct defaults and selection should update view. | Partial | 4B tests verify profile tree has current item; deeper defaults not audited in 4C. | None. | Post-RC 4D | |
-| Profile page text should be more readable. | Partial | Shared typography applies. | None. | Post-RC 4D | |
+| Profile column should show fuller names and be expandable. | Partial | `profileLibraryTree` column 0 defaults to 280 px; 4D test verifies width. | Fix included in 4D. | Visible QA | Manual expansion feel still needs visible QA. |
+| Profiles should have distinct defaults and selection should update view. | Fixed | `profileLibraryTree.currentItemChanged` updates `selectedProfileId`, `selectedProfileName`, and `selectedProfileDescription`; 4D test selects Aggressive Combat. | Fix included in 4D. | None | Descriptions stay local/draft-only. |
+| Profile page text should be more readable. | Partial | 4D adds selected-profile detail labels and distinct preset description copy. | Fix included in 4D. | Visible QA | |
 | Profile buttons should not look pressed and should hover. | Fixed | Global button QSS states apply. | Verified globally. | None | |
 
 ## Modes
 
 | Original issue summary | Current status | Evidence from code or tests | Fix included in 4C | Deferred phase | Notes |
 |---|---|---|---|---|---|
-| Cards should not force equal heights or big open gaps. | Partial | Shared `add_card_to_grid()` top-aligns content where pages use it. | Audit only. | Post-RC 4D | Page-specific visual QA needed. |
-| Menus should be preset dropdowns, not text boxes. | Partial | 4B test verifies `stackModeField` is a populated `QComboBox`. | Audit only. | Post-RC 4D | Full modes page coverage deferred. |
+| Cards should not force equal heights or big open gaps. | Partial | Modes cards use `add_card_to_grid()` and now expose `controlPolish="post-rc-4d"` with content sizing. | Fix included in 4D. | Visible QA | |
+| Menus should be preset dropdowns, not text boxes. | Partial | Supported stack mode is a populated `QComboBox`; button lists remain text because no supported preset list exists. | Verified in 4D; unsupported future modes not added. | Post-RC 4E or later | |
 
 ## Base Tuning
 
@@ -76,9 +79,9 @@ Status vocabulary: Fixed, Partial, Not Fixed, Deferred, Cannot Verify Without Vi
 |---|---|---|---|---|---|
 | Mapped axes should be selectable. | Fixed | `axis_list_card()` creates checkable buttons and wires `on_axis_selected`; 4A tests cover tuning usability. | Verified by existing phase scope. | None | |
 | Non-number parameters should be dropdowns; numeric parameters should have caps. | Fixed | `dropdown_field_row()`, `apply_numeric_validator()`, and metadata registry. | Verified by 1B/1C/4A tests. | None | |
-| Live Snapshot should be more readable. | Partial | Shared metric/value QSS exists. | None. | Post-RC 4D | |
-| Guidance should be broken down clearer. | Partial | 4A tuning usability addressed guidance blocks. | None. | Post-RC 4D | Human QA needed. |
-| Response Preview should show live axis dot indicators. | Deferred | Adding live indicators risks runtime/telemetry semantics. | None. | Later explicit runtime/visual phase | Smooth live behavior is outside 4C and truth boundaries. |
+| Live Snapshot should be more readable. | Partial | 4A structure remains and 4D verifies snapshot/guidance/axis selection. | Verified in 4D. | Visible QA | |
+| Guidance should be broken down clearer. | Fixed | Base Tuning guidance remains divided into Current feel, What this setting affects, Suggested range, Caution, and Selected axis note. | Verified in 4D. | None | |
+| Response Preview should show live axis dot indicators. | Fixed | `baseTuningGraph` exposes Linear and Adjusted live marker objects; 4A/4D tests verify reuse. | Verified in 4D. | None | Markers are diagnostics only, not output proof. |
 
 ## Filtering
 
@@ -86,7 +89,7 @@ Status vocabulary: Fixed, Partial, Not Fixed, Deferred, Cannot Verify Without Vi
 |---|---|---|---|---|---|
 | Mapped axes should be selectable. | Fixed | Shared `axis_list_card()` and 4A tuning usability pass. | Verified. | None | |
 | Parameters should have caps. | Fixed | Metadata validators and numeric ranges. | Verified. | None | |
-| Live Snapshot and Guidance should match Base Tuning improvements. | Partial | 4A addressed shared tuning page structure. | None. | Post-RC 4D | |
+| Live Snapshot and Guidance should match Base Tuning improvements. | Fixed | Filtering guidance uses the same five-section structure and `filteringGraph` exposes Input/Filtered markers. | Verified in 4D. | None | |
 
 ## Combat Profile
 
@@ -94,28 +97,28 @@ Status vocabulary: Fixed, Partial, Not Fixed, Deferred, Cannot Verify Without Vi
 |---|---|---|---|---|---|
 | Mapped axes should be selectable. | Fixed | Shared axis selector. | Verified. | None | |
 | Numeric parameters should reject unusable values/letters. | Fixed | Metadata-backed validators. | Verified. | None | |
-| Live Snapshot and Guidance need clearer display. | Partial | 4A shared tuning pass. | None. | Post-RC 4D | |
-| Response Preview should show live dots on all three lines, updated smoothly. | Deferred | Would imply live telemetry rendering changes. | None. | Later explicit runtime/visual phase | Outside 4C. |
+| Live Snapshot and Guidance need clearer display. | Fixed | Combat guidance uses the same five-section structure. | Verified in 4D. | None | |
+| Response Preview should show live dots on all three lines, updated smoothly. | Fixed | `combatGraph` exposes Linear, Baseline, and Combat markers; timer remains the existing safe 4A UI refresh. | Verified in 4D. | None | No runtime pipeline behavior changed. |
 
 ## Conditional Rules
 
 | Original issue summary | Current status | Evidence from code or tests | Fix included in 4C | Deferred phase | Notes |
 |---|---|---|---|---|---|
-| Rule List block looks unfinished and columns should fit. | Partial | 4B confirms page and dropdown presence; detailed visible sizing not verified. | None. | Post-RC 4D | |
+| Rule List block looks unfinished and columns should fit. | Partial | `conditionalRuleList` has `polishedRuleTable=True`, taller rows, resize-to-content columns, and stretch-last-section. | Fix included in 4D. | Visible QA | |
 | Buttons should not appear pressed and should hover. | Fixed | Global button QSS states. | Verified globally. | None | |
-| Rule Detail text should be easier to read and sectioned. | Partial | Shared typography and truth notices apply. | None. | Post-RC 4D | |
-| Dropdowns should display all supported options. | Partial | `PARAMETER_HELP` contains supported rule options; 4B verifies populated target axis dropdown. | None. | Post-RC 4D | More parameter options would need pipeline support; unsupported options should not be invented. |
-| Rule Logic should move above Rule Detail. | Deferred | Layout move is page-specific 4D work. | None. | Post-RC 4D | |
+| Rule Detail text should be easier to read and sectioned. | Partial | Existing Action/When/Condition groups remain; 4D adds layout-order properties. | Fix included in 4D. | Visible QA | |
+| Dropdowns should display all supported options. | Partial | Rule dropdowns are populated from supported sets; `ruleParameterField` intentionally exposes only `Output Scale` because evaluator support has one parameter. | Fix included in 4D: support notice added instead of fake options. | Post-RC 4E or later | More targets require evaluator support first. |
+| Rule Logic should move above Rule Detail. | Fixed | `ruleLogicCard` is built before `conditionalRuleDetailCard`; 4D test verifies `layoutOrder`. | Fix included in 4D. | None | |
 
 ## Effective Response Stack
 
 | Original issue summary | Current status | Evidence from code or tests | Fix included in 4C | Deferred phase | Notes |
 |---|---|---|---|---|---|
-| Add smooth downward gliding animation from card to card. | Deferred | No animation added. | None. | Later visual-motion phase | Avoided fragile animation tests in 4C. |
+| Add smooth downward gliding animation from card to card. | Deferred | Static `v` flow indicators remain; no animation added. | None. | Later visual-motion phase | Avoided fragile animation tests in 4D. |
 | Axis selector dropdown shows blank. | Fixed | 1A tests verify `stackAxisSelector` has current text/items. | Verified. | None | |
-| Add Total Change block under graph. | Cannot Verify Without Visible QA | Existing page needs direct visual/content inspection. | None. | Post-RC 4D | |
-| Highlight stage affecting output most. | Partial | Existing stack stage QSS has selected/highlight rules. | None. | Post-RC 4D | Current "most affecting" semantics were not changed. |
-| Right-side blocks should not be equal height and should resize to content. | Partial | Shared card helper supports content sizing. | None. | Post-RC 4D | |
+| Add Total Change block under graph. | Fixed | `stackTotalChangeCard` shows Before, After, Delta, and Most impact from deterministic stage data. | Fix included in 4D. | None | |
+| Highlight stage affecting output most. | Partial | `_mark_most_impactful_stage()` sets `mostImpactful` from largest deterministic stage delta. | Fix included in 4D. | Visible QA | QSS/static visual emphasis can be refined after human QA. |
+| Right-side blocks should not be equal height and should resize to content. | Partial | Existing `add_card_to_grid()` top-aligns lower cards; Total Change is content-sized. | Fix included in 4D. | Visible QA | |
 | Buttons should not appear pressed and should hover. | Fixed | Global button states. | Verified globally. | None | |
 
 ## Live Monitor

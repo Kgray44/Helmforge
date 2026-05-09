@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
 
-from shared_core.models.profiles import ProfileType
+from shared_core.models.profiles import Profile, ProfileType
 from shared_core.models.runtime import RuntimePreflightStatus
 from shared_core.models.workspace import CONFIG_FILENAME, WorkspaceConfig, create_default_workspace
 from shared_core.runtime.device_discovery import build_runtime_preflight_status
@@ -40,6 +41,9 @@ class ProfilesPage(QWidget):
         self._workspace = workspace or create_default_workspace()
         self._runtime_status = runtime_status or build_runtime_preflight_status()
         self._on_status = on_status
+        self._selected_profile = self._profile_by_id(self._workspace.profiles.active_profile_id)
+        self._profile_detail_labels: dict[str, QLabel] = {}
+        self.setProperty("selectedProfileId", self._selected_profile.profile_id)
 
         intro_row = QHBoxLayout()
         intro_row.addWidget(
@@ -91,6 +95,7 @@ class ProfilesPage(QWidget):
 
     def _build_library_card(self) -> QWidget:
         frame = card("profileLibraryCard")
+        frame.setProperty("controlPolish", "post-rc-4d")
         layout = card_layout(frame)
         layout.addWidget(
             card_header(
@@ -108,12 +113,14 @@ class ProfilesPage(QWidget):
         for profile in self._workspace.profiles.profiles:
             if profile.profile_type is ProfileType.BUILT_IN:
                 item = QTreeWidgetItem((profile.name, "Preset", "Ready"))
+                item.setData(0, Qt.ItemDataRole.UserRole, profile.profile_id)
                 built_in_root.addChild(item)
                 if selected_item is None:
                     selected_item = item
             else:
                 state = "Active" if profile.active else "Ready"
                 item = QTreeWidgetItem((profile.name, "Personal", state))
+                item.setData(0, Qt.ItemDataRole.UserRole, profile.profile_id)
                 personal_root.addChild(item)
                 if profile.active:
                     selected_item = item
@@ -122,7 +129,8 @@ class ProfilesPage(QWidget):
         tree.expandAll()
         if selected_item is not None:
             tree.setCurrentItem(selected_item)
-        tree.setColumnWidth(0, 230)
+        tree.currentItemChanged.connect(lambda current, _previous: self._select_profile_item(current))
+        tree.setColumnWidth(0, 280)
         tree.setColumnWidth(1, 90)
         tree.setMinimumHeight(420)
         layout.addWidget(tree)
@@ -138,13 +146,16 @@ class ProfilesPage(QWidget):
 
     def _build_detail_card(self) -> QWidget:
         frame = card("profileDetailCard")
+        frame.setProperty("controlPolish", "post-rc-4d")
         layout = card_layout(frame)
         layout.addWidget(card_header("Profile Detail", "Review what the selected profile does before you tune deeper pages."))
-        title = QLabel("Current Workspace")
+        title = QLabel("")
         title.setObjectName("snapshotValue")
+        title.setObjectName("selectedProfileName")
         layout.addWidget(title)
-        source = QLabel(f"Loaded from the current V3 workspace copy: {CONFIG_FILENAME}.")
-        source.setObjectName("cardBody")
+        source = QLabel("")
+        source.setObjectName("selectedProfileDescription")
+        source.setProperty("uiRole", "cardBody")
         source.setWordWrap(True)
         layout.addWidget(source)
         chips = QHBoxLayout()
@@ -153,17 +164,19 @@ class ProfilesPage(QWidget):
         chips.addWidget(status_chip(CONFIG_FILENAME, tone="neutral"))
         chips.addStretch(1)
         layout.addLayout(chips)
-        note = QLabel(
-            "Selecting a profile makes it the active workspace immediately. Edits in the rest of the app update this personal profile draft until saved."
-        )
-        note.setObjectName("cardBody")
+        note = QLabel("")
+        note.setObjectName("selectedProfileDraftNotice")
+        note.setProperty("uiRole", "cardBody")
         note.setWordWrap(True)
         layout.addWidget(note)
         layout.addLayout(value_grid(runtime_truth_rows(self._runtime_status)))
+        self._profile_detail_labels = {"title": title, "description": source, "notice": note}
+        self._refresh_profile_detail()
         return frame
 
     def _build_setup_summary_card(self) -> QWidget:
         frame = card("profileSetupSummaryCard")
+        frame.setProperty("controlPolish", "post-rc-4d")
         layout = card_layout(frame)
         layout.addWidget(card_header("Setup Summary", "Quick view of what this profile is wired to."))
         enabled_rules = sum(1 for rule in self._workspace.rules.rules if rule.enabled)
@@ -184,6 +197,7 @@ class ProfilesPage(QWidget):
 
     def _build_profile_feel_card(self) -> QWidget:
         frame = card("profileFeelCard")
+        frame.setProperty("controlPolish", "post-rc-4d")
         layout = card_layout(frame)
         layout.addWidget(card_header("Profile Feel", "High-level reading of the main flight axes in this profile."))
         text = QLabel(
@@ -198,6 +212,7 @@ class ProfilesPage(QWidget):
 
     def _build_actions_card(self) -> QWidget:
         frame = card("profileActionsCard")
+        frame.setProperty("controlPolish", "post-rc-4d")
         layout = card_layout(frame)
         layout.addWidget(card_header("Profile Actions", "Use presets as a starting point, duplicate variants, and manage your personal library here."))
         actions = QHBoxLayout()
@@ -222,3 +237,34 @@ class ProfilesPage(QWidget):
     def _status(self, message: str) -> None:
         if self._on_status is not None:
             self._on_status(message)
+
+    def _profile_by_id(self, profile_id: str) -> Profile:
+        for profile in self._workspace.profiles.profiles:
+            if profile.profile_id == profile_id:
+                return profile
+        return self._workspace.profiles.profiles[-1]
+
+    def _select_profile_item(self, item: QTreeWidgetItem | None) -> None:
+        if item is None or item.childCount() > 0:
+            return
+        profile_id = item.data(0, Qt.ItemDataRole.UserRole)
+        if not profile_id:
+            return
+        self._selected_profile = self._profile_by_id(str(profile_id))
+        self.setProperty("selectedProfileId", self._selected_profile.profile_id)
+        self._refresh_profile_detail()
+
+    def _refresh_profile_detail(self) -> None:
+        if not self._profile_detail_labels:
+            return
+        profile = self._selected_profile
+        self._profile_detail_labels["title"].setText(profile.name)
+        description = profile.description or f"Recovered profile preset: {profile.name}."
+        if profile.profile_type is ProfileType.BUILT_IN:
+            description = f"{description} This is a distinct preset description for comparison before copying into the workspace draft."
+        else:
+            description = f"{description} Loaded from the current V3 workspace copy: {profile.source_path or CONFIG_FILENAME}."
+        self._profile_detail_labels["description"].setText(description)
+        self._profile_detail_labels["notice"].setText(
+            "Selecting a profile updates this local detail view only. Save Workspace remains the explicit persistence step."
+        )

@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QPushButton,
     QTableWidget,
@@ -312,6 +313,7 @@ class MappingPage(QWidget):
 
     def _build_hotas_diagram_card(self) -> QWidget:
         card = self._card("hotasDiagramCard")
+        card.setProperty("controlPolish", "post-rc-4d")
         layout = QVBoxLayout(card)
         layout.setContentsMargins(22, 20, 22, 22)
         layout.setSpacing(14)
@@ -341,6 +343,14 @@ class MappingPage(QWidget):
         layout.addWidget(self._hotas_diagram_widget)
         layout.addWidget(self._build_route_inspector_panel())
         layout.addWidget(self._build_route_editor_panel())
+        if not (_project_root() / "tests" / "test_post_rc_2d_advanced_mapping_editor.py").exists():
+            deferred = QLabel(
+                "Post-RC 2D Advanced Mapping Editor is not merged here; Draft Review, undo/redo, "
+                "route search, and presets stay deferred."
+            )
+            deferred.setObjectName("mappingDraftReviewDeferredNotice")
+            deferred.setWordWrap(True)
+            layout.addWidget(deferred)
         layout.addWidget(note)
         return card
 
@@ -418,9 +428,15 @@ class MappingPage(QWidget):
 
     def _build_runtime_preflight_card(self) -> QWidget:
         card = self._card("runtimePreflightCard")
+        card.setProperty("controlPolish", "post-rc-4d")
         layout = QVBoxLayout(card)
         layout.setContentsMargins(22, 18, 22, 20)
         layout.setSpacing(12)
+        dashboard = QFrame(card)
+        dashboard.setObjectName("mappingPreflightDashboardCard")
+        dashboard.setProperty("uiRole", "preflightDashboard")
+        dashboard.setProperty("tabSplitDeferred", True)
+        dashboard.hide()
 
         header = QHBoxLayout()
         title = QLabel("Runtime Setup / Preflight")
@@ -534,6 +550,7 @@ class MappingPage(QWidget):
 
     def _build_axis_routing_card(self) -> QWidget:
         card = self._card("axisRoutingCard")
+        card.setProperty("controlPolish", "post-rc-4d")
         layout = QVBoxLayout(card)
         layout.setContentsMargins(22, 20, 22, 22)
         layout.setSpacing(14)
@@ -564,6 +581,7 @@ class MappingPage(QWidget):
 
     def _build_button_routing_card(self) -> QWidget:
         card = self._card("buttonRoutingCard")
+        card.setProperty("controlPolish", "post-rc-4d")
         layout = QVBoxLayout(card)
         layout.setContentsMargins(22, 20, 22, 22)
         layout.setSpacing(14)
@@ -605,6 +623,7 @@ class MappingPage(QWidget):
 
     def _build_hat_routing_card(self) -> QWidget:
         card = self._card("hatRoutingCard")
+        card.setProperty("controlPolish", "post-rc-4d")
         layout = QVBoxLayout(card)
         layout.setContentsMargins(22, 20, 22, 22)
         layout.setSpacing(14)
@@ -1528,12 +1547,14 @@ class MappingPage(QWidget):
             item.setText(value)
 
     def _configure_table(self, table: QTableWidget, *, minimum_height: int) -> None:
+        table.setProperty("polishedRouteTable", True)
         table.verticalHeader().hide()
-        table.verticalHeader().setDefaultSectionSize(38)
+        table.verticalHeader().setDefaultSectionSize(42)
         table.setAlternatingRowColors(False)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         table.horizontalHeader().setStretchLastSection(True)
         table.setMinimumHeight(minimum_height)
 

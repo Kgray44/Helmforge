@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QTableWidget,
@@ -115,8 +116,8 @@ class ConditionalRulesPage(QWidget):
         split.addWidget(self._build_rule_list_card(), 1, Qt.AlignmentFlag.AlignTop)
         right = QVBoxLayout()
         right.setSpacing(18)
-        right.addWidget(self._build_detail_card(), 2)
         right.addWidget(self._build_logic_card(), 1)
+        right.addWidget(self._build_detail_card(), 2)
         right_panel = QWidget()
         right_panel.setLayout(right)
         split.addWidget(right_panel, 1, Qt.AlignmentFlag.AlignTop)
@@ -188,6 +189,7 @@ class ConditionalRulesPage(QWidget):
 
     def _build_rule_list_card(self) -> QFrame:
         card = self._card("conditionalRuleListCard")
+        card.setProperty("controlPolish", "post-rc-4d")
         layout = QVBoxLayout(card)
         layout.setContentsMargins(22, 20, 22, 22)
         layout.setSpacing(14)
@@ -203,6 +205,8 @@ class ConditionalRulesPage(QWidget):
 
     def _build_detail_card(self) -> QFrame:
         card = self._card("conditionalRuleDetailCard")
+        card.setProperty("controlPolish", "post-rc-4d")
+        card.setProperty("layoutOrder", "after-logic")
         layout = QVBoxLayout(card)
         layout.setContentsMargins(22, 20, 22, 22)
         layout.setSpacing(14)
@@ -236,6 +240,8 @@ class ConditionalRulesPage(QWidget):
 
     def _build_logic_card(self) -> QFrame:
         card = self._card("ruleLogicCard")
+        card.setProperty("controlPolish", "post-rc-4d")
+        card.setProperty("layoutOrder", "before-detail")
         layout = QVBoxLayout(card)
         layout.setContentsMargins(22, 20, 22, 22)
         layout.setSpacing(12)
@@ -309,13 +315,18 @@ class ConditionalRulesPage(QWidget):
                 else:
                     widget = QComboBox()
                     widget.setObjectName(f"rule{_field_object_name(field)}Field")
-                    apply_parameter_metadata(widget, metadata_id)
                     widget.addItems(tuple(options))
+                    apply_parameter_metadata(widget, metadata_id)
                     widget.currentTextChanged.connect(
                         lambda value, field_name=field: self._combo_field_changed(field_name, value)
                     )
                 self._detail_fields[field] = widget
                 group_layout.addWidget(widget, row_index, 1)
+                if field == "parameter":
+                    support = QLabel("Only evaluator-supported parameter target is exposed: Output Scale.")
+                    support.setObjectName("ruleParameterSupportNotice")
+                    support.setWordWrap(True)
+                    group_layout.addWidget(support, row_index, 2)
             layout.addWidget(group)
         return panel
 
@@ -521,12 +532,14 @@ class ConditionalRulesPage(QWidget):
             self._on_status(message)
 
     def _configure_table(self, table: QTableWidget, *, minimum_height: int) -> None:
+        table.setProperty("polishedRuleTable", True)
         table.verticalHeader().hide()
-        table.verticalHeader().setDefaultSectionSize(38)
+        table.verticalHeader().setDefaultSectionSize(42)
         table.setAlternatingRowColors(False)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         table.horizontalHeader().setStretchLastSection(True)
         table.setMinimumHeight(minimum_height)
 

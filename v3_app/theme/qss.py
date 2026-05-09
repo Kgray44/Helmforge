@@ -154,6 +154,13 @@ def app_qss() -> str:
         border-radius: 12px;
     }
 
+    QFrame[uiRole="preflightDashboard"],
+    QFrame#stackTotalChangeCard {
+        background: #0b1724;
+        border: 1px solid #3e6b91;
+        border-radius: 14px;
+    }
+
     QLabel[hotasDiagramMarker="true"] {
         background: #0b1724;
         border: 1px solid #315577;
@@ -292,6 +299,10 @@ def app_qss() -> str:
     QFrame#stackStageCard[selected="true"] {
         background: #163b56;
         border-color: #53b7ff;
+    }
+
+    QFrame#stackStageCard[mostImpactful="true"] {
+        border-color: #76d39b;
     }
 
     QLabel#sectionLabel,
