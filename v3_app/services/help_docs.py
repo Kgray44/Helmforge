@@ -209,6 +209,7 @@ def topic_category_for(article: HelpArticle) -> str:
         "Recorder review/export diagnostics",
         "One-frame capture proof",
         "Real capture limitations",
+        "Recorder encoding/export preview",
     }:
         return "Flight Recorder"
     if article.title == "Helm":
@@ -511,10 +512,11 @@ AUXILIARY_ARTICLES = (
             "Post-RC 3A adds a real backend design seam and a guarded capture backend capability model. The seam can report Missing, Simulated, Candidate unavailable, or Candidate available, but real capture is still not fully active unless a backend explicitly reports real capture support.",
             "Post-RC 3C adds a manually triggered one-frame proof surface. It is a diagnostic still-frame proof step only: no real video recording yet, no encoding yet, no hindsight frame buffer yet, no global recorder hotkey yet, and no game injection or graphics hooks.",
             "Post-RC 3D adds an explicit-start hindsight frame buffer and intermediate metadata artifact. Buffered frame entries are still metadata/reference proof, not encoded video, not playable preview, and not runtime readiness.",
+            "The earlier 3A boundary said video encoding and hindsight video buffering remain later phases. Post-RC 3E now adds a conservative encoding/export readiness layer where Export Clip is available only when frame files exist, an encoder backend is available, encoding succeeds, and the local output file passes basic verification.",
             "The rule is simple: simulated artifacts are not real recordings. They are metadata-only artifacts or simulated export bundles; they do not contain desktop frames, playable clips, output verification, or Full Live Runtime Ready proof.",
             "The recorder does not inject into games and does not use graphics hooks. It does not add admin-level capture, hardware polling, vJoy writes, Bridge lifecycle management, cloud AI behavior, or auto-save.",
-            "For now, video encoding and hindsight video buffering remain later phases. Record Now and Save Last Clip stay unavailable for real video until a verified capture backend and video buffer exist.",
-            "No desktop frames are captured, no video encoding is performed, no playable clip export is produced, no recorder global hotkey is registered, and video hindsight buffering remains unavailable until later recorder phases implement and verify those behaviors.",
+            "Intermediate artifacts are not playable clips. Buffered frames are not encoded video until an encoder succeeds and output verification confirms a local file exists with non-zero size.",
+            "No recorder global hotkey is registered, and video hindsight buffering remains unavailable unless a capture backend explicitly provides frame files. Preview remains disabled unless a reliable local preview mechanism exists.",
             "Recorder status chips are status labels, not action controls. Recording library rows and preview metadata help inspect simulated artifacts without claiming real capture or output/runtime readiness.",
         ),
     ),
@@ -951,6 +953,46 @@ POST_RC_1D_ARTICLES = (
             ("What this is", ("The recorder has a capture seam and a one-frame proof, but no continuous capture product yet.",)),
             ("What it does", ("It truthfully labels missing, simulated, candidate-unavailable, candidate-available, and one-frame proof states.",)),
             ("Runtime truth notes", ("No continuous recorder capture yet. No video encoding/export/preview yet. No game injection or graphics API hooking was added.",)),
+        ),
+    ),
+    _structured_article(
+        "Recorder encoding/export preview",
+        topic_category="Flight Recorder",
+        category="Analysis",
+        summary="Understand when Export Clip can create a verified local encoded clip.",
+        keywords=("encoding export preview encoder dependency playable claim mp4 intermediate artifact"),
+        related_topics=("Flight Recorder", "One-frame capture proof", "Real capture limitations"),
+        open_page_id="flight_recorder",
+        importance=90,
+        sections=(
+            (
+                "What this is",
+                (
+                    "Post-RC 3E adds a conservative local encoding/export layer for the Flight Recorder.",
+                    "Encoding converts existing frame files into an encoded clip only when an encoder backend is available and succeeds.",
+                ),
+            ),
+            (
+                "When Export Clip is available",
+                (
+                    "Export Clip is enabled only when frame pixels are available, the selected encoder dependency is available, the requested format is supported, and the source is not merely an intermediate metadata artifact.",
+                    "If the frame buffer contains only metadata/reference entries, the UI reports encoding unavailable: frame pixels not available.",
+                ),
+            ),
+            (
+                "Playable claim allowed",
+                (
+                    "Playable claim allowed means the encoder reported success and the output file exists locally with a non-zero size and the expected extension.",
+                    "If verification is incomplete, HelmForge may report an exported file but must not claim a playable video.",
+                ),
+            ),
+            (
+                "Boundaries",
+                (
+                    "Intermediate artifacts are not playable clips. One-frame capture proof is not video recording or runtime readiness.",
+                    "No game injection, no graphics hooks, no global recorder hotkeys, no cloud upload/share, and no cloud AI behavior are added by this encoding/export layer.",
+                ),
+            ),
         ),
     ),
     _structured_article(

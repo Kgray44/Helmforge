@@ -70,12 +70,13 @@ class FlightRecorderPage(QWidget):
             page_intro(
                 "Flight Recorder",
                 "Inspect the recorder shell, simulated export metadata, and future time-matched axis overlay without claiming video capture.",
-                "No video captured. No encoding performed. The hotkey text is configured but not registered, and recorder exports remain metadata-only until a real capture backend exists.",
+                "No video captured. No encoding performed. recorder exports remain metadata-only until a real capture backend exists. Playable clip export is available only when frame files exist, an encoder backend succeeds, and local output verification passes. Video hindsight unavailable unless those proofs exist. The hotkey text is configured but not registered.",
             )
         )
         root.addWidget(self._status_card())
         root.addWidget(self._capture_proof_card())
         root.addWidget(self._frame_buffer_card())
+        root.addWidget(self._encoding_export_card())
         root.addWidget(self._review_card())
 
         grid = QGridLayout()
@@ -91,7 +92,7 @@ class FlightRecorderPage(QWidget):
     def _status_card(self) -> QWidget:
         frame = card("recorderStatusCard")
         layout = card_layout(frame)
-        layout.addWidget(card_header("Recorder Status", "Truthful recorder state before capture and encoding backends exist."))
+        layout.addWidget(card_header("Recorder Status", "Truthful recorder state across capture, buffering, and export readiness."))
         row = QHBoxLayout()
         row.setSpacing(8)
         row.addWidget(status_chip("UI Ready", tone="success", object_name="recorderUiReadyChip"))
@@ -103,9 +104,18 @@ class FlightRecorderPage(QWidget):
         row.addWidget(status_chip("Telemetry buffer available", tone="neutral", object_name="recorderTelemetryBufferChip"))
         row.addWidget(status_chip("Buffering unavailable", tone="warning", object_name="recorderVideoBufferChip"))
         row.addWidget(status_chip("Recording unavailable", tone="warning", object_name="recorderRecordingChip"))
+        encoder_capability = self.controller.encoder_backend.capabilities()
+        row.addWidget(
+            status_chip(
+                "Encoder available" if encoder_capability.can_encode_video else "Encoder unavailable",
+                tone="neutral" if encoder_capability.can_encode_video else "warning",
+                object_name="recorderEncoderChip",
+            )
+        )
         row.addStretch(1)
         layout.addLayout(row)
         summary = self.controller.build_status_summary()
+        export_availability = self.controller.export_clip_availability()
         layout.addLayout(
             _row_grid(
                 {
@@ -121,6 +131,9 @@ class FlightRecorderPage(QWidget):
                     "Cursor capture": summary["Cursor capture"],
                     "Display enumeration": summary["Display enumeration"],
                     "Video encoding": summary["Video encoding"],
+                    "Encoder backend": summary["Encoder backend"],
+                    "Encoder formats": summary["Encoder formats"],
+                    "Export readiness": "available" if export_availability.available else "unavailable",
                     "Compositor": summary["Compositor"],
                     "Recorder mode": summary["Recorder mode"],
                     "Hotkey status": summary["Hotkey status"],
@@ -132,9 +145,9 @@ class FlightRecorderPage(QWidget):
         )
         layout.addWidget(
             _body(
-                "Telemetry hindsight buffer available. Video hindsight buffering is not implemented yet. "
-                "Video hindsight unavailable. Video encoding unavailable. "
-                "Save Last Clip cannot save real video until capture and buffer backends exist. "
+                "Telemetry hindsight buffer available. Intermediate frame-buffer artifacts are not playable clips. "
+                "Video hindsight buffering is not implemented yet. "
+                "encoding/export remains unavailable unless frame files, an encoder backend, and local output verification all succeed. "
                 "Simulated exports contain telemetry and overlay metadata only."
             )
         )
@@ -236,6 +249,34 @@ class FlightRecorderPage(QWidget):
         self.refresh_frame_buffer_status()
         return frame
 
+    def _encoding_export_card(self) -> QWidget:
+        frame = card("recorderEncodingExportCard")
+        layout = card_layout(frame)
+        layout.addWidget(card_header("Export / encoding", "Explicit local export only after frame files and encoder verification exist."))
+        self.encoding_export_summary = QLabel("")
+        self.encoding_export_summary.setObjectName("recorderEncodingExportSummary")
+        self.encoding_export_summary.setWordWrap(True)
+        layout.addWidget(self.encoding_export_summary)
+        controls = QHBoxLayout()
+        self.export_clip_button = action_button("Export Clip", object_name="exportClipButton")
+        self.export_clip_button.clicked.connect(self.export_clip)
+        self.reveal_export_file_button = action_button("Reveal Export File", object_name="revealExportFileButton")
+        self.reveal_export_file_button.clicked.connect(self.reveal_export_file)
+        self.preview_clip_button = action_button("Preview Clip", object_name="previewClipButton")
+        self.preview_clip_button.setEnabled(False)
+        controls.addWidget(self.export_clip_button)
+        controls.addWidget(self.reveal_export_file_button)
+        controls.addWidget(self.preview_clip_button)
+        controls.addStretch(1)
+        layout.addLayout(controls)
+        layout.addWidget(
+            _body(
+                "Intermediate artifacts are not playable clips. Preview stays unavailable until HelmForge has a reliable local playback mechanism; no game injection, graphics hooks, or global recorder hotkeys are used."
+            )
+        )
+        self.refresh_encoding_export_status()
+        return frame
+
     def _recorder_settings_card(self) -> QWidget:
         frame = card("recorderSettingsCard")
         layout = card_layout(frame)
@@ -279,9 +320,9 @@ class FlightRecorderPage(QWidget):
         layout.addLayout(button_row)
         layout.addWidget(
             _body(
-                f"{_capture_backend_chip_label(self._backend_status.capabilities)}. Video hindsight buffer not implemented yet. "
+                f"{_capture_backend_chip_label(self._backend_status.capabilities)}. Video hindsight buffer is metadata/reference based until frame files exist. "
                 "Recording backend is not active in this phase. Recording backend unavailable. "
-                "Injected simulated backends can write metadata-only manifests or simulated export bundles for tests."
+                "Injected simulated backends can write metadata-only manifests or deterministic test exports without changing runtime readiness."
             )
         )
         return frame
@@ -500,6 +541,89 @@ class FlightRecorderPage(QWidget):
         self.stop_frame_buffer_button.setEnabled(status.active)
         if hasattr(self, "save_last_clip_button"):
             self.save_last_clip_button.setEnabled(status.stored_frame_count > 0)
+        if hasattr(self, "encoding_export_summary"):
+            self.refresh_encoding_export_status()
+
+    def refresh_encoding_export_status(self) -> None:
+        if not hasattr(self, "encoding_export_summary"):
+            return
+        availability = self.controller.export_clip_availability()
+        capability = self.controller.encoder_backend.capabilities()
+        result = self.controller.last_encoder_result
+        encoded = self.controller.last_encoded_clip
+        output_path = "None"
+        output_size = "0"
+        playable = "false"
+        export_status = self.controller.last_export_job.status if self.controller.last_export_job is not None else "none"
+        verification = "No export attempted"
+        truth = availability.truth_label
+        if result is not None:
+            output_path = str(result.output_path) if result.output_path is not None else "None"
+            output_size = str(result.output_size_bytes)
+            playable = str(result.playable_claim_allowed).lower()
+            verification = result.verification_summary
+            truth = result.truth_label
+        warnings = "; ".join(availability.warnings) if availability.warnings else "None"
+        errors = "; ".join(availability.errors) if availability.errors else "None"
+        if result is not None:
+            warnings = "; ".join(result.warnings) if result.warnings else warnings
+            errors = "; ".join(result.errors) if result.errors else errors
+        self.encoding_export_summary.setText(
+            "Encoder backend\n"
+            f"{capability.encoder_name}\n"
+            "Encoder kind\n"
+            f"{capability.encoder_kind}\n"
+            "Dependency status\n"
+            f"{'available' if capability.dependency_available else 'unavailable'}\n"
+            "Supported formats\n"
+            f"{', '.join(capability.supported_formats) if capability.supported_formats else 'none'}\n"
+            "Selected source\n"
+            f"{availability.source.source_type}\n"
+            "Export readiness\n"
+            f"{'available' if availability.available else 'unavailable'}\n"
+            "Export status\n"
+            f"{export_status}\n"
+            "Output path\n"
+            f"{output_path}\n"
+            "Output size\n"
+            f"{output_size}\n"
+            "Playable claim allowed\n"
+            f"{playable}\n"
+            "Preview\n"
+            "unavailable in-app\n"
+            "Truth label\n"
+            f"{truth}\n"
+            "Verification\n"
+            f"{verification}\n"
+            "Message\n"
+            f"{availability.message}\n"
+            "Warnings\n"
+            f"{warnings}\n"
+            "Errors\n"
+            f"{errors}"
+        )
+        self.export_clip_button.setEnabled(availability.available)
+        self.reveal_export_file_button.setEnabled(
+            encoded is not None and encoded.output_path.exists() and encoded.output_path.is_file()
+        )
+        self.preview_clip_button.setEnabled(False)
+
+    def export_clip(self) -> None:
+        result = self.controller.export_clip(runtime_status=self._runtime_status)
+        self.action_status.setText(result.message)
+        self.refresh_encoding_export_status()
+        self._populate_library()
+        if result.encoded_clip is not None:
+            self._show_encoded_clip_preview(result.encoded_clip)
+
+    def reveal_export_file(self) -> None:
+        clip = self.controller.last_encoded_clip
+        if clip is None or not clip.output_path.exists():
+            self.action_status.setText("No encoded clip file exists to reveal.")
+            self.refresh_encoding_export_status()
+            return
+        self.action_status.setText(f"Encoded clip file is local: {clip.output_path}. No external file manager was launched.")
+        self.refresh_encoding_export_status()
 
     def _apply_operation_result(self, message: str) -> None:
         self.action_status.setText(message)
@@ -690,6 +814,9 @@ class FlightRecorderPage(QWidget):
         if clip.export_metadata is not None:
             self._show_export_preview(clip.export_metadata)
             return
+        if clip.encoded_clip is not None:
+            self._show_encoded_clip_preview(clip.encoded_clip)
+            return
         if clip.is_simulated:
             self.preview_status.setText(
                 "Simulated artifact\n"
@@ -705,6 +832,23 @@ class FlightRecorderPage(QWidget):
             )
             return
         self.preview_status.setText("Select a recorder artifact to preview.\nNo video preview available.")
+
+    def _show_encoded_clip_preview(self, clip) -> None:
+        warnings = "; ".join(clip.warnings) if clip.warnings else "None"
+        self.preview_status.setText(
+            "Encoded clip file created\n"
+            f"Playable claim allowed: {str(clip.playable_claim_allowed).lower()}\n"
+            "In-app playback preview unavailable\n"
+            f"Output path: {clip.output_path}\n"
+            f"Output size: {clip.output_size_bytes} bytes\n"
+            f"Source type: {clip.source_artifact_type}\n"
+            f"Encoder: {clip.encoder_backend}\n"
+            f"Warnings: {warnings}"
+        )
+        self.preview_metadata.setText(
+            f"Filename: {clip.output_path.name} | Format: {clip.requested_format.upper()} | "
+            f"Resolution: Encoded clip | Length: {clip.duration_seconds or 0.0:.2f} s"
+        )
 
 
 _RECORDER_SETTINGS_METADATA = {

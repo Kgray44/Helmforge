@@ -4,9 +4,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from v3_app.recorder.recorder_artifacts import (
+    EncodedClipArtifact,
     RecorderArtifact,
     RecorderExportMetadata,
     artifact_from_manifest,
+    encoded_clip_from_manifest,
     export_metadata_from_manifest,
 )
 
@@ -28,6 +30,7 @@ class ClipMetadata:
     display_name: str = ""
     manifest_path: Path | None = None
     export_metadata: RecorderExportMetadata | None = None
+    encoded_clip: EncodedClipArtifact | None = None
 
     @classmethod
     def from_path(cls, path: Path) -> "ClipMetadata":
@@ -74,6 +77,25 @@ class ClipMetadata:
             export_metadata=export,
         )
 
+    @classmethod
+    def from_encoded_clip(cls, clip: EncodedClipArtifact) -> "ClipMetadata":
+        return cls(
+            path=clip.output_path,
+            clip=f"Encoded clip: {clip.output_path.name} ({clip.requested_format.upper()} / Verified local file)",
+            recorded=clip.created_at or "Unavailable",
+            duration=f"{clip.duration_seconds:.0f} s" if clip.duration_seconds else "Unavailable",
+            opened="Playable claim allowed" if clip.playable_claim_allowed else "Exported file created",
+            overlay_source="Final output",
+            resolution="Encoded clip",
+            length=f"{clip.duration_seconds:.2f} s" if clip.duration_seconds else "Unavailable",
+            is_simulated=clip.source_artifact_type == "simulated_test",
+            has_video=clip.has_video,
+            artifact_kind="encoded_clip",
+            display_name="Encoded clip",
+            manifest_path=clip.manifest_path,
+            encoded_clip=clip,
+        )
+
 
 class ClipLibrary:
     def __init__(self, destination_folder: Path) -> None:
@@ -113,6 +135,14 @@ class ClipLibrary:
             if export is None:
                 continue
             clips.append(ClipMetadata.from_export(export))
+        for manifest in sorted(
+            self.destination_folder.glob("encoded_clip_*/manifest.json"),
+            key=lambda item: item.parent.name.lower(),
+        ):
+            encoded = encoded_clip_from_manifest(manifest)
+            if encoded is None:
+                continue
+            clips.append(ClipMetadata.from_encoded_clip(encoded))
         return tuple(sorted(clips, key=lambda clip: clip.recorded, reverse=True))
 
 

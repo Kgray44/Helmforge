@@ -208,3 +208,81 @@ def export_metadata_from_manifest(path: Path) -> RecorderExportMetadata | None:
     if not isinstance(export_payload, Mapping):
         return None
     return RecorderExportMetadata.from_dict(export_payload)
+
+
+@dataclass(frozen=True)
+class EncodedClipArtifact:
+    export_id: str
+    created_at: str
+    output_path: Path
+    manifest_path: Path
+    source_artifact_path: Path | None
+    source_artifact_type: str
+    encoder_backend: str
+    requested_format: str
+    output_size_bytes: int
+    duration_seconds: float | None
+    frame_count: int | None
+    playable_claim_allowed: bool
+    truth_label: str
+    has_video: bool = True
+    warnings: tuple[str, ...] = ()
+    errors: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "export_id": self.export_id,
+            "created_at": self.created_at,
+            "output_path": str(self.output_path),
+            "manifest_path": str(self.manifest_path),
+            "source_artifact_path": str(self.source_artifact_path) if self.source_artifact_path is not None else None,
+            "source_artifact_type": self.source_artifact_type,
+            "encoder_backend": self.encoder_backend,
+            "requested_format": self.requested_format,
+            "output_size_bytes": self.output_size_bytes,
+            "duration_seconds": self.duration_seconds,
+            "frame_count": self.frame_count,
+            "playable_claim_allowed": self.playable_claim_allowed,
+            "truth_label": self.truth_label,
+            "has_video": self.has_video,
+            "warnings": list(self.warnings),
+            "errors": list(self.errors),
+        }
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, object]) -> "EncodedClipArtifact":
+        source_path = payload.get("source_artifact_path")
+        return cls(
+            export_id=str(payload.get("export_id") or ""),
+            created_at=str(payload.get("created_at") or ""),
+            output_path=Path(str(payload.get("output_path") or "")),
+            manifest_path=Path(str(payload.get("manifest_path") or "")),
+            source_artifact_path=Path(str(source_path)) if source_path else None,
+            source_artifact_type=str(payload.get("source_artifact_type") or "unknown"),
+            encoder_backend=str(payload.get("encoder_backend") or "unknown"),
+            requested_format=str(payload.get("requested_format") or "unknown"),
+            output_size_bytes=_int(payload.get("output_size_bytes"), 0),
+            duration_seconds=_float(payload.get("duration_seconds"), 0.0)
+            if payload.get("duration_seconds") is not None
+            else None,
+            frame_count=_int(payload.get("frame_count"), 0) if payload.get("frame_count") is not None else None,
+            playable_claim_allowed=bool(payload.get("playable_claim_allowed", False)),
+            truth_label=str(payload.get("truth_label") or "Encoded clip truth unavailable"),
+            has_video=bool(payload.get("has_video", False)),
+            warnings=_tuple(payload.get("warnings")),
+            errors=_tuple(payload.get("errors")),
+        )
+
+
+def encoded_clip_from_manifest(path: Path) -> EncodedClipArtifact | None:
+    try:
+        payload: Any = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    clip_payload = payload.get("encoded_clip") if isinstance(payload, Mapping) else None
+    if not isinstance(clip_payload, Mapping):
+        return None
+    clip = EncodedClipArtifact.from_dict(clip_payload)
+    if not clip.output_path.exists() or not clip.playable_claim_allowed:
+        return None
+    return clip

@@ -15,14 +15,27 @@ from v3_app.recorder.capture_backend import (
     FrameCaptureResult,
     MissingCaptureBackend,
 )
-from v3_app.recorder.compositor import MissingRecorderCompositor, RecorderCompositor
+from v3_app.recorder.compositor import (
+    MissingRecorderCompositor,
+    RecorderCompositor,
+    build_overlay_composition_plan,
+)
+from v3_app.recorder.encoding_backend import (
+    EncodableFrameSource,
+    EncoderBackend,
+    EncoderExportJob,
+    EncoderResult,
+    MissingEncoderBackend,
+    analyze_frame_source,
+    blocked_encoder_result,
+)
 from v3_app.recorder.hindsight_buffer import (
     RecorderFrameBufferStatus,
     RecorderFrameHindsightBuffer,
     RecorderFrameReference,
     RecorderTelemetryHindsightBuffer,
 )
-from v3_app.recorder.recorder_artifacts import RecorderArtifact, RecorderExportMetadata
+from v3_app.recorder.recorder_artifacts import EncodedClipArtifact, RecorderArtifact, RecorderExportMetadata
 from v3_app.recorder.recorder_settings import FlightRecorderSettings
 from v3_app.recorder.recorder_state import RecorderState, RecorderStatus
 from v3_app.recorder.session_review import (
@@ -69,6 +82,29 @@ class FrameBufferOperationResult:
     status: RecorderFrameBufferStatus
 
 
+@dataclass(frozen=True)
+class RecorderExportAvailability:
+    available: bool
+    message: str
+    source: EncodableFrameSource
+    encoder_name: str
+    encoder_kind: str
+    requested_format: str
+    supported_formats: tuple[str, ...]
+    warnings: tuple[str, ...] = ()
+    errors: tuple[str, ...] = ()
+    truth_label: str = "Export unavailable"
+
+
+@dataclass(frozen=True)
+class RecorderClipExportResult:
+    succeeded: bool
+    message: str
+    export_job: EncoderExportJob | None
+    encoder_result: EncoderResult | None
+    encoded_clip: EncodedClipArtifact | None
+
+
 class FlightRecorderController:
     def __init__(
         self,
@@ -76,11 +112,13 @@ class FlightRecorderController:
         settings: FlightRecorderSettings | None = None,
         capture_backend: CaptureBackend | None = None,
         compositor: RecorderCompositor | None = None,
+        encoder_backend: EncoderBackend | None = None,
         telemetry_buffer: RecorderTelemetryHindsightBuffer | None = None,
     ) -> None:
         self.settings = settings or FlightRecorderSettings.defaults()
         self.capture_backend = capture_backend or MissingCaptureBackend()
         self.compositor = compositor or MissingRecorderCompositor()
+        self.encoder_backend = encoder_backend or MissingEncoderBackend()
         self.telemetry_buffer = telemetry_buffer or RecorderTelemetryHindsightBuffer(
             history_seconds=self.settings.history_seconds
         )
@@ -94,6 +132,9 @@ class FlightRecorderController:
         self.last_export_metadata: RecorderExportMetadata | None = None
         self.reviewed_session: RecorderReviewSession | None = None
         self.last_frame_capture_result: FrameCaptureResult | None = None
+        self.last_encoder_result: EncoderResult | None = None
+        self.last_export_job: EncoderExportJob | None = None
+        self.last_encoded_clip: EncodedClipArtifact | None = None
         self._frame_buffer_source: CaptureDisplaySource | None = None
         self._frame_buffer_failure_count = 0
 
@@ -161,6 +202,8 @@ class FlightRecorderController:
             "Cursor capture": "available" if capabilities.cursor_capture_available else "unavailable",
             "Display enumeration": "available" if capabilities.display_enumeration_available else "unavailable",
             "Video encoding": "available" if capabilities.video_encoding_available else "unavailable",
+            "Encoder backend": self.encoder_backend.capabilities().encoder_name,
+            "Encoder formats": ", ".join(self.encoder_backend.capabilities().supported_formats) or "none",
             "Compositor": (
                 "simulated metadata exporter"
                 if self.compositor.capabilities().simulated_export_available
@@ -329,6 +372,154 @@ class FlightRecorderController:
             sample
             for sample in self.telemetry_buffer.samples()
             if status.oldest_timestamp <= sample.timestamp <= status.newest_timestamp
+        )
+
+    def export_clip_availability(self, *, requested_format: str = "mp4") -> RecorderExportAvailability:
+        capability = self.encoder_backend.capabilities()
+        source = analyze_frame_source(self.frame_buffer.frames())
+        requested = requested_format.casefold().strip(".")
+        reasons: list[str] = []
+        if not capability.dependency_available or not capability.can_encode_video:
+            reasons.append("encoder unavailable")
+        if requested not in capability.supported_formats:
+            reasons.append(f"{requested} unsupported")
+        if not source.encodable:
+            reasons.append("frame pixels not available")
+        warnings = _dedupe((*capability.warnings, *source.warnings))
+        errors = _dedupe((*capability.errors, *source.errors))
+        if reasons:
+            return RecorderExportAvailability(
+                available=False,
+                message=f"Export unavailable: {', '.join(reasons)}.",
+                source=source,
+                encoder_name=capability.encoder_name,
+                encoder_kind=capability.encoder_kind,
+                requested_format=requested,
+                supported_formats=capability.supported_formats,
+                warnings=warnings,
+                errors=errors,
+                truth_label="Intermediate-only / encoded clip unavailable",
+            )
+        return RecorderExportAvailability(
+            available=True,
+            message="Export ready: encoder and encodable frame files are available.",
+            source=source,
+            encoder_name=capability.encoder_name,
+            encoder_kind=capability.encoder_kind,
+            requested_format=requested,
+            supported_formats=capability.supported_formats,
+            warnings=warnings,
+            errors=errors,
+            truth_label="Ready to encode local clip",
+        )
+
+    def export_clip(
+        self,
+        *,
+        requested_format: str = "mp4",
+        include_overlay: bool = True,
+        include_telemetry_metadata: bool = True,
+        now: float | None = None,
+        created_at: str | None = None,
+        runtime_status=None,
+    ) -> RecorderClipExportResult:
+        current = time() if now is None else float(now)
+        created = created_at or datetime.fromtimestamp(current, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        requested = requested_format.casefold().strip(".")
+        capability = self.encoder_backend.capabilities()
+        availability = self.export_clip_availability(requested_format=requested)
+        export_id = f"encoded-{_slug(created)}"
+        export_dir = Path(self.settings.destination_folder) / f"encoded_clip_{_slug(created)}"
+        output_path = _available_path(export_dir / f"clip.{requested}")
+        source_artifact_path = Path(self.last_artifact.path) if self.last_artifact is not None else None
+        if not availability.available:
+            encoder_result = blocked_encoder_result(
+                capability=capability,
+                requested_format=requested,
+                message=availability.message,
+                output_path=output_path,
+                warnings=availability.warnings,
+                errors=availability.errors,
+            )
+            job = EncoderExportJob(
+                export_id=export_id,
+                source_artifact_path=source_artifact_path,
+                source_type=availability.source.source_type,
+                requested_format=requested,
+                output_path=output_path,
+                include_overlay=include_overlay,
+                include_telemetry_metadata=include_telemetry_metadata,
+                encoder_backend=capability.encoder_name,
+                status="unavailable",
+                progress=0.0,
+                warnings=availability.warnings,
+                errors=availability.errors,
+                truth_label=availability.truth_label,
+            )
+            self.last_encoder_result = encoder_result
+            self.last_export_job = job
+            return RecorderClipExportResult(False, availability.message, job, encoder_result, None)
+
+        frames = self.frame_buffer.frames()
+        aligned_samples = self.aligned_telemetry_for_frame_buffer()
+        overlay_plan = build_overlay_composition_plan(
+            frames=frames,
+            telemetry_samples=aligned_samples,
+            include_overlay=include_overlay,
+            can_burn_overlay=capability.can_burn_overlay,
+        )
+        encoder_result = self.encoder_backend.encode(
+            frame_paths=availability.source.frame_paths,
+            output_path=output_path,
+            requested_format=requested,
+            frame_rate=self.settings.frame_rate_fps,
+            duration_seconds=availability.source.duration_seconds,
+            overlay_payload=overlay_plan.to_dict(),
+        )
+        job_status = "success" if encoder_result.success and encoder_result.playable_claim_allowed else "failed"
+        job = EncoderExportJob(
+            export_id=export_id,
+            source_artifact_path=source_artifact_path,
+            source_type=availability.source.source_type,
+            requested_format=requested,
+            output_path=output_path,
+            include_overlay=include_overlay,
+            include_telemetry_metadata=include_telemetry_metadata,
+            encoder_backend=capability.encoder_name,
+            status=job_status,
+            progress=1.0,
+            warnings=_dedupe((*availability.warnings, *encoder_result.warnings, *overlay_plan.warnings)),
+            errors=_dedupe((*availability.errors, *encoder_result.errors, *overlay_plan.errors)),
+            truth_label=encoder_result.truth_label,
+        )
+        self.last_encoder_result = encoder_result
+        self.last_export_job = job
+        if not encoder_result.success or not encoder_result.playable_claim_allowed or encoder_result.output_path is None:
+            return RecorderClipExportResult(
+                False,
+                "Export failed verification; no playable clip claim is allowed.",
+                job,
+                encoder_result,
+                None,
+            )
+        encoded_clip = _write_encoded_clip_manifest(
+            export_id=export_id,
+            created_at=created,
+            export_dir=export_dir,
+            source_artifact_path=source_artifact_path,
+            source_type=availability.source.source_type,
+            encoder_result=encoder_result,
+            export_job=job,
+            overlay_plan=overlay_plan.to_dict(),
+            runtime_status=runtime_status,
+        )
+        self.last_encoded_clip = encoded_clip
+        return RecorderClipExportResult(
+            True,
+            "Encoded clip created after local output verification; playable claim allowed for the exported file only.",
+            job,
+            encoder_result,
+            encoded_clip,
         )
 
     def shutdown(self) -> None:
@@ -534,6 +725,78 @@ def _artifact_from_export(metadata: RecorderExportMetadata) -> RecorderArtifact:
         notes=("simulated recorder export", "metadata and overlay trace only"),
         warnings=metadata.warnings,
     )
+
+
+def _write_encoded_clip_manifest(
+    *,
+    export_id: str,
+    created_at: str,
+    export_dir: Path,
+    source_artifact_path: Path | None,
+    source_type: str,
+    encoder_result: EncoderResult,
+    export_job: EncoderExportJob,
+    overlay_plan: dict[str, object],
+    runtime_status,
+) -> EncodedClipArtifact:
+    export_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = export_dir / "manifest.json"
+    clip = EncodedClipArtifact(
+        export_id=export_id,
+        created_at=created_at,
+        output_path=encoder_result.output_path or export_job.output_path,
+        manifest_path=manifest_path,
+        source_artifact_path=source_artifact_path,
+        source_artifact_type=source_type,
+        encoder_backend=encoder_result.encoder_name,
+        requested_format=encoder_result.requested_format,
+        output_size_bytes=encoder_result.output_size_bytes,
+        duration_seconds=encoder_result.duration_seconds,
+        frame_count=encoder_result.frame_count,
+        playable_claim_allowed=encoder_result.playable_claim_allowed,
+        truth_label=encoder_result.truth_label,
+        has_video=encoder_result.playable_claim_allowed,
+        warnings=encoder_result.warnings,
+        errors=encoder_result.errors,
+    )
+    payload = {
+        "truth": "Encoded clip artifact; playable claim allowed only after local output verification.",
+        "encoded_clip": clip.to_dict(),
+        "export_job": {
+            "export_id": export_job.export_id,
+            "source_artifact_path": str(export_job.source_artifact_path) if export_job.source_artifact_path else None,
+            "source_type": export_job.source_type,
+            "requested_format": export_job.requested_format,
+            "output_path": str(export_job.output_path),
+            "include_overlay": export_job.include_overlay,
+            "include_telemetry_metadata": export_job.include_telemetry_metadata,
+            "encoder_backend": export_job.encoder_backend,
+            "status": export_job.status,
+            "progress": export_job.progress,
+            "warnings": list(export_job.warnings),
+            "errors": list(export_job.errors),
+            "truth_label": export_job.truth_label,
+        },
+        "encoder_result": {
+            "success": encoder_result.success,
+            "encoder_name": encoder_result.encoder_name,
+            "requested_format": encoder_result.requested_format,
+            "output_path": str(encoder_result.output_path) if encoder_result.output_path else None,
+            "output_exists": encoder_result.output_exists,
+            "output_size_bytes": encoder_result.output_size_bytes,
+            "duration_seconds": encoder_result.duration_seconds,
+            "frame_count": encoder_result.frame_count,
+            "playable_claim_allowed": encoder_result.playable_claim_allowed,
+            "verification_summary": encoder_result.verification_summary,
+            "warnings": list(encoder_result.warnings),
+            "errors": list(encoder_result.errors),
+            "truth_label": encoder_result.truth_label,
+        },
+        "overlay": overlay_plan,
+        "runtime_truth": _runtime_truth_snapshot(runtime_status),
+    }
+    manifest_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    return clip
 
 
 def _frame_reference_from_result(result: FrameCaptureResult) -> RecorderFrameReference:

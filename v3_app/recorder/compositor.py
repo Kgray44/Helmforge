@@ -9,6 +9,7 @@ from typing import Protocol
 from v3_app.overlay.overlay_config import LiveOverlayConfig
 from v3_app.overlay.telemetry_buffer import OverlayTelemetrySample
 from v3_app.overlay.trace_builder import build_overlay_traces
+from v3_app.recorder.hindsight_buffer import RecorderFrameReference
 from v3_app.recorder.recorder_artifacts import RecorderExportMetadata
 from v3_app.recorder.recorder_settings import FlightRecorderSettings
 
@@ -35,6 +36,30 @@ class SimulatedExportResult:
     succeeded: bool
     message: str
     metadata: RecorderExportMetadata | None = None
+
+
+@dataclass(frozen=True)
+class RecorderOverlayCompositionPlan:
+    status: str
+    frame_count: int
+    telemetry_sample_count: int
+    include_overlay: bool
+    can_burn_overlay: bool
+    truth_label: str
+    warnings: tuple[str, ...] = ()
+    errors: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "status": self.status,
+            "frame_count": self.frame_count,
+            "telemetry_sample_count": self.telemetry_sample_count,
+            "include_overlay": self.include_overlay,
+            "can_burn_overlay": self.can_burn_overlay,
+            "truth_label": self.truth_label,
+            "warnings": list(self.warnings),
+            "errors": list(self.errors),
+        }
 
 
 class RecorderCompositor(Protocol):
@@ -211,6 +236,60 @@ class SimulatedRecorderCompositor:
             message="Simulated export created; no video was captured or encoded.",
             metadata=metadata,
         )
+
+
+def build_overlay_composition_plan(
+    *,
+    frames: tuple[RecorderFrameReference, ...],
+    telemetry_samples: tuple[OverlayTelemetrySample, ...],
+    include_overlay: bool,
+    can_burn_overlay: bool,
+) -> RecorderOverlayCompositionPlan:
+    if not include_overlay:
+        return RecorderOverlayCompositionPlan(
+            status="not_applicable",
+            frame_count=len(frames),
+            telemetry_sample_count=0,
+            include_overlay=False,
+            can_burn_overlay=can_burn_overlay,
+            truth_label="Overlay burn-in not requested.",
+        )
+    if not frames:
+        return RecorderOverlayCompositionPlan(
+            status="unavailable",
+            frame_count=0,
+            telemetry_sample_count=0,
+            include_overlay=True,
+            can_burn_overlay=can_burn_overlay,
+            truth_label="Overlay unavailable; no frames are available.",
+            errors=("No frame source exists for overlay composition.",),
+        )
+    if not can_burn_overlay:
+        return RecorderOverlayCompositionPlan(
+            status="not_applicable",
+            frame_count=len(frames),
+            telemetry_sample_count=0,
+            include_overlay=True,
+            can_burn_overlay=False,
+            truth_label="Overlay burn-in unavailable for selected encoder.",
+            warnings=("Encoder cannot burn overlay; telemetry metadata can still be stored.",),
+        )
+    oldest = frames[0].timestamp
+    newest = frames[-1].timestamp
+    aligned = tuple(sample for sample in telemetry_samples if oldest <= sample.timestamp <= newest)
+    return RecorderOverlayCompositionPlan(
+        status="ready" if aligned else "metadata_only",
+        frame_count=len(frames),
+        telemetry_sample_count=len(aligned),
+        include_overlay=True,
+        can_burn_overlay=True,
+        truth_label=(
+            "Overlay telemetry aligned to frame interval."
+            if aligned
+            else "Overlay requested, but no telemetry samples aligned to the frame interval."
+        ),
+        warnings=() if aligned else ("No telemetry samples were available for overlay burn-in.",),
+    )
 
 
 def _overlay_config_from_settings(settings: FlightRecorderSettings) -> LiveOverlayConfig:
