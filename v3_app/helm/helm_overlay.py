@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -58,6 +59,7 @@ class HelmOverlay(QDialog):
         self._last_result: HelmRecommendationResult | None = None
         self._last_applied_diffs: tuple[HelmDiff, ...] = ()
         self._parent_effect: QGraphicsOpacityEffect | None = None
+        self._scrim: QWidget | None = None
         self._diff_checks: dict[str, QCheckBox] = {}
         self._group_checks: dict[str, QCheckBox] = {}
         self._group_diff_labels: dict[str, tuple[str, ...]] = {}
@@ -68,13 +70,16 @@ class HelmOverlay(QDialog):
     def open_for_parent(self) -> None:
         parent = self.parentWidget()
         if parent is not None:
-            width = max(760, int(parent.width() * 0.70))
-            height = max(620, int(parent.height() * 0.90))
-            x = parent.geometry().x() + max(0, parent.width() - width - 18)
-            y = parent.geometry().y() + 28
+            width = min(680, max(560, int(parent.width() * 0.42)))
+            height = max(620, parent.height() - 48)
+            x = parent.geometry().x() + max(0, parent.width() - width - 22)
+            y = parent.geometry().y() + 24
             self.setGeometry(x, y, width, height)
+            self.setProperty("overlayPlacement", "right-glide")
+            self.setProperty("blurDeferred", True)
+            self._show_scrim(parent)
             self._parent_effect = QGraphicsOpacityEffect(parent)
-            self._parent_effect.setOpacity(0.60)
+            self._parent_effect.setOpacity(0.72)
             parent.setGraphicsEffect(self._parent_effect)
         self.show()
         self.raise_()
@@ -88,6 +93,20 @@ class HelmOverlay(QDialog):
         if parent is not None and self._parent_effect is not None:
             parent.setGraphicsEffect(None)
             self._parent_effect = None
+        if self._scrim is not None:
+            self._scrim.hide()
+            self._scrim.deleteLater()
+            self._scrim = None
+
+    def _show_scrim(self, parent: QWidget) -> None:
+        if self._scrim is None:
+            self._scrim = QWidget(parent)
+            self._scrim.setObjectName("helmOverlayScrim")
+            self._scrim.setProperty("uiRole", "overlayScrim")
+            self._scrim.setProperty("scrimMode", "dimmed")
+        self._scrim.setGeometry(parent.rect())
+        self._scrim.show()
+        self._scrim.raise_()
 
     def _build_ui(self) -> None:
         root = QVBoxLayout(self)
@@ -119,12 +138,11 @@ class HelmOverlay(QDialog):
         grid = QGridLayout()
         grid.setHorizontalSpacing(18)
         grid.setVerticalSpacing(18)
-        grid.addWidget(self._build_symptom_card(), 0, 0)
-        grid.addWidget(self._build_diffs_card(), 0, 1)
-        grid.addWidget(self._build_findings_card(), 1, 0)
-        grid.addWidget(self._build_apply_card(), 1, 1)
+        grid.addWidget(self._build_symptom_card(), 0, 0, Qt.AlignmentFlag.AlignTop)
+        grid.addWidget(self._build_diffs_card(), 1, 0, Qt.AlignmentFlag.AlignTop)
+        grid.addWidget(self._build_findings_card(), 2, 0, Qt.AlignmentFlag.AlignTop)
+        grid.addWidget(self._build_apply_card(), 3, 0, Qt.AlignmentFlag.AlignTop)
         grid.setColumnStretch(0, 1)
-        grid.setColumnStretch(1, 1)
         content_layout.addLayout(grid)
         content_layout.addStretch(1)
         scroll.setWidget(content)
@@ -152,7 +170,9 @@ class HelmOverlay(QDialog):
         status_layout.setContentsMargins(18, 14, 18, 14)
         status_layout.setSpacing(12)
         pulse = QLabel("")
-        pulse.setObjectName("helmPulseIndicator")
+        pulse.setObjectName("helmActiveBulb")
+        pulse.setProperty("pulseStyle", "static-qss")
+        pulse.setProperty("polish", "bulb")
         pulse.setFixedSize(24, 24)
         status_text = QVBoxLayout()
         status_text.setSpacing(4)
@@ -175,12 +195,18 @@ class HelmOverlay(QDialog):
 
     def _build_symptom_card(self) -> QWidget:
         frame = card("helmWhatsWrongCard")
+        frame.setProperty("helmCardContentSized", True)
         layout = card_layout(frame)
         layout.addWidget(card_header("What's wrong?", "Describe the symptom first, then review what I recommend."))
         self.symptom_input = QPlainTextEdit()
         self.symptom_input.setObjectName("helmSymptomInput")
         self.symptom_input.setPlaceholderText("Example: Can't hold aim steady on target.")
-        self.symptom_input.setMinimumHeight(148)
+        self.symptom_input.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
+        self.symptom_input.setMinimumHeight(92)
+        self.symptom_input.setMaximumHeight(220)
+        self.symptom_input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.symptom_input.setProperty("autoResize", True)
+        self.symptom_input.textChanged.connect(self._resize_symptom_input)
         layout.addWidget(self.symptom_input)
 
         chip_grid = QGridLayout()
@@ -195,6 +221,7 @@ class HelmOverlay(QDialog):
         layout.addLayout(chip_grid)
 
         actions = QHBoxLayout()
+        actions.setObjectName("helmSymptomActionRow")
         actions.setSpacing(10)
         analyze = action_button("Analyze", object_name="helmAnalyzeButton")
         analyze.clicked.connect(self.analyze)
@@ -211,6 +238,8 @@ class HelmOverlay(QDialog):
 
     def _build_diffs_card(self) -> QWidget:
         frame = card("helmDiffsCard")
+        frame.setObjectName("helmRecommendationCard")
+        frame.setProperty("helmCardContentSized", True)
         layout = card_layout(frame)
         layout.addWidget(card_header("What I'd change", "Exact before-and-after diffs that can be applied to the current workspace."))
         self.diff_list = QVBoxLayout()
@@ -220,11 +249,12 @@ class HelmOverlay(QDialog):
         self.diff_empty_label.setWordWrap(True)
         self.diff_list.addWidget(self.diff_empty_label)
         layout.addLayout(self.diff_list)
-        layout.addStretch(1)
         return frame
 
     def _build_findings_card(self) -> QWidget:
         frame = card("helmFindingsCard")
+        frame.setObjectName("helmFindingCard")
+        frame.setProperty("helmCardContentSized", True)
         layout = card_layout(frame)
         layout.addWidget(card_header("What I found", "Diagnosis, confidence, and context from the current stack and runtime state."))
         self.confidence_chip = status_chip("Idle", tone="warning", object_name="helmConfidenceChip")
@@ -245,9 +275,24 @@ class HelmOverlay(QDialog):
 
     def _build_apply_card(self) -> QWidget:
         frame = card("helmApplyCard")
+        frame.setObjectName("helmApplyRevertCard")
+        frame.setProperty("helmCardContentSized", True)
         layout = card_layout(frame)
         layout.addWidget(card_header("Apply / Revert", "Helm updates the current workspace only. Save when you want to keep the result."))
-        actions = QHBoxLayout()
+        self.review_summary = QLabel("Nothing has been applied yet. Selected changes are staged only after analysis.")
+        self.review_summary.setObjectName("helmReviewSummary")
+        self.review_summary.setWordWrap(True)
+        self.apply_status = QLabel("There isn't a Helm batch to revert yet.")
+        self.apply_status.setObjectName("helmApplyStatus")
+        self.apply_status.setProperty("uiRole", "cardBody")
+        self.apply_status.setWordWrap(True)
+        layout.addWidget(self.review_summary)
+        layout.addWidget(self.apply_status)
+        action_row = QWidget()
+        action_row.setObjectName("helmActionRow")
+        action_row.setProperty("uiRole", "cardActionRow")
+        actions = QHBoxLayout(action_row)
+        actions.setContentsMargins(0, 10, 0, 0)
         actions.setSpacing(10)
         self.apply_button = action_button("Apply Selected Changes", object_name="helmApplySelectedButton")
         self.apply_button.clicked.connect(self.apply_selected_changes)
@@ -257,20 +302,15 @@ class HelmOverlay(QDialog):
         actions.addWidget(self.apply_button)
         actions.addWidget(self.revert_button)
         actions.addStretch(1)
-        self.review_summary = QLabel("Nothing has been applied yet. Selected changes are staged only after analysis.")
-        self.review_summary.setObjectName("helmReviewSummary")
-        self.review_summary.setWordWrap(True)
-        self.apply_status = QLabel("There isn't a Helm batch to revert yet.")
-        self.apply_status.setObjectName("helmApplyStatus")
-        self.apply_status.setProperty("uiRole", "cardBody")
-        self.apply_status.setWordWrap(True)
-        layout.addLayout(actions)
-        layout.addWidget(self.review_summary)
-        layout.addWidget(self.apply_status)
+        layout.addWidget(action_row)
         return frame
 
     def select_symptom(self, symptom: str) -> None:
         self.symptom_input.setPlainText(symptom)
+
+    def _resize_symptom_input(self) -> None:
+        document_height = int(self.symptom_input.document().size().height()) + 22
+        self.symptom_input.setFixedHeight(max(92, min(220, document_height)))
 
     def analyze(self) -> None:
         self._last_result = self._engine.analyze(
@@ -430,6 +470,7 @@ class HelmOverlay(QDialog):
         self.diff_empty_label.hide()
         for group in groups:
             group_card = card(f"helmGroup_{_key(group.label)}")
+            group_card.setProperty("helmCardContentSized", True)
             layout = card_layout(group_card)
             check = QCheckBox("Select group")
             check.setObjectName(f"helmGroupCheck_{_key(group.label)}")
@@ -472,6 +513,7 @@ class HelmOverlay(QDialog):
 
     def _add_diff_row(self, diff: HelmDiff, parent_layout: QVBoxLayout) -> None:
             row = card(f"helmDiff_{_key(diff.label)}")
+            row.setProperty("helmCardContentSized", True)
             layout = card_layout(row)
             check = QCheckBox("Selected")
             check.setObjectName(f"helmDiffCheck_{_key(diff.label)}")

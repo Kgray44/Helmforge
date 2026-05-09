@@ -30,15 +30,20 @@ def app_qss() -> str:
 
     QWidget#appSidebar {
         background: #0b1724;
-        border: 1px solid #315577;
+        border: 1px solid #41698d;
         border-radius: 20px;
     }
 
     QWidget#statusCluster,
     QWidget#assistantCluster {
-        background: #0b1724;
-        border: 1px solid #315577;
+        background: #0d1b29;
+        border: 1px solid #41698d;
         border-radius: 14px;
+    }
+
+    QWidget#helmOverlayScrim {
+        background: rgba(3, 8, 14, 132);
+        border: none;
     }
 
     QWidget#contentViewport,
@@ -52,7 +57,7 @@ def app_qss() -> str:
 
     QScrollArea#pageScrollArea {
         background: #0a1420;
-        border: 1px solid #1e3f5c;
+        border: 1px solid #315577;
         border-radius: 16px;
     }
 
@@ -573,7 +578,8 @@ def app_qss() -> str:
     QPushButton[uiRole="symptomChip"] {
         background: #0c1a27;
         border-color: #2d4d6f;
-        padding: 7px 12px;
+        padding: 5px 9px;
+        font-size: 12px;
         font-weight: 500;
     }
 
@@ -582,10 +588,24 @@ def app_qss() -> str:
         border-color: #53b7ff;
     }
 
+    QLabel#helmActiveBulb,
     QLabel#helmPulseIndicator {
-        background: #72e2a0;
-        border: 6px solid #5f9f86;
+        background: qradialgradient(cx:0.42, cy:0.38, radius:0.72, fx:0.32, fy:0.28,
+            stop:0 #f0fff6, stop:0.23 #96ffc5, stop:0.58 #45c97d, stop:1 #153c2b);
+        border: 5px solid #2f8f60;
         border-radius: 12px;
+    }
+
+    QWidget#helmActionRow {
+        border-top: 1px solid #203a55;
+    }
+
+    QFrame#helmRecommendationCard QLabel#routeSummaryValue,
+    QFrame#helmFindingCard QLabel#routeSummaryValue,
+    QFrame#helmApplyRevertCard QLabel#routeSummaryValue {
+        color: #ffffff;
+        font-size: 16px;
+        font-weight: 750;
     }
 
     QTreeWidget {
