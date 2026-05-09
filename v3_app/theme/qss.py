@@ -109,6 +109,28 @@ def app_qss() -> str:
         font-weight: 550;
     }
 
+    QLabel[uiRole="truthNotice"] {
+        background: #0b1724;
+        border: 1px solid #315577;
+        border-left: 4px solid #96ffc5;
+        border-radius: 12px;
+        color: #cdeeff;
+        padding: 10px 12px;
+        line-height: 1.35;
+    }
+
+    QLabel[uiRole="sectionKicker"] {
+        color: #96ffc5;
+        font-size: 12px;
+        font-weight: 750;
+        text-transform: uppercase;
+    }
+
+    QFrame[uiRole="workflowCard"] {
+        border-color: #3e6b91;
+        background: #0e1c2a;
+    }
+
     QFrame#hotasDiagramWidget {
         background: #07111d;
         border: 1px solid #203a55;
@@ -393,6 +415,11 @@ def app_qss() -> str:
     QTableWidget::item {
         padding: 7px 8px;
         border: none;
+    }
+
+    QTableWidget::item:selected {
+        background: #153b5a;
+        color: #ffffff;
     }
 
     QHeaderView::section {

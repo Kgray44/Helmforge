@@ -30,6 +30,7 @@ from v3_app.pages.page_helpers import (
     card_layout,
     page_intro,
     parameter_label,
+    truth_notice,
 )
 from v3_app.recorder.clip_library import ClipLibrary
 from v3_app.recorder.recorder_controller import FlightRecorderController
@@ -71,6 +72,14 @@ class FlightRecorderPage(QWidget):
                 "Flight Recorder",
                 "Inspect the recorder shell, simulated export metadata, and future time-matched axis overlay without claiming video capture.",
                 "No video captured. No encoding performed. recorder exports remain metadata-only until a real capture backend exists. Playable clip export is available only when frame files exist, an encoder backend succeeds, and local output verification passes. Video hindsight unavailable unless those proofs exist. The hotkey text is configured but not registered.",
+            )
+        )
+        root.addWidget(
+            truth_notice(
+                "Recorder workflow: Capture Proof is one still-frame diagnostic, Frame Buffer is not runtime readiness, "
+                "image sequences are not encoded video, and Export only becomes available after frame files plus encoder "
+                "success and verification. Preview stays unavailable until a verified local clip and playback path exist.",
+                object_name="recorderWorkflowTruthNotice",
             )
         )
         root.addWidget(self._status_card())
@@ -160,6 +169,7 @@ class FlightRecorderPage(QWidget):
 
     def _review_card(self) -> QWidget:
         frame = card("recorderReviewCard")
+        frame.setProperty("uiRole", "workflowCard")
         layout = card_layout(frame)
         layout.addWidget(card_header("Recorder Review", "Session summary, timeline, and local export for recorder diagnostics."))
         self.review_summary = QLabel("No reviewed recorder session yet.\nSimulated/Workspace Only\nRuntime blocked until telemetry proves otherwise.")
@@ -200,6 +210,7 @@ class FlightRecorderPage(QWidget):
 
     def _capture_proof_card(self) -> QWidget:
         frame = card("recorderCaptureProofCard")
+        frame.setProperty("uiRole", "workflowCard")
         layout = card_layout(frame)
         layout.addWidget(card_header("Capture Proof", "Explicit one-frame diagnostic only; no recording or encoder path is started."))
         self.capture_proof_summary = QLabel("")
@@ -226,6 +237,7 @@ class FlightRecorderPage(QWidget):
 
     def _frame_buffer_card(self) -> QWidget:
         frame = card("recorderFrameBufferCard")
+        frame.setProperty("uiRole", "workflowCard")
         layout = card_layout(frame)
         layout.addWidget(card_header("Frame Buffer", "Explicit-start hindsight frame buffer with metadata-only or file-backed image storage."))
         self.frame_buffer_summary = QLabel("")
@@ -252,6 +264,7 @@ class FlightRecorderPage(QWidget):
 
     def _encoding_export_card(self) -> QWidget:
         frame = card("recorderEncodingExportCard")
+        frame.setProperty("uiRole", "workflowCard")
         layout = card_layout(frame)
         layout.addWidget(card_header("Export / encoding", "Explicit local export only after frame files and encoder verification exist."))
         self.encoding_export_summary = QLabel("")

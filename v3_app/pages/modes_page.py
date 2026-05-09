@@ -16,6 +16,7 @@ from v3_app.pages.page_helpers import (
     format_buttons,
     page_intro,
     runtime_truth_rows,
+    truth_notice,
     value_grid,
 )
 from v3_app.services.app_state import AppState
@@ -47,6 +48,12 @@ class ModesPage(QWidget):
                 "Modes",
                 "Configure precision and combat activation without diving into raw tuning values.",
                 "Keep trigger lists, zoom gating, and the current live mode state in one clear workspace.",
+            )
+        )
+        root.addWidget(
+            truth_notice(
+                "Mode edits are workspace configuration only. Live Mode State is telemetry-derived and does not prove output writes.",
+                object_name="modesPolishTruthNotice",
             )
         )
         grid = QGridLayout()

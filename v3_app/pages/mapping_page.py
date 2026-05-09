@@ -68,7 +68,7 @@ from v3_app.services.physical_input_ui import (
     hat_from_physical_snapshot,
     raw_axes_from_physical_snapshot,
 )
-from v3_app.pages.page_helpers import apply_parameter_metadata, parameter_label
+from v3_app.pages.page_helpers import apply_parameter_metadata, parameter_label, truth_notice
 from v3_app.widgets.hotas_diagram import HotasDiagramWidget
 from v3_app.ui.status_chips import action_button, status_chip
 
@@ -216,6 +216,14 @@ class MappingPage(QWidget):
         layout.addWidget(title)
         layout.addWidget(subtitle)
         layout.addWidget(helper)
+        layout.addWidget(
+            truth_notice(
+                "Diagram selection, table selection, and Change Mapping all reflect the same selected route. "
+                "Mapping edits remain workspace/config draft only. Output intent is not output write proof; "
+                "Save Workspace required before draft routes are persisted.",
+                object_name="mappingPolishTruthNotice",
+            )
+        )
         return block
 
     def _build_chip_row(self) -> QWidget:

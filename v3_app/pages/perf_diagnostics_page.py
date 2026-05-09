@@ -21,7 +21,7 @@ from shared_core.runtime.vjoy_output import (
     VirtualOutputWriteLoop,
     build_virtual_output_diagnostics,
 )
-from v3_app.pages.page_helpers import add_card_to_grid, card, card_header, card_layout, page_intro
+from v3_app.pages.page_helpers import add_card_to_grid, card, card_header, card_layout, page_intro, truth_notice
 from v3_app.services.app_state import AppState, RuntimeUiState
 from v3_app.services.bridge_client import BridgeTelemetryClient, BridgeTelemetryReadResult
 from v3_app.services.perf_diagnostics import (
@@ -80,6 +80,12 @@ class PerfDiagnosticsPage(QWidget):
                 "Perf / Diagnostics",
                 "Inspect app timing, runtime truth, Bridge telemetry, and diagnostic collection without changing runtime authority.",
                 "Diagnostics are observational. Telemetry remains the truth surface and output verification stays false until a future verification phase proves writes.",
+            )
+        )
+        root.addWidget(
+            truth_notice(
+                "Hints are not proof. Process presence, packaged launch, and vJoy detection stay hints until Full Live Runtime Ready has the complete proof chain.",
+                object_name="diagnosticsTruthLegend",
             )
         )
 

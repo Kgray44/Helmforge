@@ -107,6 +107,14 @@ def card_header(title: str, body: str | None = None) -> QWidget:
     return header
 
 
+def truth_notice(text: str, *, object_name: str) -> QLabel:
+    label = QLabel(text)
+    label.setObjectName(object_name)
+    label.setProperty("uiRole", "truthNotice")
+    label.setWordWrap(True)
+    return label
+
+
 def axis_list_card(*, selected_axis: str = "Roll", on_axis_selected: Callable[[str], None] | None = None) -> QFrame:
     frame = card("mappedAxesCard")
     layout = card_layout(frame)

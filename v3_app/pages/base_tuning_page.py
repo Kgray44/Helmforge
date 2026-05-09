@@ -32,6 +32,7 @@ from v3_app.pages.page_helpers import (
     field_row,
     page_intro,
     signed,
+    truth_notice,
 )
 from v3_app.services.app_state import AppState
 from v3_app.services.parameter_metadata import PARAMETER_HELP
@@ -86,6 +87,12 @@ class BaseTuningPage(QWidget):
                 "Base Tuning",
                 "Shape the underlying axis response before mode-specific modifiers get involved.",
                 "Changes update the current workspace immediately and are only written out when you save.",
+            )
+        )
+        root.addWidget(
+            truth_notice(
+                "Axis edits, live dots, and response preview values are workspace diagnostics for the selected axis; they do not verify output writes.",
+                object_name="baseTuningPolishTruthNotice",
             )
         )
         root.addLayout(self._build_workspace())

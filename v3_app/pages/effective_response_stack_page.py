@@ -29,7 +29,7 @@ from shared_core.runtime.runtime_bridge import RuntimeBridge
 from shared_core.rules.evaluator import RuleStatus
 from v3_app.pages.graph_data import effective_response_stack_graph_data
 from v3_app.pages.graph_widgets import GraphPreview
-from v3_app.pages.page_helpers import add_card_to_grid, card, card_header, card_layout, page_intro, signed, value_grid
+from v3_app.pages.page_helpers import add_card_to_grid, card, card_header, card_layout, page_intro, signed, truth_notice, value_grid
 from v3_app.services.app_state import AppState
 from v3_app.services.perf_diagnostics import DiagnosticsCollector
 from v3_app.services.physical_input_ui import build_input_source_status, raw_axes_from_physical_snapshot
@@ -158,6 +158,12 @@ class EffectiveResponseStackPage(QWidget):
                 "Inspect one selected axis at a time from raw HOTAS input through shaping, filtering, mode modifiers, rule injections, and final output.",
             )
         )
+        root.addWidget(
+            truth_notice(
+                "Raw input, tuning stages, and final output intent are visual diagnostics. Output intent is not output write proof.",
+                object_name="stackPolishTruthNotice",
+            )
+        )
         root.addWidget(self._build_controls())
 
         main = QHBoxLayout()
@@ -236,7 +242,7 @@ class EffectiveResponseStackPage(QWidget):
         layout.addWidget(card_header("Raw vs Final", "The live marker rides on the effective response line for the selected axis."))
         self.graph = GraphPreview(object_name="effectiveResponseStackGraph")
         layout.addWidget(self.graph)
-        caption = QLabel("Raw input on X, effective output on Y. Center")
+        caption = QLabel("Raw input on X, effective output intent on Y. Center and marker states remain diagnostics only.")
         caption.setObjectName("cardBody")
         layout.addWidget(caption)
         return frame

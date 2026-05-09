@@ -32,7 +32,7 @@ from shared_core.rules.evaluator import (
     rule_preview_sentence,
     status_counts,
 )
-from v3_app.pages.page_helpers import apply_parameter_metadata, parameter_label
+from v3_app.pages.page_helpers import apply_parameter_metadata, parameter_label, truth_notice
 from v3_app.services.app_state import AppState
 from v3_app.ui.status_chips import action_button, status_chip
 
@@ -101,11 +101,17 @@ class ConditionalRulesPage(QWidget):
         root.setSpacing(18)
 
         root.addWidget(self._build_intro())
+        root.addWidget(
+            truth_notice(
+                "Rule edits stay in the workspace draft. Rule status is deterministic local evaluation, not a claim that runtime output fired.",
+                object_name="conditionalRulesTruthNotice",
+            )
+        )
         root.addWidget(self._build_chip_row())
         root.addWidget(self._build_action_row())
 
         split = QHBoxLayout()
-        split.setSpacing(8)
+        split.setSpacing(18)
         split.addWidget(self._build_rule_list_card(), 1, Qt.AlignmentFlag.AlignTop)
         right = QVBoxLayout()
         right.setSpacing(18)

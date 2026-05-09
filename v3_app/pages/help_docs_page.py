@@ -26,7 +26,7 @@ from shared_core.models.workspace import WorkspaceConfig
 from shared_core.runtime.device_discovery import build_runtime_preflight_status
 from shared_core.runtime.driver_setup import VJOY_SETUP_SOURCE_URL
 from shared_core.runtime.setup_guidance import OFFICIAL_THRUSTMASTER_SUPPORT_PAGE
-from v3_app.pages.page_helpers import card, card_header, card_layout, page_intro
+from v3_app.pages.page_helpers import card, card_header, card_layout, page_intro, truth_notice
 from v3_app.services.app_state import AppState
 from v3_app.services.help_docs import (
     HELP_SORT_OPTIONS,
@@ -91,6 +91,13 @@ class HelpDocsPage(QWidget):
                 "Help / Docs",
                 "Search the built-in guide, browse by category, and keep the details you use most close at hand.",
                 "Local documentation only. These guides explain current boundaries without performing runtime actions.",
+            )
+        )
+        root.addWidget(
+            truth_notice(
+                "Documentation is local. Parameter Reference and page navigation explain current boundaries; "
+                "they do not start services, verify output, or contact cloud systems.",
+                object_name="helpDocsReadabilityNotice",
             )
         )
         root.addWidget(self._build_controls_card())

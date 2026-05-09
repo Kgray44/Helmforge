@@ -34,6 +34,7 @@ from v3_app.pages.page_helpers import (
     field_row,
     page_intro,
     signed,
+    truth_notice,
 )
 from v3_app.services.app_state import AppState
 from v3_app.services.parameter_metadata import PARAMETER_HELP
@@ -86,6 +87,12 @@ class CombatProfilePage(QWidget):
                 "Combat Profile",
                 "Tune the more constrained combat/zoom layer without disturbing the baseline response.",
                 "Changes update the current workspace immediately and are only written out when you save.",
+            )
+        )
+        root.addWidget(
+            truth_notice(
+                "Combat Profile edits remain selected-axis workspace tuning. Preview markers show intent; they do not prove live output writes.",
+                object_name="combatProfilePolishTruthNotice",
             )
         )
         root.addLayout(self._build_workspace())

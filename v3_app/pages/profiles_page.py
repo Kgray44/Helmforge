@@ -14,6 +14,7 @@ from v3_app.pages.page_helpers import (
     format_buttons,
     page_intro,
     runtime_truth_rows,
+    truth_notice,
     value_grid,
 )
 from v3_app.services.app_state import AppState
@@ -64,6 +65,13 @@ class ProfilesPage(QWidget):
         active_note.setObjectName("cardBody")
         status_row.addWidget(active_note, 1)
         root.addLayout(status_row)
+        root.addWidget(
+            truth_notice(
+                "Profile selection is a workspace draft decision. Save Workspace remains the explicit persistence step; "
+                "no profile is runtime-activated outside this local configuration surface.",
+                object_name="profilesDraftPolishNotice",
+            )
+        )
 
         main = QHBoxLayout()
         main.setSpacing(18)
@@ -96,15 +104,26 @@ class ProfilesPage(QWidget):
         tree.setHeaderLabels(("Profile", "Type", "State"))
         built_in_root = QTreeWidgetItem(("Built-In Presets", "", ""))
         personal_root = QTreeWidgetItem(("Personal Profiles", "", ""))
+        selected_item: QTreeWidgetItem | None = None
         for profile in self._workspace.profiles.profiles:
             if profile.profile_type is ProfileType.BUILT_IN:
-                built_in_root.addChild(QTreeWidgetItem((profile.name, "Preset", "Ready")))
+                item = QTreeWidgetItem((profile.name, "Preset", "Ready"))
+                built_in_root.addChild(item)
+                if selected_item is None:
+                    selected_item = item
             else:
                 state = "Active" if profile.active else "Ready"
-                personal_root.addChild(QTreeWidgetItem((profile.name, "Personal", state)))
+                item = QTreeWidgetItem((profile.name, "Personal", state))
+                personal_root.addChild(item)
+                if profile.active:
+                    selected_item = item
         tree.addTopLevelItem(built_in_root)
         tree.addTopLevelItem(personal_root)
         tree.expandAll()
+        if selected_item is not None:
+            tree.setCurrentItem(selected_item)
+        tree.setColumnWidth(0, 230)
+        tree.setColumnWidth(1, 90)
         tree.setMinimumHeight(420)
         layout.addWidget(tree)
 

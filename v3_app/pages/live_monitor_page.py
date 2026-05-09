@@ -49,7 +49,7 @@ from v3_app.overlay.live_overlay_window import LiveOverlayWindow
 from v3_app.overlay.overlay_config import LiveOverlayConfig
 from v3_app.overlay.telemetry_buffer import OverlayTelemetryBuffer, OverlayTelemetrySample
 from v3_app.overlay.trace_builder import build_overlay_traces
-from v3_app.pages.page_helpers import add_card_to_grid, card, card_header, card_layout, page_intro, signed
+from v3_app.pages.page_helpers import add_card_to_grid, card, card_header, card_layout, page_intro, signed, truth_notice
 from v3_app.services.app_state import AppState
 from v3_app.services.bridge_client import (
     DEFAULT_BRIDGE_TELEMETRY_PATH,
@@ -171,6 +171,12 @@ class LiveMonitorPage(QWidget):
                 "Live Monitor",
                 "Watch raw HOTAS input, final processed output intent, buttons, hats, and axis levels in one dedicated live workspace.",
                 "Current values are simulation-backed or read-only input samples until a future Bridge phase verifies real output writes.",
+            )
+        )
+        root.addWidget(
+            truth_notice(
+                "Telemetry remains the truth surface. Bridge presence is a hint only, command files are requests, and output intent is not output write proof.",
+                object_name="liveMonitorTruthNotice",
             )
         )
         root.addWidget(self._build_controls_card())
