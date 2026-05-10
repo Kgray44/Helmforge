@@ -94,6 +94,12 @@ UI writes configuration and sends commands.
 Bridge reads configuration, processes input/output, and publishes telemetry.
 ```
 
+HF-LRDC-3A chooses the next live telemetry direction: a localhost WebSocket stream should become the primary live Bridge-to-UI telemetry source in HF-LRDC-3B, while the JSON snapshot remains diagnostic and fallback. The UI source priority is fresh valid Bridge stream, fresh valid Bridge JSON snapshot, then simulation fallback. The stream carries versioned full telemetry frames and source identity; it does not carry large histories, does not move output-loop ownership into the UI, and does not prove vJoy writes or output verification.
+
+HF-LRDC-3B adds the optional stream client seam in `v3_app/services/bridge_stream_client.py`. Live Monitor can prefer Bridge Stream when enabled and fresh, then Bridge JSON Snapshot, then Simulation Fallback. The default UI path remains JSON-compatible while packaging validation decides when the stream should become default-on.
+
+HF-LRDC-4B adds a compact Manual Bench Validation card to Live Monitor and a reusable manual validation model in shared core. The card guides an operator through telemetry readiness, config sync, HOTAS axes/buttons/hat checks, output intent truth, output proof status, and final readiness truth. Operator marks and notes are bench evidence only; they do not weaken runtime gates or prove vJoy writes.
+
 ## Configuration Flow
 
 1. User edits a workspace in the UI.

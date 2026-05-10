@@ -114,10 +114,18 @@ class BridgeCommandStatusSnapshot:
     message: str = ""
     error: str | None = None
     schema_version: str = "helmforge.bridge_command_status.v1"
+    config_path: str | None = None
+    config_status: str | None = None
+    expected_workspace_hash: str | None = None
+    expected_workspace_revision: str | None = None
+    loaded_workspace_hash: str | None = None
+    loaded_workspace_revision: str | None = None
+    config_match: bool | None = None
+    mismatch_reason: str = ""
 
     def to_dict(self) -> dict[str, object]:
         updated = self.updated_at or self.completed_at or self.received_at
-        return {
+        payload: dict[str, object] = {
             "schema_version": self.schema_version,
             "request_id": self.request_id,
             "command": self.command,
@@ -128,6 +136,19 @@ class BridgeCommandStatusSnapshot:
             "message": self.message,
             "error": self.error,
         }
+        payload.update(
+            {
+                "config_path": self.config_path,
+                "config_status": self.config_status,
+                "expected_workspace_hash": self.expected_workspace_hash,
+                "expected_workspace_revision": self.expected_workspace_revision,
+                "loaded_workspace_hash": self.loaded_workspace_hash,
+                "loaded_workspace_revision": self.loaded_workspace_revision,
+                "config_match": self.config_match,
+                "mismatch_reason": self.mismatch_reason,
+            }
+        )
+        return payload
 
 
 @dataclass(frozen=True)

@@ -118,6 +118,13 @@ class BridgeTelemetryPayload:
     runtime_frame: RuntimeFrameTelemetryPayload | None = None
     last_command: Mapping[str, Any] | None = None
     device_discovery: Mapping[str, Any] | None = None
+    bridge_timing: Mapping[str, Any] | None = None
+    bridge_workspace: Mapping[str, Any] | None = None
+    output_loop_runtime: Mapping[str, Any] | None = None
+    telemetry_stream: Mapping[str, Any] | None = None
+    telemetry_publish: Mapping[str, Any] | None = None
+    physical_input_fidelity: Mapping[str, Any] | None = None
+    physical_input_backend_choice: Mapping[str, Any] | None = None
     warnings: tuple[str, ...] = ()
     errors: tuple[str, ...] = ()
     bridge_name: str = "HelmForge Bridge"
@@ -285,6 +292,10 @@ class BridgeTelemetryClient:
         return value.astimezone(timezone.utc)
 
 
+def parse_bridge_telemetry_payload(path: str | Path, payload: Mapping[str, Any]) -> BridgeTelemetryPayload:
+    return _parse_payload(Path(path), payload)
+
+
 def _parse_payload(path: Path, payload: Mapping[str, Any]) -> BridgeTelemetryPayload:
     timestamp = _parse_timestamp(payload["timestamp"])
     return BridgeTelemetryPayload(
@@ -305,6 +316,13 @@ def _parse_payload(path: Path, payload: Mapping[str, Any]) -> BridgeTelemetryPay
         runtime_frame=_parse_runtime_frame(payload.get("runtime_frame")),
         last_command=_optional_mapping(payload.get("last_command"), "last_command"),
         device_discovery=_optional_mapping(payload.get("device_discovery"), "device_discovery"),
+        bridge_timing=_optional_mapping(payload.get("bridge_timing"), "bridge_timing"),
+        bridge_workspace=_optional_mapping(payload.get("bridge_workspace"), "bridge_workspace"),
+        output_loop_runtime=_optional_mapping(payload.get("output_loop_runtime"), "output_loop_runtime"),
+        telemetry_stream=_optional_mapping(payload.get("telemetry_stream"), "telemetry_stream"),
+        telemetry_publish=_optional_mapping(payload.get("telemetry_publish"), "telemetry_publish"),
+        physical_input_fidelity=_optional_mapping(payload.get("physical_input_fidelity"), "physical_input_fidelity"),
+        physical_input_backend_choice=_optional_mapping(payload.get("physical_input_backend_choice"), "physical_input_backend_choice"),
         warnings=tuple(str(item) for item in payload.get("warnings", ()) or ()),
         errors=tuple(str(item) for item in payload.get("errors", ()) or ()),
         bridge_name=str(payload.get("bridge_name") or "HelmForge Bridge"),

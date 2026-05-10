@@ -29,6 +29,8 @@ class BridgeCommandRequest:
     request_id: str
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     config_path: str | None = None
+    expected_workspace_hash: str | None = None
+    expected_workspace_revision: str | None = None
     profile_id: str | None = None
     reason: str = ""
     options: Mapping[str, object] = field(default_factory=dict)
@@ -42,6 +44,8 @@ class BridgeCommandRequest:
             "request_id": self.request_id,
             "created_at": self.created_at.isoformat(),
             "config_path": self.config_path,
+            "expected_workspace_hash": self.expected_workspace_hash,
+            "expected_workspace_revision": self.expected_workspace_revision,
             "profile_id": self.profile_id,
             "reason": self.reason,
             "options": dict(self.options),
@@ -54,6 +58,8 @@ class BridgeConfigurationReloadRequest:
     config_path: str = "hotas_bridge_config_v3.json"
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     reason: str = "Reload active HelmForge workspace configuration."
+    expected_workspace_hash: str | None = None
+    expected_workspace_revision: str | None = None
 
     def to_command_request(self) -> BridgeCommandRequest:
         return BridgeCommandRequest(
@@ -61,6 +67,8 @@ class BridgeConfigurationReloadRequest:
             request_id=self.request_id,
             created_at=self.created_at,
             config_path=self.config_path,
+            expected_workspace_hash=self.expected_workspace_hash,
+            expected_workspace_revision=self.expected_workspace_revision,
             reason=self.reason,
         )
 
@@ -70,6 +78,8 @@ class BridgeConfigurationReloadRequest:
             "config_path": self.config_path,
             "created_at": self.created_at.isoformat(),
             "reason": self.reason,
+            "expected_workspace_hash": self.expected_workspace_hash,
+            "expected_workspace_revision": self.expected_workspace_revision,
         }
 
 

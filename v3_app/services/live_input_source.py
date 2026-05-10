@@ -3,21 +3,27 @@ from __future__ import annotations
 from shared_core.models.runtime import AXIS_NAMES
 from shared_core.runtime.runtime_bridge import RuntimeBridge
 from v3_app.services.bridge_client import BridgeTelemetryClient, BridgeTelemetryStatus
+from v3_app.services.embedded_bridge_telemetry import read_embedded_bridge_telemetry
+from v3_app.services.live_source_arbitration import LiveTelemetrySourceSelector
 
 
 class LiveAxisSampleSource:
-    def __init__(self, runtime_bridge: RuntimeBridge, bridge_client: BridgeTelemetryClient | None = None) -> None:
+    def __init__(self, runtime_bridge: RuntimeBridge, bridge_client: BridgeTelemetryClient | None = None, *, clock=None) -> None:
         self._runtime_bridge = runtime_bridge
         self._bridge_client = bridge_client or BridgeTelemetryClient(stale_after_seconds=0.25)
+        self._clock = clock
+        self._source_selector = LiveTelemetrySourceSelector(clock=clock)
         self.last_source_label = "Simulation/fallback sample"
         self.last_runtime_truth = runtime_bridge.runtime_status.truth.value
         self.last_output_verified = runtime_bridge.runtime_status.live_output_writes_verified
 
     def raw_axes(self) -> dict[str, float]:
+        embedded_result = read_embedded_bridge_telemetry(stale_after_seconds=1.0, clock=self._clock)
         bridge_result = self._bridge_client.read()
-        if bridge_result.status is BridgeTelemetryStatus.CONNECTED and bridge_result.telemetry is not None:
-            telemetry = bridge_result.telemetry
-            self.last_source_label = f"Bridge telemetry ({telemetry.runtime_truth})"
+        selected = self._source_selector.select(embedded_result=embedded_result, json_result=bridge_result)
+        if selected.status is BridgeTelemetryStatus.CONNECTED and selected.telemetry is not None:
+            telemetry = selected.telemetry
+            self.last_source_label = selected.source_label or f"Bridge telemetry ({telemetry.runtime_truth})"
             self.last_runtime_truth = str(telemetry.runtime_truth)
             self.last_output_verified = bool(telemetry.output_verified)
             return {axis: float(telemetry.raw_axes.get(axis, 0.0)) for axis in AXIS_NAMES}

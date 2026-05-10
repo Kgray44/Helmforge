@@ -56,10 +56,18 @@ class BridgeCommandClient:
     def run_preflight(self) -> BridgeCommandWriteResult:
         return self.write_command(BridgeCommandType.RUN_PREFLIGHT, reason="Run Bridge runtime preflight checks.")
 
-    def reload_config(self, *, config_path: str | Path | None = None) -> BridgeCommandWriteResult:
+    def reload_config(
+        self,
+        *,
+        config_path: str | Path | None = None,
+        expected_workspace_hash: str | None = None,
+        expected_workspace_revision: str | None = None,
+    ) -> BridgeCommandWriteResult:
         return self.write_command(
             BridgeCommandType.RELOAD_CONFIG,
             config_path=config_path,
+            expected_workspace_hash=expected_workspace_hash,
+            expected_workspace_revision=expected_workspace_revision,
             reason="Reload HelmForge V3 workspace configuration.",
         )
 
@@ -74,6 +82,8 @@ class BridgeCommandClient:
         command: BridgeCommandType | str,
         *,
         config_path: str | Path | None = None,
+        expected_workspace_hash: str | None = None,
+        expected_workspace_revision: str | None = None,
         reason: str = "",
         options: Mapping[str, object] | None = None,
     ) -> BridgeCommandWriteResult:
@@ -113,6 +123,10 @@ class BridgeCommandClient:
         }
         if config_path is not None:
             payload["config_path"] = str(config_path)
+        if expected_workspace_hash:
+            payload["expected_workspace_hash"] = str(expected_workspace_hash)
+        if expected_workspace_revision:
+            payload["expected_workspace_revision"] = str(expected_workspace_revision)
 
         try:
             self._atomic_write_json(self.command_path, payload)

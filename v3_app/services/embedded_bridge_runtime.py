@@ -6,6 +6,7 @@ from PySide6.QtCore import QObject, QThread, QTimer, Signal, Slot
 
 from bridge_app.service import BridgeService, BridgeServiceOptions
 from shared_core.runtime.telemetry import BridgeTelemetrySnapshot
+from v3_app.services.embedded_bridge_telemetry import record_embedded_bridge_telemetry
 from v3_app.services.live_refresh import LIVE_REFRESH_INTERVAL_MS
 
 
@@ -81,6 +82,7 @@ class EmbeddedBridgeRuntime(QObject):
         if self._service is None:
             raise RuntimeError("Synchronous ticks are unavailable for threaded embedded bridge runtime.")
         telemetry = self._service.run_once()
+        record_embedded_bridge_telemetry(telemetry)
         self._on_telemetry(telemetry)
         return telemetry
 
@@ -113,4 +115,6 @@ class _BridgeTickWorker(QObject):
     def tick(self) -> None:
         if self._service is None:
             return
-        self.telemetry_ready.emit(self._service.run_once())
+        telemetry = self._service.run_once()
+        record_embedded_bridge_telemetry(telemetry)
+        self.telemetry_ready.emit(telemetry)

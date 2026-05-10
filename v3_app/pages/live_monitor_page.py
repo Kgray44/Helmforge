@@ -24,10 +24,16 @@ from shared_core.math.stack import ModeState
 from shared_core.models.axes import AXIS_DISPLAY_NAMES
 from shared_core.models.runtime import AXIS_NAMES, BUTTON_NAMES, RuntimePreflightStatus
 from shared_core.models.workspace import WorkspaceConfig, create_default_workspace
+from shared_core.persistence.workspace_identity import build_workspace_identity
 from shared_core.rules.evaluator import RuleStatus, status_counts
 from shared_core.runtime.bridge_contracts import BridgeCommandType
 from shared_core.runtime.device_discovery import build_runtime_preflight_status
 from shared_core.runtime.hotas_input import MissingPhysicalInputBackend, PhysicalInputBackend, PhysicalInputSnapshot
+from shared_core.runtime.manual_bench_validation import (
+    ManualValidationStepStatus,
+    create_manual_validation_session,
+    export_manual_validation_session,
+)
 from shared_core.runtime.simulated_runtime import SimulatedRuntime
 from shared_core.runtime.vjoy_output import (
     VirtualOutputBackend,
@@ -39,9 +45,12 @@ from shared_core.runtime.vjoy_output import (
 from v3_app.pages.graph_widgets import GraphPreview
 from v3_app.pages.live_monitor_data import (
     BoundedTelemetryHistory,
+    BridgeFrameIdentity,
+    LiveTelemetryFrameTracker,
     OUTPUT_BUTTON_NAMES,
     TelemetrySample,
     bridge_telemetry_from_runtime_snapshot,
+    extract_bridge_frame_identity,
     telemetry_sample_from_bridge_payload,
     telemetry_sample_from_runtime_snapshot,
 )
@@ -59,6 +68,9 @@ from v3_app.services.bridge_client import (
     BridgeTelemetryStatus,
     RuntimeFrameTelemetryPayload,
 )
+from v3_app.services.bridge_stream_client import BridgeTelemetryStreamClient
+from v3_app.services.embedded_bridge_telemetry import read_embedded_bridge_telemetry
+from v3_app.services.live_source_arbitration import LiveTelemetrySourceSelector
 from v3_app.services.bridge_commands import (
     DEFAULT_BRIDGE_COMMAND_PATH,
     BridgeCommandClient,
@@ -94,6 +106,9 @@ class LiveMonitorPage(QWidget):
         command_clock: Callable[[], datetime] | None = None,
         bridge_clock: Callable[[], datetime] | None = None,
         bridge_stale_after_seconds: float = 5.0,
+        telemetry_stream_enabled: bool = False,
+        telemetry_stream_host: str = "127.0.0.1",
+        telemetry_stream_port: int = 8765,
         process_presence_provider: BridgeProcessPresenceProvider | None = None,
         physical_input_backend: PhysicalInputBackend | None = None,
         selected_physical_input_device_id: str | None = None,
@@ -112,10 +127,23 @@ class LiveMonitorPage(QWidget):
         self._runtime_status = runtime_status or build_runtime_preflight_status()
         self._diagnostics_collector = diagnostics_collector
         self._simulation = SimulatedRuntime(deterministic=False, workspace=self._workspace)
+        self._bridge_clock = bridge_clock
         self._bridge_client = BridgeTelemetryClient(
             telemetry_path=telemetry_path or DEFAULT_BRIDGE_TELEMETRY_PATH,
             stale_after_seconds=bridge_stale_after_seconds,
             clock=bridge_clock,
+        )
+        self._bridge_stream_client = (
+            BridgeTelemetryStreamClient(
+                host=telemetry_stream_host,
+                port=telemetry_stream_port,
+                stale_after_seconds=bridge_stale_after_seconds,
+                clock=bridge_clock,
+                connect_timeout_seconds=0.01,
+                read_timeout_seconds=0.01,
+            )
+            if telemetry_stream_enabled
+            else None
         )
         self._command_client = BridgeCommandClient(
             command_path=command_path or DEFAULT_BRIDGE_COMMAND_PATH,
@@ -147,7 +175,36 @@ class LiveMonitorPage(QWidget):
         self.overlay_series_count = 0
         self.telemetry_source_label = "Simulation Fallback"
         self.telemetry_source_status = "Missing"
+        self._live_source_selector = LiveTelemetrySourceSelector(clock=bridge_clock)
         self.latest_bridge_diagnostics = None
+        self._bridge_frame_tracker = LiveTelemetryFrameTracker()
+        self.last_bridge_frame_identity: BridgeFrameIdentity | None = None
+        self.last_bridge_frame_received_at: datetime | None = None
+        self.repeated_bridge_frame_count = 0
+        self.new_bridge_frame_count = 0
+        self.latest_bridge_frame_age_ms: float | None = None
+        self.latest_bridge_tick_duration_ms: float | None = None
+        self.latest_bridge_tick_count: int | None = None
+        self.latest_bridge_source_cadence_hz: float | None = None
+        self.latest_bridge_frame_state = "unavailable"
+        self.latest_physical_input_sample_age_ms: float | None = None
+        self.latest_physical_input_read_duration_ms: float | None = None
+        self.latest_physical_input_sample_rate_hz: float | None = None
+        self.latest_physical_input_backend_name = "unavailable"
+        self.latest_physical_input_backend_kind = "unavailable"
+        self.latest_physical_input_mapping_status = "unavailable"
+        self._ui_workspace_identity = build_workspace_identity(
+            self._workspace,
+            path=self._state.source_config,
+            status="ui_current" if self._state.saved else "ui_dirty",
+        )
+        self.latest_bridge_workspace: Mapping[str, object] | None = None
+        self.latest_bridge_config_match: bool | None = None
+        self.latest_bridge_config_mismatch_reason = "bridge_workspace_unavailable"
+        self.latest_output_loop_runtime: Mapping[str, object] | None = None
+        self.manual_validation_session = None
+        self._last_manual_validation_telemetry: Mapping[str, object] | None = None
+        self._manual_validation_artifact_root = Path(".artifacts") / "hf-lrdc" / "manual-validation"
         self.last_command_result: BridgeCommandWriteResult | None = None
         self.latest_command_request_id: str | None = None
         self.latest_command_name: str | None = None
@@ -185,6 +242,7 @@ class LiveMonitorPage(QWidget):
             )
         )
         root.addWidget(self._build_controls_card())
+        root.addWidget(self._build_manual_validation_card())
         root.addWidget(self._build_raw_trace_card())
         root.addWidget(self._build_overlay_card())
         root.addWidget(self._build_live_monitor_action_block())
@@ -420,6 +478,55 @@ class LiveMonitorPage(QWidget):
         layout.addLayout(command_grid)
         return frame
 
+    def _build_manual_validation_card(self) -> QWidget:
+        frame = card("manualBenchValidationCard")
+        layout = card_layout(frame)
+        title = QLabel("Manual Bench Validation")
+        title.setObjectName("manualBenchValidationTitle")
+        title.setProperty("cardTitle", True)
+        layout.addWidget(title)
+        helper = QLabel(
+            "Guided operator checklist for real HOTAS/vJoy bench validation. "
+            "Manual confirmation is evidence, not output-write proof."
+        )
+        helper.setObjectName("cardBody")
+        helper.setWordWrap(True)
+        layout.addWidget(helper)
+        self.manual_validation_status_label = QLabel("Session: not started")
+        self.manual_validation_status_label.setObjectName("manualBenchStatus")
+        self.manual_validation_status_label.setWordWrap(True)
+        self.manual_validation_current_step_label = QLabel("Current step: unavailable")
+        self.manual_validation_current_step_label.setObjectName("manualBenchCurrentStep")
+        self.manual_validation_current_step_label.setWordWrap(True)
+        self.manual_validation_instruction_label = QLabel("Press Start Validation to begin.")
+        self.manual_validation_instruction_label.setObjectName("manualBenchInstruction")
+        self.manual_validation_instruction_label.setWordWrap(True)
+        self.manual_validation_evidence_label = QLabel("Evidence: unavailable")
+        self.manual_validation_evidence_label.setObjectName("manualBenchEvidence")
+        self.manual_validation_evidence_label.setWordWrap(True)
+        layout.addWidget(self.manual_validation_status_label)
+        layout.addWidget(self.manual_validation_current_step_label)
+        layout.addWidget(self.manual_validation_instruction_label)
+        layout.addWidget(self.manual_validation_evidence_label)
+        buttons = QHBoxLayout()
+        start = action_button("Start Validation", object_name="manualBenchStartButton")
+        start.clicked.connect(self.start_manual_validation)
+        next_step = action_button("Next Step", object_name="manualBenchNextButton")
+        next_step.clicked.connect(self.next_manual_validation_step)
+        passed = action_button("Mark Passed", object_name="manualBenchPassedButton")
+        passed.clicked.connect(lambda: self.mark_manual_validation_step(ManualValidationStepStatus.PASSED))
+        failed = action_button("Mark Failed", object_name="manualBenchFailedButton")
+        failed.clicked.connect(lambda: self.mark_manual_validation_step(ManualValidationStepStatus.FAILED))
+        skipped = action_button("Skip", object_name="manualBenchSkipButton")
+        skipped.clicked.connect(lambda: self.mark_manual_validation_step(ManualValidationStepStatus.SKIPPED))
+        export = action_button("Export Report", object_name="manualBenchExportButton")
+        export.clicked.connect(self.export_manual_validation_report)
+        for button in (start, next_step, passed, failed, skipped, export):
+            buttons.addWidget(button)
+        buttons.addStretch(1)
+        layout.addLayout(buttons)
+        return frame
+
     def _build_buttons_hats_card(self) -> QWidget:
         frame = card("buttonsHatsCard")
         layout = card_layout(frame)
@@ -630,7 +737,14 @@ class LiveMonitorPage(QWidget):
                 self._live_overlay_rows[label].setText(value)
 
     def request_bridge_command(self, command: BridgeCommandType, label: str | None = None) -> BridgeCommandWriteResult:
-        result = self._command_client.write_command(command)
+        if command is BridgeCommandType.RELOAD_CONFIG:
+            result = self._command_client.reload_config(
+                config_path=self._state.source_config,
+                expected_workspace_hash=self._ui_workspace_identity.workspace_hash,
+                expected_workspace_revision=self._ui_workspace_identity.workspace_revision,
+            )
+        else:
+            result = self._command_client.write_command(command)
         self.last_command_result = result
         if result.success:
             self.latest_command_request_id = result.request_id
@@ -644,10 +758,25 @@ class LiveMonitorPage(QWidget):
     def refresh_snapshot(self, *, force_new: bool = False) -> None:
         self._sample_index += 1
         self._refresh_physical_input_source_status()
-        bridge_result = self._bridge_client.read()
+        bridge_result = self._read_bridge_telemetry()
+        append_history = True
         if bridge_result.status is BridgeTelemetryStatus.CONNECTED and bridge_result.telemetry is not None:
             sample = telemetry_sample_from_bridge_payload(bridge_result.telemetry, index=self._sample_index)
             telemetry = bridge_result.telemetry
+            frame_identity = extract_bridge_frame_identity(telemetry)
+            tracker_result = self._bridge_frame_tracker.observe(
+                frame_identity,
+                received_at=bridge_result.last_read_at,
+            )
+            append_history = tracker_result.is_new_frame
+            self.last_bridge_frame_identity = frame_identity
+            self.last_bridge_frame_received_at = self._bridge_frame_tracker.last_bridge_frame_received_at
+            self.repeated_bridge_frame_count = tracker_result.repeated_frame_count
+            self.new_bridge_frame_count = tracker_result.new_frame_count
+            self.latest_bridge_source_cadence_hz = tracker_result.accepted_cadence_hz
+            self.latest_bridge_frame_state = "new frame" if tracker_result.is_new_frame else "repeated frame"
+            self._update_live_telemetry_truth_state(telemetry, bridge_result)
+            self._update_manual_validation_from_telemetry(telemetry, bridge_result)
         else:
             snapshot = self._simulation.snapshot(self._runtime_status)
             sample = telemetry_sample_from_runtime_snapshot(snapshot, index=self._sample_index)
@@ -656,12 +785,76 @@ class LiveMonitorPage(QWidget):
                 active_profile=self._state.active_profile,
                 rule_summary=self._rule_summary(snapshot.raw_axis_values),
             )
+            self.latest_bridge_frame_state = bridge_result.status.value.lower()
+            self._update_manual_validation_from_telemetry(telemetry, bridge_result)
         sample = self._physical_sample_override(sample)
-        self.history.append(sample)
-        self._append_overlay_sample(sample)
+        if append_history:
+            self.history.append(sample)
+            self._append_overlay_sample(sample)
         self._update_from_sample(sample, telemetry, bridge_result)
         self._update_graphs()
         self._sync_live_overlay_window()
+
+    def _update_live_telemetry_truth_state(self, telemetry, bridge_result: BridgeTelemetryReadResult) -> None:
+        timing = getattr(telemetry, "bridge_timing", None)
+        fidelity = getattr(telemetry, "physical_input_fidelity", None)
+        bridge_workspace = getattr(telemetry, "bridge_workspace", None)
+        output_loop_runtime = getattr(telemetry, "output_loop_runtime", None)
+        if isinstance(timing, Mapping):
+            self.latest_bridge_tick_duration_ms = _optional_float(timing.get("last_tick_duration_ms"))
+            self.latest_bridge_tick_count = _optional_int(timing.get("tick_count"))
+        else:
+            self.latest_bridge_tick_duration_ms = None
+            self.latest_bridge_tick_count = None
+        self.latest_bridge_frame_age_ms = None
+        if bridge_result.age_seconds is not None:
+            self.latest_bridge_frame_age_ms = bridge_result.age_seconds * 1000.0
+        if isinstance(fidelity, Mapping):
+            self.latest_physical_input_backend_name = str(fidelity.get("backend_name") or "unavailable")
+            self.latest_physical_input_backend_kind = str(fidelity.get("backend_kind") or "unavailable")
+            self.latest_physical_input_sample_age_ms = _optional_float(fidelity.get("sample_age_ms"))
+            self.latest_physical_input_read_duration_ms = _optional_float(fidelity.get("read_duration_ms"))
+            self.latest_physical_input_sample_rate_hz = _optional_float(fidelity.get("estimated_sample_rate_hz"))
+            self.latest_physical_input_mapping_status = str(fidelity.get("mapping_status") or "unavailable")
+        else:
+            self.latest_physical_input_backend_name = "unavailable"
+            self.latest_physical_input_backend_kind = "unavailable"
+            self.latest_physical_input_sample_age_ms = None
+            self.latest_physical_input_read_duration_ms = None
+            self.latest_physical_input_sample_rate_hz = None
+            self.latest_physical_input_mapping_status = "unavailable"
+        if isinstance(bridge_workspace, Mapping):
+            self.latest_bridge_workspace = bridge_workspace
+            bridge_hash = str(bridge_workspace.get("workspace_hash") or "")
+            self.latest_bridge_config_match = bool(bridge_hash) and bridge_hash == self._ui_workspace_identity.workspace_hash
+            if self.latest_bridge_config_match:
+                self.latest_bridge_config_mismatch_reason = ""
+            elif bool(bridge_workspace.get("using_default_workspace", False)):
+                self.latest_bridge_config_mismatch_reason = str(bridge_workspace.get("config_status") or "using_default_workspace")
+            elif not self._state.saved:
+                self.latest_bridge_config_mismatch_reason = "ui_has_unsaved_or_different_workspace"
+            else:
+                self.latest_bridge_config_mismatch_reason = "workspace_hash_mismatch"
+        else:
+            self.latest_bridge_workspace = None
+            self.latest_bridge_config_match = None
+            self.latest_bridge_config_mismatch_reason = "bridge_workspace_unavailable"
+        self.latest_output_loop_runtime = output_loop_runtime if isinstance(output_loop_runtime, Mapping) else None
+
+    def _read_bridge_telemetry(self) -> BridgeTelemetryReadResult:
+        embedded_result = read_embedded_bridge_telemetry(stale_after_seconds=1.0, clock=self._bridge_clock)
+        json_result = self._bridge_client.read()
+        stream_result = self._bridge_stream_client.read_latest() if self._bridge_stream_client is not None else None
+        selected = self._live_source_selector.select(
+            embedded_result=embedded_result,
+            stream_result=stream_result,
+            json_result=replace(json_result, source_label="Bridge JSON Snapshot")
+            if json_result.status is BridgeTelemetryStatus.CONNECTED and json_result.telemetry is not None
+            else json_result,
+        )
+        if selected.source_label == "Bridge JSON Snapshot" and selected.telemetry is not None:
+            return replace(selected, reason="Embedded Bridge/stream unavailable or stale; using fresh JSON snapshot.")
+        return selected
 
     def _append_overlay_sample(self, sample) -> None:
         axes = sample.final_axes if self.overlay_config.source == "Final output" else sample.raw_axes
@@ -722,6 +915,8 @@ class LiveMonitorPage(QWidget):
             else str(telemetry.lifecycle_state)
         )
         runtime_frame = getattr(telemetry, "runtime_frame", None)
+        physical_fidelity = getattr(telemetry, "physical_input_fidelity", None)
+        backend_choice = getattr(telemetry, "physical_input_backend_choice", None)
         self.live_state_label.setText(
             "Precision Off | Combat Off | Trigger Off | Zoom Off | Extra Off\n"
             f"Stack mode: {self._workspace.modes.precision_combat_stack_mode.value}. "
@@ -735,6 +930,13 @@ class LiveMonitorPage(QWidget):
             f"Selected device: {self._physical_input_source_status.selected_device_name}. "
             f"Sample age: {self._physical_input_source_status.sample_age_text}. "
             f"Sample source: {self._physical_input_source_status.sample_source}.\n"
+            f"Physical fidelity: {_physical_fidelity_summary(physical_fidelity, backend_choice)}\n"
+            f"{self._bridge_frame_truth_text()}\n"
+            f"{self._physical_input_truth_text()}\n"
+            f"{self._config_sync_truth_text()}\n"
+            f"{self._bridge_config_truth_text()}\n"
+            f"{self._last_reload_truth_text(getattr(telemetry, 'last_command', None))}\n"
+            f"{self._output_loop_runtime_truth_text()}\n"
             f"Runtime frame: {_runtime_frame_status(runtime_frame)}. "
             f"Runtime frame source: {_runtime_frame_source(runtime_frame)}. "
             f"Pipeline status: {_runtime_frame_pipeline_status(runtime_frame)}. "
@@ -814,11 +1016,184 @@ class LiveMonitorPage(QWidget):
             hat_state=hat_from_physical_snapshot(snapshot),
         )
 
+    def _bridge_frame_truth_text(self) -> str:
+        identity = self.last_bridge_frame_identity
+        frame_label = identity.label if identity is not None else "unavailable"
+        age_text = _ms_text(self.latest_bridge_frame_age_ms)
+        tick_text = _ms_text(self.latest_bridge_tick_duration_ms)
+        cadence_text = _hz_text(self.latest_bridge_source_cadence_hz)
+        return (
+            f"Bridge frame: {frame_label} | age {age_text} | tick {tick_text}. "
+            f"Telemetry cadence: {cadence_text} | {self.latest_bridge_frame_state}. "
+            f"Repeated frames skipped: {self.repeated_bridge_frame_count}."
+        )
+
+    def _physical_input_truth_text(self) -> str:
+        return (
+            f"Physical input: {self.latest_physical_input_backend_name} "
+            f"({self.latest_physical_input_backend_kind}) | sample age {_ms_text(self.latest_physical_input_sample_age_ms)} | "
+            f"read {_ms_text(self.latest_physical_input_read_duration_ms)} | "
+            f"rate {_hz_text(self.latest_physical_input_sample_rate_hz)} | "
+            f"mapping {self.latest_physical_input_mapping_status}."
+        )
+
+    def _config_sync_truth_text(self) -> str:
+        bridge_hash = _short_hash(_mapping_value(self.latest_bridge_workspace, "workspace_hash"))
+        ui_hash = self._ui_workspace_identity.short_hash
+        if self.latest_bridge_config_match is True:
+            status = "match"
+        elif self.latest_bridge_config_match is False:
+            status = "mismatch"
+        else:
+            status = "unknown"
+        reason = f" | {self.latest_bridge_config_mismatch_reason}" if status == "mismatch" and self.latest_bridge_config_mismatch_reason else ""
+        return f"Config sync: {status} | Bridge {bridge_hash} | UI {ui_hash}{reason}"
+
+    def _bridge_config_truth_text(self) -> str:
+        workspace = self.latest_bridge_workspace
+        if not isinstance(workspace, Mapping):
+            return "Bridge config: unavailable | bridge_workspace telemetry missing"
+        path_text = _compact_path(str(workspace.get("config_path") or "unavailable"))
+        status = str(workspace.get("config_status") or workspace.get("source_status") or "unknown")
+        default_text = " | using default workspace" if bool(workspace.get("using_default_workspace", False)) else ""
+        return f"Bridge config: {path_text} | {status}{default_text}"
+
+    def _last_reload_truth_text(self, last_command: object) -> str:
+        if not isinstance(last_command, Mapping) or str(last_command.get("command") or "") != BridgeCommandType.RELOAD_CONFIG.value:
+            return "Last reload: unavailable"
+        status = str(last_command.get("status") or "unknown")
+        config_match = last_command.get("config_match")
+        if config_match is True:
+            detail = "expected hash matched"
+        elif config_match is False:
+            detail = str(last_command.get("mismatch_reason") or "expected hash mismatch")
+        else:
+            detail = "no expected hash supplied"
+        return f"Last reload: {status} | {detail}"
+
+    def _output_loop_runtime_truth_text(self) -> str:
+        runtime = self.latest_output_loop_runtime
+        if not isinstance(runtime, Mapping):
+            return "Output loop runtime: unavailable"
+        success = runtime.get("write_success_count", runtime.get("write_count", 0))
+        failed = runtime.get("write_failure_count", runtime.get("failure_count", 0))
+        skipped = runtime.get("write_skipped_count", 0)
+        rate_limited = runtime.get("write_skipped_rate_limited_count", 0)
+        return (
+            f"Output loop runtime: {runtime.get('state') or 'unknown'} | "
+            f"target {_optional_float(runtime.get('write_rate_hz')) or 0.0:.1f} Hz | "
+            f"actual {_hz_text(_optional_float(runtime.get('actual_write_rate_hz')))} | "
+            f"writes {success} ok / {failed} failed / {skipped} skipped | "
+            f"rate-limited {rate_limited} | "
+            f"verification {runtime.get('verification_status') or 'unknown'} | "
+            f"device {runtime.get('selected_output_device') or 'None'} | "
+            f"last write {runtime.get('last_write_status') or 'Unavailable'} | "
+            f"last skipped {runtime.get('last_skipped_write_reason') or 'None'} | "
+            f"neutral {runtime.get('neutral_restore_status') or 'not_attempted'} | "
+            f"safety {runtime.get('safety_stop_reason') or 'None'}."
+        )
+
+    def start_manual_validation(self) -> None:
+        self.manual_validation_session = create_manual_validation_session()
+        self.manual_validation_session.start_next()
+        self._refresh_manual_validation_card()
+
+    def next_manual_validation_step(self) -> None:
+        session = self.manual_validation_session
+        if session is None:
+            self.start_manual_validation()
+            return
+        current = session.current_step
+        if current is not None and current.status in {ManualValidationStepStatus.OBSERVING, ManualValidationStepStatus.WAITING_FOR_ACTION, ManualValidationStepStatus.NOT_STARTED}:
+            session.mark_step(current.step_id, ManualValidationStepStatus.SKIPPED, observed_signal="Operator advanced to next step.")
+        session.start_next()
+        if self._last_manual_validation_telemetry is not None:
+            session.evaluate_current_step(self._last_manual_validation_telemetry)
+        self._refresh_manual_validation_card()
+
+    def mark_manual_validation_step(self, status: ManualValidationStepStatus) -> None:
+        session = self.manual_validation_session
+        if session is None:
+            self.start_manual_validation()
+            session = self.manual_validation_session
+        if session is None or session.current_step is None:
+            return
+        session.mark_step(session.current_step.step_id, status, observed_signal=f"Operator marked {status.value}.")
+        self._refresh_manual_validation_card()
+
+    def export_manual_validation_report(self) -> None:
+        session = self.manual_validation_session
+        if session is None:
+            self.start_manual_validation()
+            session = self.manual_validation_session
+        if session is None:
+            return
+        stamp = datetime.now().strftime("%Y%m%dT%H%M%S")
+        paths = export_manual_validation_session(session, self._manual_validation_artifact_root / stamp)
+        self.manual_validation_evidence_label.setText(f"Exported: {paths['markdown_path']}")
+
+    def _update_manual_validation_from_telemetry(self, telemetry, bridge_result: BridgeTelemetryReadResult) -> None:
+        payload = self._manual_validation_payload(telemetry, bridge_result)
+        self._last_manual_validation_telemetry = payload
+        if self.manual_validation_session is not None:
+            self.manual_validation_session.evaluate_current_step(payload)
+            self._refresh_manual_validation_card()
+        elif hasattr(self, "manual_validation_evidence_label"):
+            self._refresh_manual_validation_card()
+
+    def _manual_validation_payload(self, telemetry, bridge_result: BridgeTelemetryReadResult) -> dict[str, object]:
+        return {
+            "source_label": bridge_result.source_label if bridge_result.status is BridgeTelemetryStatus.CONNECTED else "Simulation Fallback",
+            "age_seconds": bridge_result.age_seconds,
+            "raw_axes": _object_mapping(getattr(telemetry, "raw_axes", {}) or {}),
+            "final_axes": _object_mapping(getattr(telemetry, "final_axes", {}) or {}),
+            "buttons": _object_mapping(getattr(telemetry, "buttons", {}) or {}),
+            "hats": _object_mapping(getattr(telemetry, "hats", {}) or {}),
+            "bridge_workspace": _object_mapping(getattr(telemetry, "bridge_workspace", {}) or {}),
+            "ui_workspace_hash": self._ui_workspace_identity.workspace_hash,
+            "device_discovery": _object_mapping(getattr(telemetry, "device_discovery", {}) or {}),
+            "physical_input_fidelity": _object_mapping(getattr(telemetry, "physical_input_fidelity", {}) or {}),
+            "physical_input_backend_choice": _object_mapping(getattr(telemetry, "physical_input_backend_choice", {}) or {}),
+            "output_status": getattr(telemetry, "output_status", ""),
+            "output_verified": bool(getattr(telemetry, "output_verified", False)),
+            "output_loop_runtime": _object_mapping(getattr(telemetry, "output_loop_runtime", {}) or {}),
+            "runtime_frame": _runtime_frame_mapping(getattr(telemetry, "runtime_frame", None)),
+        }
+
+    def _refresh_manual_validation_card(self) -> None:
+        if not hasattr(self, "manual_validation_status_label"):
+            return
+        session = self.manual_validation_session
+        if session is None:
+            self.manual_validation_status_label.setText("Session: not started")
+            self.manual_validation_current_step_label.setText("Current step: unavailable")
+            self.manual_validation_instruction_label.setText("Press Start Validation to begin.")
+            source = "unavailable"
+            if self._last_manual_validation_telemetry is not None:
+                source = str(self._last_manual_validation_telemetry.get("source_label") or "unavailable")
+            self.manual_validation_evidence_label.setText(f"Evidence: latest source {source}.")
+            return
+        summary = session.summary()
+        current = session.current_step
+        self.manual_validation_status_label.setText(
+            f"Session: {summary['overall_status']} | passed {summary['passed_count']} | "
+            f"blocked {summary['blocked_count']} | failed {summary['failed_count']}"
+        )
+        if current is None:
+            self.manual_validation_current_step_label.setText("Current step: complete")
+            self.manual_validation_instruction_label.setText("Validation session complete. Export the report for bench records.")
+            self.manual_validation_evidence_label.setText("Evidence: complete.")
+            return
+        self.manual_validation_current_step_label.setText(f"Current step: {current.title} ({current.status.value})")
+        self.manual_validation_instruction_label.setText(current.instruction)
+        evidence = current.observed_signal or current.failure_reason or "Waiting for accepted telemetry evidence."
+        self.manual_validation_evidence_label.setText(f"Evidence: {evidence}")
+
     def _update_source_status(self, bridge_result: BridgeTelemetryReadResult) -> None:
         self.telemetry_source_status = bridge_result.status.value
         if bridge_result.status is BridgeTelemetryStatus.CONNECTED:
-            self.telemetry_source_label = "Bridge Telemetry"
-            chip_text = "Bridge Telemetry"
+            self.telemetry_source_label = bridge_result.source_label or "Bridge Telemetry"
+            chip_text = self.telemetry_source_label
             tone = "success"
         else:
             self.telemetry_source_label = "Simulation Fallback"
@@ -1041,6 +1416,82 @@ def _runtime_frame_status(runtime_frame: RuntimeFrameTelemetryPayload | None) ->
     return "available" if runtime_frame.available else runtime_frame.parse_status
 
 
+def _physical_fidelity_summary(fidelity: Mapping[str, object] | None, backend_choice: Mapping[str, object] | None) -> str:
+    if not isinstance(fidelity, Mapping):
+        return "unavailable"
+    backend = str(fidelity.get("backend_name") or "unknown")
+    age = fidelity.get("sample_age_ms")
+    read = fidelity.get("read_duration_ms")
+    rate = fidelity.get("estimated_sample_rate_hz")
+    mapping = str(fidelity.get("mapping_status") or "unavailable")
+    fallback = False
+    if isinstance(backend_choice, Mapping):
+        fallback = bool(backend_choice.get("fallback_used", False))
+    age_text = "n/a" if age is None else f"{float(age):.1f} ms"
+    read_text = "n/a" if read is None else f"{float(read):.3f} ms"
+    rate_text = "n/a" if rate is None else f"{float(rate):.1f} Hz"
+    return f"{backend}; age {age_text}; read {read_text}; rate {rate_text}; mapping {mapping}; fallback {str(fallback).lower()}"
+
+
+def _optional_float(value: object) -> float | None:
+    if value in (None, ""):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_int(value: object) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _ms_text(value: float | None) -> str:
+    if value is None:
+        return "unavailable"
+    return f"{float(value):.1f} ms"
+
+
+def _hz_text(value: float | None) -> str:
+    if value is None:
+        return "unavailable"
+    return f"{float(value):.1f} Hz"
+
+
+def _mapping_value(mapping: Mapping[str, object] | None, key: str) -> object:
+    if not isinstance(mapping, Mapping):
+        return None
+    return mapping.get(key)
+
+
+def _object_mapping(value: object) -> dict[str, object]:
+    if isinstance(value, Mapping):
+        return dict(value)
+    if hasattr(value, "to_dict"):
+        mapped = value.to_dict()
+        return dict(mapped) if isinstance(mapped, Mapping) else {}
+    if hasattr(value, "values") and isinstance(getattr(value, "values"), Mapping):
+        return dict(getattr(value, "values"))
+    return {}
+
+
+def _short_hash(value: object) -> str:
+    if not value:
+        return "unavailable"
+    return str(value)[:8]
+
+
+def _compact_path(value: str) -> str:
+    if not value or value == "unavailable":
+        return "unavailable"
+    return Path(value).name or value
+
+
 def _runtime_frame_source(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
     return runtime_frame.input_source if runtime_frame is not None else "unavailable"
 
@@ -1114,6 +1565,20 @@ def _runtime_frame_candidate(runtime_frame: RuntimeFrameTelemetryPayload | None)
 
 def _runtime_frame_proof_summary(runtime_frame: RuntimeFrameTelemetryPayload | None) -> str:
     return runtime_frame.proof_summary if runtime_frame is not None and runtime_frame.proof_summary else "unavailable"
+
+
+def _runtime_frame_mapping(runtime_frame: RuntimeFrameTelemetryPayload | None) -> dict[str, object]:
+    if runtime_frame is None:
+        return {}
+    return {
+        "full_live_runtime_ready": runtime_frame.full_live_runtime_ready,
+        "ready_state": runtime_frame.ready_state,
+        "blocked_reason": runtime_frame.blocked_reason,
+        "fake_or_real_path": runtime_frame.fake_or_real_path,
+        "proof_summary": runtime_frame.proof_summary,
+        "output_intent_ready": runtime_frame.output_intent_ready,
+        "final_output_axes": dict(runtime_frame.final_output_axes),
+    }
 
 
 def _set_chip_state(chip: QLabel, text: str, active: bool) -> None:

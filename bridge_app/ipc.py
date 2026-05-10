@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
@@ -18,12 +19,34 @@ def write_telemetry(path: str | Path, payload: Mapping[str, Any]) -> Path:
     return atomic_write_json(path, payload)
 
 
-def atomic_write_json(path: str | Path, payload: Mapping[str, Any]) -> Path:
+def atomic_write_json(
+    path: str | Path,
+    payload: Mapping[str, Any],
+    *,
+    replace_attempts: int = 5,
+    retry_sleep_seconds: float = 0.01,
+) -> Path:
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     temp_path = target.with_name(f".{target.name}.{uuid4().hex}.tmp")
     temp_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    temp_path.replace(target)
+    attempts = max(1, int(replace_attempts))
+    last_error: OSError | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            temp_path.replace(target)
+            return target
+        except (PermissionError, OSError) as exc:
+            last_error = exc
+            if attempt >= attempts:
+                break
+            time.sleep(max(0.0, float(retry_sleep_seconds)) * attempt)
+    try:
+        temp_path.unlink(missing_ok=True)
+    except OSError:
+        pass
+    if last_error is not None:
+        raise last_error
     return target
 
 
@@ -59,14 +82,19 @@ def parse_command_payload(payload: Mapping[str, Any]) -> BridgeCommandRequest:
 
     request_id = str(payload.get("request_id") or uuid4())
     options = payload.get("options")
+    option_values = options if isinstance(options, Mapping) else {}
     return BridgeCommandRequest(
         command=command,
         request_id=request_id,
         created_at=created_at,
         config_path=_optional_str(payload.get("config_path")),
+        expected_workspace_hash=_optional_str(payload.get("expected_workspace_hash"))
+        or _optional_str(option_values.get("expected_workspace_hash")),
+        expected_workspace_revision=_optional_str(payload.get("expected_workspace_revision"))
+        or _optional_str(option_values.get("expected_workspace_revision")),
         profile_id=_optional_str(payload.get("profile_id")),
         reason=str(payload.get("reason") or ""),
-        options=options if isinstance(options, Mapping) else {},
+        options=option_values,
     )
 
 

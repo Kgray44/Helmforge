@@ -139,6 +139,22 @@ Default paths are under the local temp directory:
 
 This file IPC is a development seam, not the final transport. Phase 9C reads the telemetry file from `v3_app/services/bridge_client.py` and treats files older than 5 seconds as stale. Phase 9D writes safe command requests from `v3_app/services/bridge_commands.py`. Phase 9E has the Bridge echo the most recently consumed command request in telemetry. Phase 9F exposes telemetry read time, generated time, age, stale threshold, status, and reason to the UI. Future phases may replace the file with a named pipe, socket, local API, or service/tray channel.
 
+## HF-LRDC-3A Telemetry Transport Direction
+
+HF-LRDC-3A selects localhost WebSocket as the recommended primary live telemetry stream for HF-LRDC-3B. The stream should bind only to `127.0.0.1`, publish full versioned `helmforge.telemetry_frame.v1` frames, preserve `runtime_frame`, `bridge_timing`, `physical_input_fidelity`, `bridge_workspace`, and `output_loop_runtime`, and allow UI reconnect without blocking the Bridge fast loop.
+
+The JSON telemetry file remains the diagnostic and fallback snapshot. Source priority for the UI is fresh valid Bridge stream, then fresh valid Bridge JSON snapshot, then simulation fallback. The command file remains separate for now. A stream connection is not proof of vJoy writes, fresh telemetry is not proof of output verification, and transport health does not change the Full Live Runtime Ready gate.
+
+## HF-LRDC-3B Local Telemetry Stream
+
+HF-LRDC-3B implements the local telemetry stream as an optional localhost WebSocket publisher in `bridge_app/telemetry_stream.py`. Enable it with `--telemetry-stream`; disable it with `--no-telemetry-stream`. The stream binds only to `127.0.0.1`, sends full `helmforge.telemetry_frame.v1` frames, and exposes `telemetry_stream` status in the JSON snapshot.
+
+The JSON snapshot continues to be written and remains the diagnostic/fallback path. The stream defaults off for compatibility and packaging caution until Windows packaged firewall/endpoint validation is complete.
+
+## HF-LRDC-4A Runtime Bench Harness
+
+HF-LRDC-4A adds `bridge_app/runtime_bench.py` plus `scripts/run_hf_lrdc_runtime_bench.py` for bounded fake CI validation and opt-in real bench reporting. Fake mode injects deterministic physical input frames and fake output backends through the Bridge service, writes summary/report/log artifacts, and keeps fake proof labeled fake. Real HOTAS/vJoy validation remains opt-in and must not bypass readiness or output safety gates.
+
 ## Telemetry Shape
 
 Telemetry JSON includes:

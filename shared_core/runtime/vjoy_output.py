@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import ctypes.util
 import os
+import time
+from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -268,6 +270,9 @@ class VirtualOutputLoopConfig:
     allow_fake_backend: bool = True
     allow_real_backend: bool = True
     require_verification: bool = True
+    max_consecutive_write_failures: int = 1
+    safety_stop_on_write_failure: bool = True
+    restore_neutral_on_safety_stop: bool = True
 
     @property
     def safe_write_rate_hz(self) -> float:
@@ -287,13 +292,37 @@ class VirtualOutputLoopSnapshot:
     last_write_result: str = "Unavailable"
     write_count: int = 0
     failure_count: int = 0
+    actual_write_rate_hz: float | None = None
+    tick_count: int = 0
+    write_attempt_count: int = 0
+    write_success_count: int = 0
+    write_failure_count: int = 0
+    write_skipped_count: int = 0
+    write_skipped_rate_limited_count: int = 0
+    write_skipped_disabled_count: int = 0
+    write_skipped_unsafe_count: int = 0
+    write_skipped_safety_count: int = 0
+    consecutive_write_failures: int = 0
+    last_write_duration_ms: float | None = None
+    last_allowed_write_at: str | None = None
+    last_skipped_write_reason: str = "None"
     last_error: str = "None"
     neutral_restore_status: str = "not_attempted"
+    neutral_restore_attempted: bool = False
+    neutral_restore_timestamp: str | None = None
+    neutral_restore_message: str = ""
+    neutral_restore_error: str = ""
+    neutral_restore_duration_ms: float | None = None
     safety_stop_reason: str = "None"
+    safety_stop_timestamp: str | None = None
     current_output_intent_source: str = "None"
     fake_output_loop: bool = False
     real_output_loop: bool = False
     full_live_runtime_ready: bool = False
+
+    @property
+    def last_write_status(self) -> str:
+        return self.output_write_status
 
 
 class OutputWriteRateLimiter:
@@ -911,9 +940,29 @@ class VirtualOutputWriteLoop:
         self._last_write_status = "Not active"
         self._write_count = 0
         self._failure_count = 0
+        self._tick_count = 0
+        self._write_attempt_count = 0
+        self._write_success_count = 0
+        self._write_failure_count = 0
+        self._write_skipped_count = 0
+        self._write_skipped_rate_limited_count = 0
+        self._write_skipped_disabled_count = 0
+        self._write_skipped_unsafe_count = 0
+        self._write_skipped_safety_count = 0
+        self._consecutive_write_failures = 0
+        self._last_write_duration_ms: float | None = None
+        self._last_allowed_write_at: datetime | None = None
+        self._accepted_write_times: deque[datetime] = deque(maxlen=30)
+        self._last_skipped_write_reason = "None"
         self._last_error = "None"
         self._neutral_restore_status = "not_attempted"
+        self._neutral_restore_attempted = False
+        self._neutral_restore_timestamp: str | None = None
+        self._neutral_restore_message = ""
+        self._neutral_restore_error = ""
+        self._neutral_restore_duration_ms: float | None = None
         self._safety_stop_reason = "None"
+        self._safety_stop_timestamp: str | None = None
         self._current_output_intent_source = "None"
 
     def enable(self) -> VirtualOutputLoopSnapshot:
@@ -926,6 +975,7 @@ class VirtualOutputWriteLoop:
         self._state = VirtualOutputWriteLoopState.READY_VERIFIED
         self._last_error = "None"
         self._safety_stop_reason = "None"
+        self._safety_stop_timestamp = None
         self._rate_limiter.reset()
         return self.snapshot()
 
@@ -935,51 +985,81 @@ class VirtualOutputWriteLoop:
         self._enabled = False
         self._state = VirtualOutputWriteLoopState.STOPPING
         if was_enabled and had_writes and self._config.restore_neutral_on_stop:
-            restore = self._backend.write_output_intent(build_neutral_virtual_output_intent(timestamp=self._now()))
+            restore = self._attempt_neutral_restore()
             if restore.success:
-                self._neutral_restore_status = "restored"
-                self._last_write_result = restore.message
-                self._last_write_status = restore.status
                 self._last_write_timestamp = self._now().isoformat()
                 self._state = VirtualOutputWriteLoopState.STOPPED_NEUTRAL
             else:
-                self._neutral_restore_status = "failed"
                 self._failure_count += 1
                 self._last_error = restore.message
-                self._last_write_result = restore.message
-                self._last_write_status = restore.status
                 self._state = VirtualOutputWriteLoopState.ERROR_RESTORE_FAILED
             return self.snapshot()
         self._state = VirtualOutputWriteLoopState.DISABLED
         return self.snapshot()
 
     def tick(self, output_intent: VirtualOutputIntent) -> VirtualOutputLoopSnapshot:
+        self._tick_count += 1
         if not self._enabled:
+            if self._state is VirtualOutputWriteLoopState.SAFETY_STOPPED:
+                self._record_skip("skipped_safety_stopped", safety=True)
+            elif self._state in {
+                VirtualOutputWriteLoopState.UNAVAILABLE_BACKEND_MISSING,
+                VirtualOutputWriteLoopState.UNAVAILABLE_DEVICE_MISSING,
+                VirtualOutputWriteLoopState.UNAVAILABLE_UNVERIFIED,
+            }:
+                reason = "skipped_unverified"
+                if self._state is VirtualOutputWriteLoopState.UNAVAILABLE_BACKEND_MISSING:
+                    reason = "backend_unavailable"
+                elif self._state is VirtualOutputWriteLoopState.UNAVAILABLE_DEVICE_MISSING:
+                    reason = "skipped_device_missing"
+                self._record_skip(reason, unsafe=True)
+            else:
+                self._record_skip("skipped_disabled", disabled=True)
             return self.snapshot()
-        if self._gate_state() is not VirtualOutputWriteLoopState.READY_VERIFIED:
+        gate = self._gate_state()
+        if gate is not VirtualOutputWriteLoopState.READY_VERIFIED:
             self._enabled = False
-            self._state = self._gate_state()
+            self._state = gate
+            reason = "skipped_unverified"
+            if gate is VirtualOutputWriteLoopState.UNAVAILABLE_BACKEND_MISSING:
+                reason = "backend_unavailable"
+            elif gate is VirtualOutputWriteLoopState.UNAVAILABLE_DEVICE_MISSING:
+                reason = "skipped_device_missing"
+            self._record_skip(reason, unsafe=True)
             return self.snapshot()
         now = self._now()
         if not self._rate_limiter.allow(now):
+            self._record_skip("skipped_rate_limited", rate_limited=True)
             return self.snapshot()
+        self._write_attempt_count += 1
         intent = _bounded_loop_intent(output_intent, timestamp=now)
-        write = self._backend.write_output_intent(intent)
+        started = time.perf_counter()
+        try:
+            write = self._backend.write_output_intent(intent)
+        except Exception as exc:  # pragma: no cover - defensive provider boundary
+            write = VirtualOutputWriteResult(
+                success=False,
+                status="error",
+                message=str(exc),
+                backend_name=self._backend.get_capabilities().backend_name,
+                output_intent=intent,
+                errors=(str(exc),),
+            )
+        self._last_write_duration_ms = _elapsed_ms(started)
         self._current_output_intent_source = intent.source
         self._last_write_result = write.message
         self._last_write_status = write.status
         if write.success:
             self._state = VirtualOutputWriteLoopState.RUNNING
             self._write_count += 1
+            self._write_success_count += 1
+            self._consecutive_write_failures = 0
             self._last_write_timestamp = now.isoformat()
+            self._last_allowed_write_at = now
+            self._accepted_write_times.append(now)
+            self._last_skipped_write_reason = "None"
             return self.snapshot()
-        self._enabled = False
-        self._state = VirtualOutputWriteLoopState.SAFETY_STOPPED
-        self._failure_count += 1
-        self._last_error = write.message
-        self._safety_stop_reason = write.status or "write_failed"
-        if self._safety_stop_reason not in {"write_failed", "error"}:
-            self._safety_stop_reason = write.status
+        self._record_write_failure(write)
         return self.snapshot()
 
     def snapshot(self) -> VirtualOutputLoopSnapshot:
@@ -996,14 +1076,107 @@ class VirtualOutputWriteLoop:
             last_write_result=self._last_write_result,
             write_count=self._write_count,
             failure_count=self._failure_count,
+            actual_write_rate_hz=self._actual_write_rate_hz(),
+            tick_count=self._tick_count,
+            write_attempt_count=self._write_attempt_count,
+            write_success_count=self._write_success_count,
+            write_failure_count=self._write_failure_count,
+            write_skipped_count=self._write_skipped_count,
+            write_skipped_rate_limited_count=self._write_skipped_rate_limited_count,
+            write_skipped_disabled_count=self._write_skipped_disabled_count,
+            write_skipped_unsafe_count=self._write_skipped_unsafe_count,
+            write_skipped_safety_count=self._write_skipped_safety_count,
+            consecutive_write_failures=self._consecutive_write_failures,
+            last_write_duration_ms=self._last_write_duration_ms,
+            last_allowed_write_at=self._last_allowed_write_at.isoformat() if self._last_allowed_write_at else None,
+            last_skipped_write_reason=self._last_skipped_write_reason,
             last_error=self._last_error,
             neutral_restore_status=self._neutral_restore_status,
+            neutral_restore_attempted=self._neutral_restore_attempted,
+            neutral_restore_timestamp=self._neutral_restore_timestamp,
+            neutral_restore_message=self._neutral_restore_message,
+            neutral_restore_error=self._neutral_restore_error,
+            neutral_restore_duration_ms=self._neutral_restore_duration_ms,
             safety_stop_reason=self._safety_stop_reason,
+            safety_stop_timestamp=self._safety_stop_timestamp,
             current_output_intent_source=self._current_output_intent_source,
             fake_output_loop=self._is_fake_verified(),
             real_output_loop=self._is_real_verified(),
             full_live_runtime_ready=False,
         )
+
+    def _record_skip(
+        self,
+        reason: str,
+        *,
+        rate_limited: bool = False,
+        disabled: bool = False,
+        unsafe: bool = False,
+        safety: bool = False,
+    ) -> None:
+        self._write_skipped_count += 1
+        if rate_limited:
+            self._write_skipped_rate_limited_count += 1
+        if disabled:
+            self._write_skipped_disabled_count += 1
+        if unsafe:
+            self._write_skipped_unsafe_count += 1
+        if safety:
+            self._write_skipped_safety_count += 1
+        self._last_skipped_write_reason = reason
+        self._last_write_status = reason
+        self._last_write_result = f"Output write skipped: {reason}."
+
+    def _record_write_failure(self, write: VirtualOutputWriteResult) -> None:
+        self._write_failure_count += 1
+        self._failure_count += 1
+        self._consecutive_write_failures += 1
+        self._last_error = write.message
+        if self._config.safety_stop_on_write_failure or self._consecutive_write_failures >= max(1, self._config.max_consecutive_write_failures):
+            self._enabled = False
+            self._state = VirtualOutputWriteLoopState.SAFETY_STOPPED
+            self._safety_stop_reason = write.status or "write_failed"
+            if self._safety_stop_reason not in {"write_failed", "error"}:
+                self._safety_stop_reason = write.status
+            self._safety_stop_timestamp = self._now().isoformat()
+            if self._config.restore_neutral_on_safety_stop:
+                self._attempt_neutral_restore()
+            return
+        self._state = VirtualOutputWriteLoopState.ERROR_WRITE_FAILED
+
+    def _attempt_neutral_restore(self) -> VirtualOutputWriteResult:
+        started = time.perf_counter()
+        self._neutral_restore_attempted = True
+        try:
+            restore = self._backend.write_output_intent(build_neutral_virtual_output_intent(timestamp=self._now()))
+        except Exception as exc:  # pragma: no cover - defensive provider boundary
+            restore = VirtualOutputWriteResult(
+                success=False,
+                status="neutral_restore_failed",
+                message=str(exc),
+                backend_name=self._backend.get_capabilities().backend_name,
+                errors=(str(exc),),
+            )
+        self._neutral_restore_duration_ms = _elapsed_ms(started)
+        self._neutral_restore_timestamp = self._now().isoformat()
+        self._neutral_restore_message = restore.message
+        self._last_write_result = restore.message
+        self._last_write_status = restore.status
+        if restore.success:
+            self._neutral_restore_status = "restored"
+            self._neutral_restore_error = ""
+        else:
+            self._neutral_restore_status = "failed"
+            self._neutral_restore_error = restore.message
+        return restore
+
+    def _actual_write_rate_hz(self) -> float | None:
+        if len(self._accepted_write_times) < 2:
+            return None
+        elapsed = (self._accepted_write_times[-1] - self._accepted_write_times[0]).total_seconds()
+        if elapsed <= 0:
+            return None
+        return round((len(self._accepted_write_times) - 1) / elapsed, 3)
 
     def _gate_state(self) -> VirtualOutputWriteLoopState:
         capabilities = self._backend.get_capabilities()
@@ -1425,6 +1598,10 @@ def _safe_float(value: object, default: float) -> float:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def _elapsed_ms(started: float) -> float:
+    return round(max(0.0, (time.perf_counter() - started) * 1000.0), 3)
 
 
 def _safe_int(value: object) -> int | None:
