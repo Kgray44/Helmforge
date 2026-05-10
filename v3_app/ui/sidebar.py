@@ -5,7 +5,7 @@ from typing import Callable
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
 from v3_app.pages.placeholders import PageDefinition
 from v3_app.services.app_state import AppState
@@ -48,19 +48,16 @@ class Sidebar(QWidget):
         self._runtime_state_label: QLabel | None = None
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(22, 22, 22, 22)
-        layout.setSpacing(14)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(6)
 
         layout.addWidget(self._build_brand())
         for group_title, hint, page_ids in SIDEBAR_GROUPS:
-            layout.addSpacing(8)
+            layout.addSpacing(3)
             section = QLabel(group_title)
             section.setObjectName("sectionLabel")
+            section.setToolTip(hint)
             layout.addWidget(section)
-            section_hint = QLabel(hint)
-            section_hint.setObjectName("sectionHint")
-            section_hint.setWordWrap(True)
-            layout.addWidget(section_hint)
             for page_id in page_ids:
                 layout.addWidget(self._build_nav_row(page_id))
 
@@ -71,14 +68,14 @@ class Sidebar(QWidget):
     def _build_brand(self) -> QWidget:
         brand = QWidget()
         brand_layout = QVBoxLayout(brand)
-        brand_layout.setContentsMargins(0, 0, 0, 6)
-        brand_layout.setSpacing(8)
+        brand_layout.setContentsMargins(0, 0, 0, 2)
+        brand_layout.setSpacing(4)
 
         icon = QLabel()
         icon_file = _icon_path()
         if icon_file.exists():
             pixmap = QPixmap(str(icon_file))
-            icon.setPixmap(pixmap.scaled(56, 56, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+            icon.setPixmap(pixmap.scaled(38, 38, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
             brand_layout.addWidget(icon, alignment=Qt.AlignmentFlag.AlignLeft)
 
         title = QLabel("HelmForge")
@@ -89,7 +86,7 @@ class Sidebar(QWidget):
         workspace.setObjectName("brandSubtitle")
         brand_layout.addWidget(title)
         brand_layout.addWidget(subtitle)
-        brand_layout.addWidget(workspace)
+        workspace.setVisible(False)
         return brand
 
     def _build_nav_row(self, page_id: str) -> QWidget:
@@ -101,12 +98,15 @@ class Sidebar(QWidget):
         accent = QLabel()
         accent.setObjectName("activeAccent")
         accent.setFixedWidth(4)
+        accent.setMinimumHeight(28)
         accent.setVisible(False)
 
         button = QPushButton(self._pages[page_id].title)
         button.setObjectName(f"nav_{page_id}")
         button.setProperty("navItem", True)
         button.setProperty("active", False)
+        button.setMinimumHeight(28)
+        button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         button.clicked.connect(lambda checked=False, pid=page_id: self._on_page_selected(pid))
 
         row_layout.addWidget(accent)
@@ -119,8 +119,8 @@ class Sidebar(QWidget):
         card = QWidget()
         card.setObjectName("runtimeCard")
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(18, 16, 18, 16)
-        layout.setSpacing(6)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(3)
         label = QLabel("Runtime")
         label.setObjectName("sectionHint")
         state = QLabel(self._state.runtime.runtime_card_label)

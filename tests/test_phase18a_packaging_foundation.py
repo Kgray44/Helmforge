@@ -94,17 +94,19 @@ def test_phase18a_user_data_and_resource_paths_are_packaging_safe(tmp_path, monk
 def test_phase18a_readme_report_and_help_docs_do_not_claim_completed_installer():
     from v3_app.services.help_docs import search_articles
 
-    readme = _read(PROJECT_ROOT / "README.md")
+    phase_ledger = _read(PROJECT_ROOT / "docs" / "HelmForge" / "phase-ledger.md")
     report = _read(PROJECT_ROOT / "docs" / "HelmForge" / "phase-18a-packaging-foundation-report.md")
 
-    for text in (readme, report):
+    for text in (phase_ledger, report):
         assert "Phase 18A" in text
         assert "Packaging, Installer, Icons, and User Data Locations" in text
         assert "simulation mode" in text
         assert "does not implement a full installer" in text
         assert "Full Live Runtime Ready" in text
 
+    readme = _read(PROJECT_ROOT / "README.md")
     assert "installer is complete" not in readme.casefold()
+    assert "Phase 18A" not in readme
     assert "installer is complete" not in report.casefold()
 
     results = search_articles("packaging installer source")

@@ -56,9 +56,9 @@ def test_phase18b_build_script_runs_real_onedir_path_without_installer_authority
 def test_phase18b_packaging_docs_document_output_and_smoke_without_installer_claim():
     packaging_readme = _read(PROJECT_ROOT / "packaging" / "README.md")
     pyinstaller_readme = _read(PROJECT_ROOT / "packaging" / "pyinstaller" / "README.md")
-    readme = _read(PROJECT_ROOT / "README.md")
+    phase_ledger = _read(PROJECT_ROOT / "docs" / "HelmForge" / "phase-ledger.md")
 
-    for text in (packaging_readme, pyinstaller_readme, readme):
+    for text in (packaging_readme, pyinstaller_readme, phase_ledger):
         assert "Phase 18B" in text
         assert "one-folder" in text
         assert "packaging/dist/HelmForge/HelmForge.exe" in text

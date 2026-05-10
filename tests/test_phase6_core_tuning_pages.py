@@ -236,9 +236,10 @@ def test_phase6_runtime_truth_surfaces_remain_unverified():
     _app()
 
     from PySide6.QtWidgets import QLabel
+    from v3_app.services.app_state import AppState
     from v3_app.ui.shell import HelmForgeShell
 
-    shell = HelmForgeShell()
+    shell = HelmForgeShell(AppState.from_runtime_status(_runtime_status(), driver_detected=True))
     for page_id in ("modes", "base_tuning", "filtering", "combat_profile", "profiles"):
         shell.switch_page(page_id)
         text = " ".join(label.text() for label in shell.page_widgets[page_id].widget().findChildren(QLabel))

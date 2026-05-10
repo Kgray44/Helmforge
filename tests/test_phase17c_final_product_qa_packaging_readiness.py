@@ -176,9 +176,9 @@ def test_phase17c_help_docs_and_readme_report_phase18_readiness_without_packagin
     ):
         assert required in report_text
 
-    readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+    phase_ledger = (PROJECT_ROOT / "docs" / "HelmForge" / "phase-ledger.md").read_text(encoding="utf-8")
     architecture = (PROJECT_ROOT / "docs" / "HelmForge" / "bridge-ui-architecture.md").read_text(encoding="utf-8")
-    for text in (readme, architecture):
+    for text in (phase_ledger, architecture):
         assert "Phase 17C" in text
         assert "Phase 18: Packaging, Installer, Icons, and User Data Locations" in text
         assert "does not implement packaging" in text

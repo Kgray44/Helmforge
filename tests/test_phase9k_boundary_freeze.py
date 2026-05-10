@@ -314,7 +314,7 @@ def test_phase9k_runtime_authority_static_boundaries_stay_frozen():
 
 def test_phase9k_required_docs_state_the_same_boundary_contract():
     required_docs = (
-        PROJECT_ROOT / "README.md",
+        PROJECT_ROOT / "docs" / "HelmForge" / "phase-ledger.md",
         PROJECT_ROOT / "docs" / "HelmForge" / "bridge-service-design.md",
         PROJECT_ROOT / "docs" / "HelmForge" / "bridge-ui-architecture.md",
         PROJECT_ROOT / "docs" / "HelmForge" / "phase-9j-live-monitor-diagnostic-ux-polish-report.md",

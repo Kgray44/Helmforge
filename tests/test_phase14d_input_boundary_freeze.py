@@ -250,7 +250,7 @@ def test_phase14d_docs_reports_and_phase15_readiness_are_explicit():
     mapping = get_article("Mapping").body
     stack = get_article("Effective Response Stack").body
     diagnostics = get_article("Performance / Diagnostics").body
-    readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+    phase_ledger = (PROJECT_ROOT / "docs" / "HelmForge" / "phase-ledger.md").read_text(encoding="utf-8")
     architecture = (PROJECT_ROOT / "docs" / "HelmForge" / "bridge-ui-architecture.md").read_text(encoding="utf-8")
     service_design = (PROJECT_ROOT / "docs" / "HelmForge" / "bridge-service-design.md").read_text(encoding="utf-8")
     report_path = PROJECT_ROOT / "docs" / "HelmForge" / "phase-14d-physical-input-boundary-freeze-report.md"
@@ -269,7 +269,7 @@ def test_phase14d_docs_reports_and_phase15_readiness_are_explicit():
     assert "diagnostic only" in stack
     assert "simulation fallback state" in diagnostics
 
-    for doc in (readme, architecture, service_design):
+    for doc in (phase_ledger, architecture, service_design):
         assert "Phase 14 is now complete" in doc
         assert "Phase 15: vJoy / Virtual Output Integration" in doc
         assert "Full Live Runtime Ready must remain false until both input and output are verified" in doc

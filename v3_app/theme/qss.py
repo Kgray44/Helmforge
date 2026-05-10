@@ -30,8 +30,12 @@ def app_qss() -> str:
 
     QWidget#appSidebar {
         background: #0b1724;
-        border: 1px solid #41698d;
+        border: 1px solid #4f789f;
         border-radius: 20px;
+    }
+
+    QWidget#appSidebar:hover {
+        border-color: #5f8db8;
     }
 
     QWidget#statusCluster,
@@ -78,7 +82,7 @@ def app_qss() -> str:
     }
 
     QLabel#brandTitle {
-        font-size: 28px;
+        font-size: 24px;
     }
 
     QLabel#headerTitle {
@@ -107,6 +111,10 @@ def app_qss() -> str:
     QLabel#footerDetail,
     QLabel#footerPageDetail {
         color: #a8c3dc;
+    }
+
+    QLabel#brandSubtitle {
+        font-size: 12px;
     }
 
     QLabel#routeSummaryValue {
@@ -308,14 +316,14 @@ def app_qss() -> str:
     QLabel#sectionLabel,
     QLabel#clusterLabel {
         color: #6f8daa;
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 800;
         letter-spacing: 0px;
     }
 
     QLabel#sectionHint {
         color: #6f8daa;
-        font-size: 12px;
+        font-size: 11px;
     }
 
     QLabel[uiRole="statusChip"] {
@@ -731,11 +739,12 @@ def app_qss() -> str:
     QPushButton[navItem="true"] {
         background: transparent;
         border: 1px solid transparent;
-        border-radius: 14px;
-        padding: 11px 18px;
+        border-radius: 10px;
+        padding: 6px 10px;
         text-align: left;
         color: #f5f9ff;
         font-weight: 600;
+        min-height: 28px;
     }
 
     QPushButton[navItem="true"]:hover {

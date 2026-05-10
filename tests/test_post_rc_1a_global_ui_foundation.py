@@ -34,7 +34,7 @@ def test_post_rc_1a_main_window_has_shorter_default_and_resizes_both_directions(
 
     window = build_main_window()
 
-    assert Layout.window_height <= 860
+    assert Layout.window_height <= 820
     assert window.size().width() == Layout.window_width
     assert window.size().height() == Layout.window_height
     assert 1100 <= window.minimumWidth() <= Layout.window_width
@@ -45,6 +45,24 @@ def test_post_rc_1a_main_window_has_shorter_default_and_resizes_both_directions(
     window.resize(Layout.window_width + 120, Layout.window_height + 80)
     assert window.width() >= Layout.window_width + 120
     assert window.height() >= Layout.window_height + 80
+
+
+def test_post_rc_1a_sidebar_page_names_fit_default_vertical_scale(tmp_path):
+    _app()
+
+    from PySide6.QtWidgets import QPushButton
+    from v3_app.theme.tokens import Layout
+
+    shell = _shell(tmp_path)
+    shell.resize(Layout.window_width, Layout.window_height)
+    sidebar = shell.sidebar
+    nav_buttons = list(sidebar.findChildren(QPushButton))
+
+    assert sidebar.sizeHint().height() <= Layout.window_height - 36
+    assert sidebar.minimumSizeHint().height() <= Layout.window_height - 36
+    assert len(nav_buttons) >= 12
+    assert all(button.text().strip() for button in nav_buttons)
+    assert all(button.sizeHint().width() <= sidebar.width() - 28 for button in nav_buttons)
 
 
 def test_post_rc_1a_shell_uses_carded_sidebar_status_assistant_and_page_boundary(tmp_path):

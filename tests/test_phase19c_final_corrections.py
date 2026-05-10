@@ -76,11 +76,11 @@ def test_phase19c_report_and_artifact_schema_record_known_truths():
 
 def test_phase19c_docs_do_not_overclaim_installer_icon_or_runtime_readiness():
     report = _read(REPORT)
-    root_readme = _read(PROJECT_ROOT / "README.md")
+    phase_ledger = _read(PROJECT_ROOT / "docs" / "HelmForge" / "phase-ledger.md")
     packaging_readme = _read(PROJECT_ROOT / "packaging" / "README.md")
     phase19b = _read(PROJECT_ROOT / "docs" / "HelmForge" / "phase-19b-integration-kraken-regression-sweep-report.md")
 
-    combined = "\n".join((report, root_readme, packaging_readme, phase19b))
+    combined = "\n".join((report, phase_ledger, packaging_readme, phase19b))
     assert "assets/app_icon.ico is missing" in combined
     assert "icon embedding remains a known packaging blocker" in report
     assert "No installer binary is claimed" in report

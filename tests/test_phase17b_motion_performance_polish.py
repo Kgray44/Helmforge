@@ -279,11 +279,11 @@ def test_phase17b_docs_explain_motion_performance_without_runtime_authority():
     assert "Runtime Truth Preservation" in report_text
     assert "Recommendation For Phase 17C" in report_text
 
-    readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+    phase_ledger = (PROJECT_ROOT / "docs" / "HelmForge" / "phase-ledger.md").read_text(encoding="utf-8")
     architecture = (PROJECT_ROOT / "docs" / "HelmForge" / "bridge-ui-architecture.md").read_text(encoding="utf-8")
     runtime_setup = "\n".join(get_article("Runtime Setup / vJoy Setup").paragraphs)
     perf_docs = "\n".join(get_article("Performance / Diagnostics").paragraphs)
-    for text in (readme, architecture, runtime_setup, perf_docs):
+    for text in (phase_ledger, architecture, runtime_setup, perf_docs):
         assert "Phase 17B" in text
         assert "hardware polling" in text or "app diagnostics" in text or "app/UI diagnostics" in text
         assert "vJoy writes" in text or "not hardware or output proof" in text

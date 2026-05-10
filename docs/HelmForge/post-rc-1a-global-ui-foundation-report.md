@@ -8,7 +8,7 @@ The user walkthrough issues addressed in this pass were global shell, control, d
 
 - Shortened the default main window height while preserving horizontal and vertical resize behavior.
 - Added sane minimum window dimensions so the shell remains usable when resized.
-- Made the left sidebar read as a floating bordered card.
+- Made the left sidebar read as a floating bordered card and fit every page name at the default vertical scale.
 - Added clearer card treatment for STATUS and ASSISTANT clusters.
 - Added a visible page body border through the shared page scroll area.
 - Reworked global button state styling so normal, hover, pressed, checked/active, and disabled states are distinct.
@@ -40,7 +40,7 @@ The user walkthrough issues addressed in this pass were global shell, control, d
 
 The global style/layout changes are shared across the shell, sidebar, header clusters, page boundary, buttons, dropdowns, and common card grids.
 
-The app now defaults to a shorter 1440 x 840 window with a 1120 x 680 minimum. The shell remains resizable in both axes. The sidebar, STATUS cluster, ASSISTANT cluster, page scroll surface, and shared cards now have clearer dark-engineering borders and separation. The page scroll area carries the outer page boundary while preserving vertical scroll behavior for tall pages.
+The app now defaults to a shorter 1440 x 800 window with a 1120 x 650 minimum. The shell remains resizable in both axes. The sidebar, STATUS cluster, ASSISTANT cluster, page scroll surface, and shared cards now have clearer dark-engineering borders and separation. The sidebar is compact enough to show the full page menu at default height, including the long Effective Response Stack and Perf / Diagnostics labels. The page scroll area carries the outer page boundary while preserving vertical scroll behavior for tall pages.
 
 The new `add_card_to_grid` helper top-aligns grid cards and marks them as content-sized. It has been applied to the main two-column card grids in Modes, Effective Response Stack, Live Monitor, Flight Recorder, and Perf / Diagnostics, with lower paired cards in Base Tuning, Filtering, and Combat Profile aligned to top.
 

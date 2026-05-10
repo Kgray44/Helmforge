@@ -6,6 +6,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 REPORT = PROJECT_ROOT / "docs" / "HelmForge" / "final-acceptance-report.md"
 README = PROJECT_ROOT / "README.md"
+PHASE_LEDGER = PROJECT_ROOT / "docs" / "HelmForge" / "phase-ledger.md"
 
 
 def _read(path: Path) -> str:
@@ -135,9 +136,14 @@ def test_phase19d_report_records_runtime_and_packaging_truth_without_overclaimin
         assert forbidden.casefold() not in lower_report
 
 
-def test_phase19d_readme_points_to_final_report_and_preserves_boundaries():
+def test_phase19d_phase_ledger_points_to_final_report_and_preserves_boundaries():
     assert README.exists()
+    assert PHASE_LEDGER.exists()
     readme = _read(README)
+    phase_ledger = _read(PHASE_LEDGER)
+
+    assert "HelmForge is a Windows desktop app" in readme
+    assert "Phase 19D" not in readme
 
     for required in (
         "Phase 19D final acceptance status",
@@ -149,7 +155,7 @@ def test_phase19d_readme_points_to_final_report_and_preserves_boundaries():
         "Full Live Runtime Ready remains governed by the Phase 16 proof gate",
         "no Bridge lifecycle management",
     ):
-        assert required in readme
+        assert required in phase_ledger
 
 
 def test_phase19d_report_identifies_next_actions_and_no_new_authority():

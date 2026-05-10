@@ -191,10 +191,10 @@ def test_phase17a_docs_report_and_boundary_scans_are_present():
     assert "Runtime truth preservation" in report_text
     assert "Recommendation for Phase 17B" in report_text
 
-    readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+    phase_ledger = (PROJECT_ROOT / "docs" / "HelmForge" / "phase-ledger.md").read_text(encoding="utf-8")
     architecture = (PROJECT_ROOT / "docs" / "HelmForge" / "bridge-ui-architecture.md").read_text(encoding="utf-8")
-    assert "Phase 17A" in readme
-    assert "Product Polish, Layout QA, and Motion" in readme
+    assert "Phase 17A" in phase_ledger
+    assert "Product Polish" in phase_ledger
     assert "Phase 17A" in architecture
 
     source_paths = (

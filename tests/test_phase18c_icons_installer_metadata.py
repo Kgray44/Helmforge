@@ -91,10 +91,10 @@ def test_phase18c_icon_wiring_is_truthful_for_missing_or_present_ico():
 def test_phase18c_docs_report_and_readme_explain_installer_without_signed_release_claim():
     packaging_readme = _read(PROJECT_ROOT / "packaging" / "README.md")
     inno_readme = _read(PROJECT_ROOT / "packaging" / "inno" / "README.md")
-    root_readme = _read(PROJECT_ROOT / "README.md")
+    phase_ledger = _read(PROJECT_ROOT / "docs" / "HelmForge" / "phase-ledger.md")
     report = _read(PROJECT_ROOT / "docs" / "HelmForge" / "phase-18c-icons-installer-shortcuts-report.md")
 
-    for text in (packaging_readme, inno_readme, root_readme, report):
+    for text in (packaging_readme, inno_readme, phase_ledger, report):
         assert "Phase 18C" in text
         assert "Start Menu shortcut" in text
         assert "optional Desktop shortcut" in text
@@ -103,6 +103,8 @@ def test_phase18c_docs_report_and_readme_explain_installer_without_signed_releas
         assert "does not manage Bridge lifecycle" in text
         assert "user data is preserved" in text
         assert "signed production installer" not in text.casefold()
+    root_readme = _read(PROJECT_ROOT / "README.md")
+    assert "Phase 18C" not in root_readme
 
     for required in (
         "Icon Asset Status",

@@ -185,6 +185,7 @@ def test_phase15d_ui_diagnostics_and_docs_freeze_output_boundary(tmp_path):
     from v3_app.pages.mapping_page import MappingPage
     from v3_app.pages.perf_diagnostics_page import PerfDiagnosticsPage
     from v3_app.services.app_state import AppState
+    from v3_app.services.bridge_client import BridgeTelemetryClient
     from v3_app.services.help_docs import get_article
 
     _app()
@@ -207,6 +208,7 @@ def test_phase15d_ui_diagnostics_and_docs_freeze_output_boundary(tmp_path):
         virtual_output_backend=backend,
         virtual_output_verification=verification,
         virtual_output_loop=loop,
+        telemetry_path=tmp_path / "missing-bridge-telemetry.json",
     )
     perf = PerfDiagnosticsPage(
         state=state,
@@ -216,6 +218,7 @@ def test_phase15d_ui_diagnostics_and_docs_freeze_output_boundary(tmp_path):
         virtual_output_backend=backend,
         virtual_output_verification=verification,
         virtual_output_loop=loop,
+        telemetry_client=BridgeTelemetryClient(telemetry_path=tmp_path / "missing-perf-telemetry.json"),
     )
 
     mapping_text = _text(mapping)

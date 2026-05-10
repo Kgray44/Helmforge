@@ -12,10 +12,10 @@ def _read(path: Path) -> str:
 
 def test_phase18d_packaging_docs_freeze_phase18_and_handoff_to_phase19():
     packaging_readme = _read(PROJECT_ROOT / "packaging" / "README.md")
-    root_readme = _read(PROJECT_ROOT / "README.md")
+    phase_ledger = _read(PROJECT_ROOT / "docs" / "HelmForge" / "phase-ledger.md")
     report = _read(PROJECT_ROOT / "docs" / "HelmForge" / "phase-18d-final-packaging-qa-report.md")
 
-    for text in (packaging_readme, root_readme, report):
+    for text in (packaging_readme, phase_ledger, report):
         assert "Phase 18D" in text
         assert "Phase 18 is now complete" in text
         assert "Phase 19: Final Integration Kraken / Full Acceptance Sweep" in text

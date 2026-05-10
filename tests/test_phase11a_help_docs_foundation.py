@@ -293,11 +293,11 @@ def test_phase11a_documentation_records_help_docs_scope_and_phase11b_deferral():
     assert report.exists()
     docs = "\n".join(
         path.read_text(encoding="utf-8")
-        for path in (
-            PROJECT_ROOT / "README.md",
-            PROJECT_ROOT / "docs" / "HelmForge" / "bridge-ui-architecture.md",
-            report,
-        )
+            for path in (
+                PROJECT_ROOT / "docs" / "HelmForge" / "phase-ledger.md",
+                PROJECT_ROOT / "docs" / "HelmForge" / "bridge-ui-architecture.md",
+                report,
+            )
     )
     for phrase in (
         "Phase 11A implements Help / Docs foundation only",

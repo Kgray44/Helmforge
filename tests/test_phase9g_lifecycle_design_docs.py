@@ -64,7 +64,7 @@ def test_phase9g_lifecycle_design_doc_names_truth_states_and_forbidden_claims():
 
 def test_phase9g_existing_docs_reference_lifecycle_decision_without_claiming_implementation():
     for relative_path in (
-        "README.md",
+        "docs/HelmForge/phase-ledger.md",
         "docs/HelmForge/bridge-service-design.md",
         "docs/HelmForge/bridge-ui-architecture.md",
     ):

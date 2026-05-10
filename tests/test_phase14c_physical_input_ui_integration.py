@@ -187,7 +187,7 @@ def test_phase14c_mapping_page_falls_back_when_physical_input_unavailable():
     assert "Full Live Runtime Ready\nfalse" in text
 
 
-def test_phase14c_live_monitor_displays_physical_input_sample_read_only():
+def test_phase14c_live_monitor_displays_physical_input_sample_read_only(tmp_path):
     from v3_app.pages.live_monitor_page import LiveMonitorPage
     from v3_app.services.app_state import AppState
 
@@ -200,6 +200,7 @@ def test_phase14c_live_monitor_displays_physical_input_sample_read_only():
         selected_physical_input_device_id="hotas-one",
         physical_input_snapshot=snapshot,
         physical_input_clock=lambda: snapshot.sampled_at,
+        telemetry_path=tmp_path / "missing-bridge-telemetry.json",
     )
     text = _text(page)
 
