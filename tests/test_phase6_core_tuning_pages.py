@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 
+from shared_core.models.axes import AXIS_DISPLAY_NAMES
 from shared_core.models.runtime import (
     InputDeviceDetection,
     InputStatus,
@@ -11,6 +12,28 @@ from shared_core.models.runtime import (
     RuntimePreflightStatus,
     RuntimeTruth,
 )
+
+
+class _UnverifiedLiveAxisSampleSource:
+    def __init__(self, runtime_bridge, bridge_client=None, *, clock=None) -> None:
+        self._runtime_bridge = runtime_bridge
+        self.last_source_label = "Simulation/fallback sample"
+        self.last_runtime_truth = runtime_bridge.runtime_status.truth.value
+        self.last_output_verified = runtime_bridge.runtime_status.live_output_writes_verified
+
+    def raw_axes(self) -> dict[str, float]:
+        snapshot = self._runtime_bridge.snapshot()
+        self.last_source_label = "Simulation/fallback sample"
+        self.last_runtime_truth = snapshot.runtime_status.truth.value
+        self.last_output_verified = snapshot.runtime_status.live_output_writes_verified
+        return {axis: 0.0 for axis in AXIS_DISPLAY_NAMES}
+
+
+def _use_unverified_live_axis_source(monkeypatch) -> None:
+    from v3_app.pages import base_tuning_page, combat_profile_page, filtering_page
+
+    for module in (base_tuning_page, combat_profile_page, filtering_page):
+        monkeypatch.setattr(module, "LiveAxisSampleSource", _UnverifiedLiveAxisSampleSource)
 
 
 def _app():
@@ -232,8 +255,9 @@ def test_phase6_shell_registers_core_tuning_pages_and_preserves_mapping():
         assert shell.page_widgets[page_id].widget().objectName() == object_name
 
 
-def test_phase6_runtime_truth_surfaces_remain_unverified():
+def test_phase6_runtime_truth_surfaces_remain_unverified(monkeypatch):
     _app()
+    _use_unverified_live_axis_source(monkeypatch)
 
     from PySide6.QtWidgets import QLabel
     from v3_app.services.app_state import AppState
