@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import RLock
+from typing import Mapping
 
 from shared_core.runtime.telemetry import BridgeTelemetrySnapshot
 from v3_app.services.bridge_client import (
@@ -18,6 +19,7 @@ class EmbeddedBridgeTelemetryFrame:
     telemetry: BridgeTelemetrySnapshot
     recorded_at: datetime
     producer_id: str
+    payload: Mapping[str, object] | None = None
 
 
 _LOCK = RLock()
@@ -29,6 +31,7 @@ def record_embedded_bridge_telemetry(
     *,
     recorded_at: datetime | None = None,
     producer_id: str = "embedded_bridge",
+    payload: Mapping[str, object] | None = None,
 ) -> None:
     global _LATEST
     with _LOCK:
@@ -36,6 +39,7 @@ def record_embedded_bridge_telemetry(
             telemetry=telemetry,
             recorded_at=_aware(recorded_at or datetime.now(timezone.utc)),
             producer_id=producer_id,
+            payload=dict(payload) if payload is not None else None,
         )
 
 
@@ -61,7 +65,7 @@ def read_embedded_bridge_telemetry(
 
     age_seconds = max(0.0, (now - latest.recorded_at).total_seconds())
     try:
-        telemetry = parse_bridge_telemetry_payload(path, latest.telemetry.to_dict())
+        telemetry = parse_bridge_telemetry_payload(path, latest.payload or latest.telemetry.to_dict())
     except (TypeError, ValueError) as exc:
         return BridgeTelemetryReadResult(
             status=BridgeTelemetryStatus.INVALID,

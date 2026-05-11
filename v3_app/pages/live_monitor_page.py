@@ -90,6 +90,7 @@ from v3_app.services.physical_input_ui import (
     hat_from_physical_snapshot,
     raw_axes_from_physical_snapshot,
 )
+from v3_app.services.live_stall_diagnostics import UiStallMonitor
 from v3_app.ui.status_chips import action_button, status_chip
 
 
@@ -176,6 +177,14 @@ class LiveMonitorPage(QWidget):
         self.telemetry_source_label = "Simulation Fallback"
         self.telemetry_source_status = "Missing"
         self._live_source_selector = LiveTelemetrySourceSelector(clock=bridge_clock)
+        self._ui_stall_monitor = UiStallMonitor(clock=bridge_clock)
+        self.last_ui_frame_delta_ms: float | None = None
+        self.ui_stall_count = 0
+        self.last_ui_stall_duration_ms: float | None = None
+        self.last_ui_stall_at: datetime | None = None
+        self.json_read_duration_ms: float | None = None
+        self.json_read_skipped_due_to_embedded_fresh = False
+        self.json_read_skipped_due_to_embedded_fresh_count = 0
         self.latest_bridge_diagnostics = None
         self._bridge_frame_tracker = LiveTelemetryFrameTracker()
         self.last_bridge_frame_identity: BridgeFrameIdentity | None = None
@@ -617,6 +626,11 @@ class LiveMonitorPage(QWidget):
         return frame
 
     def _tick(self) -> None:
+        stall_snapshot = self._ui_stall_monitor.observe()
+        self.last_ui_frame_delta_ms = stall_snapshot.last_ui_frame_delta_ms
+        self.ui_stall_count = stall_snapshot.ui_stall_count
+        self.last_ui_stall_duration_ms = stall_snapshot.last_ui_stall_duration_ms
+        self.last_ui_stall_at = stall_snapshot.last_ui_stall_at
         if self.should_skip_timer_refresh():
             self._record_hidden_skip()
             return
@@ -843,8 +857,16 @@ class LiveMonitorPage(QWidget):
 
     def _read_bridge_telemetry(self) -> BridgeTelemetryReadResult:
         embedded_result = read_embedded_bridge_telemetry(stale_after_seconds=1.0, clock=self._bridge_clock)
-        json_result = self._bridge_client.read()
+        if embedded_result.status is BridgeTelemetryStatus.CONNECTED and embedded_result.telemetry is not None:
+            self.json_read_skipped_due_to_embedded_fresh = True
+            self.json_read_skipped_due_to_embedded_fresh_count += 1
+            self.json_read_duration_ms = 0.0
+            return self._live_source_selector.select(embedded_result=embedded_result)
         stream_result = self._bridge_stream_client.read_latest() if self._bridge_stream_client is not None else None
+        self.json_read_skipped_due_to_embedded_fresh = False
+        json_started = time.perf_counter()
+        json_result = self._bridge_client.read()
+        self.json_read_duration_ms = (time.perf_counter() - json_started) * 1000.0
         selected = self._live_source_selector.select(
             embedded_result=embedded_result,
             stream_result=stream_result,
@@ -932,6 +954,7 @@ class LiveMonitorPage(QWidget):
             f"Sample source: {self._physical_input_source_status.sample_source}.\n"
             f"Physical fidelity: {_physical_fidelity_summary(physical_fidelity, backend_choice)}\n"
             f"{self._bridge_frame_truth_text()}\n"
+            f"{self._ui_stall_truth_text()}\n"
             f"{self._physical_input_truth_text()}\n"
             f"{self._config_sync_truth_text()}\n"
             f"{self._bridge_config_truth_text()}\n"
@@ -1026,6 +1049,14 @@ class LiveMonitorPage(QWidget):
             f"Bridge frame: {frame_label} | age {age_text} | tick {tick_text}. "
             f"Telemetry cadence: {cadence_text} | {self.latest_bridge_frame_state}. "
             f"Repeated frames skipped: {self.repeated_bridge_frame_count}."
+        )
+
+    def _ui_stall_truth_text(self) -> str:
+        return (
+            f"UI frame cadence: last delta {_ms_text(self.last_ui_frame_delta_ms)} | "
+            f"stalls {self.ui_stall_count} | last stall {_ms_text(self.last_ui_stall_duration_ms)}. "
+            f"JSON fallback read: {_ms_text(self.json_read_duration_ms)} | "
+            f"skipped while embedded fresh {self.json_read_skipped_due_to_embedded_fresh_count}."
         )
 
     def _physical_input_truth_text(self) -> str:

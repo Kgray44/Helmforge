@@ -72,6 +72,8 @@ def test_phase10a_helm_button_exists_opens_and_closes_overlay_from_header(tmp_pa
     from PySide6.QtWidgets import QLabel, QPushButton
 
     shell = _shell(workspace_path=tmp_path / "hotas_bridge_config_v3.json")
+    shell.show()
+    _app().processEvents()
     helm_button = shell.findChild(QPushButton, "helmButton")
 
     assert helm_button is not None
@@ -84,8 +86,9 @@ def test_phase10a_helm_button_exists_opens_and_closes_overlay_from_header(tmp_pa
     assert overlay is not None
     assert overlay.isVisible()
     assert overlay.objectName() == "helmOverlay"
-    assert overlay.windowModality().name.endswith("ApplicationModal")
-    assert overlay.width() >= int(shell.width() * 0.60)
+    assert overlay.parentWidget() is shell
+    assert overlay.property("paneMode") == "in-app-slide"
+    assert int(shell.width() * 0.65) <= overlay.width() <= int(shell.width() * 0.85)
     assert shell.active_page_id != "helm"
 
     text = " ".join(label.text() for label in overlay.findChildren(QLabel))
@@ -168,8 +171,8 @@ def test_phase10a_overlay_analyze_apply_and_revert_are_in_memory_only(tmp_path):
     text_after_analyze = " ".join(label.text() for label in overlay.findChildren(QLabel))
     assert "Yaw Combat Center Alpha" in text_after_analyze
     assert "0.52 -> 0.68" in text_after_analyze
-    assert "I found the combat layer" in text_after_analyze
     assert "5 changes ready" in text_after_analyze
+    assert "Recommendation summary" in text_after_analyze
     assert shell.workspace.combat.axes["yaw"].combat_center_alpha == 0.52
     assert shell.state.saved is True
     assert not workspace_path.exists()

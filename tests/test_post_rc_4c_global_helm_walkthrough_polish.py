@@ -97,7 +97,8 @@ def test_post_rc_4c_helm_opens_as_right_overlay_with_dim_scrim_not_sidebar(tmp_p
     assert "helm" not in shell.page_widgets
     assert overlay.objectName() == "helmOverlay"
     assert overlay.property("overlayPlacement") == "right-glide"
-    assert overlay.property("blurDeferred") is True
+    assert overlay.property("blurDeferred") is False
+    assert overlay.property("paneMode") == "in-app-slide"
     assert overlay.width() < shell.width()
     assert overlay.x() >= shell.geometry().x()
     assert scrim is not None
@@ -117,8 +118,8 @@ def test_post_rc_4c_helm_active_bulb_and_symptom_input_are_polished(tmp_path):
     symptom = overlay.findChild(QPlainTextEdit, "helmSymptomInput")
 
     assert bulb is not None
-    assert bulb.property("polish") == "bulb"
-    assert bulb.property("pulseStyle") == "static-qss"
+    assert bulb.property("polish") == "led-bulb"
+    assert bulb.property("pulseStyle") == "qt-pulse"
 
     assert symptom is not None
     assert symptom.lineWrapMode() == QPlainTextEdit.LineWrapMode.WidgetWidth

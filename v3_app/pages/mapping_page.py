@@ -5,12 +5,13 @@ from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import QPropertyAnimation, Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFrame,
+    QGraphicsBlurEffect,
+    QGraphicsOpacityEffect,
     QGridLayout,
     QHBoxLayout,
     QHeaderView,
@@ -45,7 +46,6 @@ from shared_core.runtime.hotas_input import (
     build_physical_input_diagnostics,
 )
 from shared_core.runtime.runtime_bridge import RuntimeBridge
-from shared_core.runtime.setup_guidance import OFFICIAL_THRUSTMASTER_SUPPORT_PAGE
 from shared_core.runtime.vjoy_output import (
     VirtualOutputBackend,
     VirtualOutputLoopSnapshot,
@@ -151,7 +151,6 @@ class MappingPage(QWidget):
         self._axis_route_labels: list[QLabel] = []
         self._count_labels: dict[str, QLabel] = {}
         self._status_chips: dict[str, QLabel] = {}
-        self._runtime_preflight_rows: dict[str, QLabel] = {}
         self._axis_table: QTableWidget | None = None
         self._button_table: QTableWidget | None = None
         self._hat_table: QTableWidget | None = None
@@ -162,6 +161,8 @@ class MappingPage(QWidget):
         self._syncing_route_selection = False
         self._route_inspector_labels: dict[str, QLabel] = {}
         self._change_mapping_button: QPushButton | None = None
+        self._route_remap_card: QFrame | None = None
+        self._route_overlay_scrim: QFrame | None = None
         self._route_editor_panel: QFrame | None = None
         self._route_editor_layout: QVBoxLayout | None = None
         self._route_editor_dirty_label: QLabel | None = None
@@ -171,7 +172,9 @@ class MappingPage(QWidget):
         self._route_editor_baseline: AxisMapping | ButtonMapping | HatMapping | None = None
         self._route_filter = "All"
         self._route_filter_buttons: dict[str, QPushButton] = {}
+        self._fade_animation: QPropertyAnimation | None = None
         self.setProperty("routeFilter", self._route_filter)
+        self.setProperty("diagramBackdropBlurred", False)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 22, 24, 28)
@@ -187,7 +190,6 @@ class MappingPage(QWidget):
         root.addLayout(top_cards)
 
         root.addWidget(self._build_hotas_diagram_card())
-        root.addWidget(self._build_runtime_preflight_card())
         root.addWidget(self._build_axis_routing_card())
 
         lower_cards = QHBoxLayout()
@@ -195,8 +197,15 @@ class MappingPage(QWidget):
         lower_cards.addWidget(self._build_button_routing_card(), 1)
         lower_cards.addWidget(self._build_hat_routing_card(), 1)
         root.addLayout(lower_cards)
+        self._build_route_remap_card()
         self._apply_route_selection(self._selected_route_control_id, update_table=True)
         root.addStretch(1)
+
+    def resizeEvent(self, event) -> None:  # noqa: ANN001
+        super().resizeEvent(event)
+        self._position_route_remap_card()
+        if self._route_overlay_scrim is not None:
+            self._route_overlay_scrim.setGeometry(self.rect())
 
     def _build_intro(self) -> QWidget:
         block = QWidget()
@@ -206,12 +215,11 @@ class MappingPage(QWidget):
 
         title = QLabel("Mapping")
         title.setObjectName("pageTitle")
-        subtitle = QLabel("Map raw HOTAS axes, buttons, and hats to the bridge output intent path.")
+        subtitle = QLabel("Map raw HOTAS axes, buttons, and hats to the virtual output path.")
         subtitle.setObjectName("pageSubtitle")
         subtitle.setWordWrap(True)
         helper = QLabel(
-            "This workspace controls the raw routing layer. The selected profile still owns the mappings, "
-            "so any changes here follow the same safe draft flow as the rest of V3."
+            "This workspace controls the routing layer. Diagram and table selections open a draft editor without writing live output."
         )
         helper.setObjectName("pageBody")
         helper.setWordWrap(True)
@@ -222,8 +230,7 @@ class MappingPage(QWidget):
         layout.addWidget(
             truth_notice(
                 "Diagram selection, table selection, and Change Mapping all reflect the same selected route. "
-                "Mapping edits remain workspace/config draft only. Output intent is not output write proof; "
-                "Save Workspace required before draft routes are persisted.",
+                "Mapping edits stay in the workspace draft until you apply or save them.",
                 object_name="mappingPolishTruthNotice",
             )
         )
@@ -235,11 +242,11 @@ class MappingPage(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
 
-        layout.addWidget(status_chip("Current Workspace", tone="success"))
-        runtime = status_chip(self._runtime_chip_label(), tone=self._state.runtime.tone)
-        hotas = status_chip("HOTAS Not Connected", tone="warning")
-        vjoy = status_chip("vJoy Detected", tone="caution")
-        output = status_chip("Output Unverified", tone="warning")
+        layout.addWidget(status_chip(self._workspace.active_profile, tone="success", object_name="currentWorkspaceChip"))
+        runtime = status_chip(self._runtime_chip_label(), tone=self._runtime_chip_tone(), object_name="mappingLiveVerifiedChip")
+        hotas = status_chip("HOTAS Waiting", tone="warning")
+        vjoy = status_chip("vJoy Waiting", tone="caution")
+        output = status_chip("Output Pending", tone="warning")
         self._status_chips = {
             "runtime": runtime,
             "hotas": hotas,
@@ -259,24 +266,50 @@ class MappingPage(QWidget):
         card = self._card("routingOverviewCard")
         layout = QVBoxLayout(card)
         layout.setContentsMargins(22, 20, 22, 22)
-        layout.setSpacing(14)
+        layout.setSpacing(16)
 
         title = QLabel("Routing Overview")
         title.setObjectName("cardTitle")
-        body = QLabel("Quick reading of the active route counts and any conflicts worth fixing.")
+        body = QLabel("A quick read of the active workspace routes, conflicts, and draft state.")
         body.setObjectName("cardBody")
         body.setWordWrap(True)
 
-        counts = QGridLayout()
-        counts.setHorizontalSpacing(18)
-        counts.setVerticalSpacing(10)
-        self._add_count_row(counts, 0, "Axis Routes", "axisRouteCount", len(self._workspace.mappings.axis_routes))
-        self._add_count_row(counts, 1, "Button Routes", "buttonRouteCount", len(self._workspace.mappings.button_routes))
-        self._add_count_row(counts, 2, "Hat Routes", "hatRouteCount", len(self._workspace.mappings.hat_routes))
+        counts = QHBoxLayout()
+        counts.setSpacing(12)
+        counts.addWidget(
+            self._count_badge("Axis Routes", "axisRouteCount", len(self._workspace.mappings.axis_routes))
+        )
+        counts.addWidget(
+            self._count_badge("Button Routes", "buttonRouteCount", len(self._workspace.mappings.button_routes))
+        )
+        counts.addWidget(
+            self._count_badge("Hat Routes", "hatRouteCount", len(self._workspace.mappings.hat_routes))
+        )
+        counts.addStretch(1)
+
+        status_row = QHBoxLayout()
+        status_row.setSpacing(8)
+        conflict_count = len(self._route_warnings)
+        status_row.addWidget(
+            status_chip(
+                "No conflicts" if conflict_count == 0 else f"{conflict_count} warnings",
+                tone="success" if conflict_count == 0 else "warning",
+                object_name="routeConflictStatusChip",
+            )
+        )
+        status_row.addWidget(status_chip("Mapped controls ready", tone="success", object_name="routeMappedStatusChip"))
+        status_row.addWidget(
+            status_chip(
+                "Saved" if self._state.saved else "Unsaved draft",
+                tone="success" if self._state.saved else "warning",
+                object_name="routeDraftStatusChip",
+            )
+        )
+        status_row.addWidget(status_chip(self._workspace.active_profile, tone="success", object_name="routeWorkspaceChip"))
+        status_row.addStretch(1)
 
         note = QLabel(
-            "Axis, button, and hat routes are unique. "
-            "Battlefield-safe runtime routing still remaps RX / RY / RZ / SL0 behind the scenes when needed."
+            "Routes are ready for draft editing. Live output still depends on the runtime verification gate."
         )
         note.setObjectName("routingOverviewNote")
         note.setWordWrap(True)
@@ -284,7 +317,7 @@ class MappingPage(QWidget):
         layout.addWidget(title)
         layout.addWidget(body)
         layout.addLayout(counts)
-        layout.addStretch(1)
+        layout.addLayout(status_row)
         layout.addWidget(note)
         return card
 
@@ -296,25 +329,16 @@ class MappingPage(QWidget):
 
         title = QLabel("Live Route Summary")
         title.setObjectName("cardTitle")
-        body = QLabel("See how the active workspace is currently landing on intended virtual output routes.")
+        body = QLabel("Each row shows the physical input, the logical function, and the virtual target for the draft route.")
         body.setObjectName("cardBody")
         body.setWordWrap(True)
         layout.addWidget(title)
         layout.addWidget(body)
 
-        rows = QGridLayout()
-        rows.setHorizontalSpacing(18)
-        rows.setVerticalSpacing(8)
-        for index, route in enumerate(self._workspace.mappings.axis_routes):
-            name = QLabel(route.function_name)
-            name.setObjectName("tableMutedText")
-            value = QLabel(_route_summary(route))
-            value.setObjectName("routeSummaryValue")
-            value.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            rows.addWidget(name, index, 0)
-            rows.addWidget(value, index, 1)
+        for route in self._workspace.mappings.axis_routes:
+            row, value = self._route_flow_row(route)
             self._axis_route_labels.append(value)
-        layout.addLayout(rows)
+            layout.addWidget(row)
 
         note = QLabel(self._runtime_route_note())
         note.setObjectName("cardBody")
@@ -332,7 +356,7 @@ class MappingPage(QWidget):
         title = QLabel("HOTAS Diagram")
         title.setObjectName("cardTitle")
         body = QLabel(
-            "See the physical controls, current mappings, and output intent targets in one visual layout, with safe workspace draft edits."
+            "Pick a physical control to review or remap it as a workspace draft."
         )
         body.setObjectName("cardBody")
         body.setWordWrap(True)
@@ -341,9 +365,7 @@ class MappingPage(QWidget):
         self._hotas_diagram_widget = HotasDiagramWidget(self._hotas_diagram_model)
         self._hotas_diagram_widget.control_selected.connect(self._select_route_by_control_id)
         note = QLabel(
-            "Inspect Mode keeps click/hover/select read-only for live values. Editing workspace draft routes changes config intent only. "
-            "Read-only visual/diagnostic diagram values remain display-only; Output intent only - not live output proof. "
-            "Output intent is not output write proof. Save Workspace required to persist changes."
+            "Diagram selections open a draft editor. Apply to Draft updates the workspace draft; Save Workspace keeps it."
         )
         note.setObjectName("hotasDiagramLegend")
         note.setWordWrap(True)
@@ -352,18 +374,35 @@ class MappingPage(QWidget):
         layout.addWidget(body)
         layout.addWidget(self._build_route_filter_row())
         layout.addWidget(self._hotas_diagram_widget)
-        layout.addWidget(self._build_route_inspector_panel())
-        layout.addWidget(self._build_route_editor_panel())
-        if not (_project_root() / "tests" / "test_post_rc_2d_advanced_mapping_editor.py").exists():
-            deferred = QLabel(
-                "Post-RC 2D Advanced Mapping Editor is not merged here; Draft Review, undo/redo, "
-                "route search, and presets stay deferred."
-            )
-            deferred.setObjectName("mappingDraftReviewDeferredNotice")
-            deferred.setWordWrap(True)
-            layout.addWidget(deferred)
         layout.addWidget(note)
         return card
+
+    def _build_route_remap_card(self) -> QFrame:
+        panel = QFrame(self)
+        panel.setObjectName("routeRemapCard")
+        panel.setProperty("uiRole", "diagramRemapOverlay")
+        panel.setProperty("overlayMode", "floating-over-page")
+        panel.setProperty("animation", "fade")
+        panel.setFrameShape(QFrame.Shape.NoFrame)
+        panel.setHidden(True)
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(18, 16, 18, 18)
+        layout.setSpacing(14)
+
+        title_row = QHBoxLayout()
+        title = QLabel("Remap Control")
+        title.setObjectName("cardTitle")
+        close = action_button("Close", object_name="routeRemapCloseButton")
+        close.clicked.connect(self._close_route_remap_card)
+        title_row.addWidget(title)
+        title_row.addStretch(1)
+        title_row.addWidget(close)
+        layout.addLayout(title_row)
+        layout.addWidget(self._build_route_inspector_panel())
+        layout.addWidget(self._build_route_editor_panel())
+        self._route_remap_card = panel
+        self._position_route_remap_card()
+        return panel
 
     def _build_route_filter_row(self) -> QWidget:
         row = QWidget()
@@ -395,20 +434,20 @@ class MappingPage(QWidget):
         layout.setHorizontalSpacing(16)
         layout.setVerticalSpacing(7)
 
-        title = QLabel("Route Inspector")
+        title = QLabel("Selected Control")
         title.setObjectName("sectionLabel")
         layout.addWidget(title, 0, 0, 1, 2)
 
         rows = (
-            ("Workspace mode", "routeInspectorModeValue"),
-            ("Route type", "routeInspectorTypeValue"),
-            ("Selected physical input", "routeInspectorPhysicalValue"),
-            ("Mapped virtual output", "routeInspectorOutputValue"),
-            ("Mode/profile context", "routeInspectorContextValue"),
-            ("Source of truth", "routeInspectorTruthValue"),
-            ("Editable here", "routeInspectorEditableValue"),
-            ("Conflict / warning", "routeInspectorConflictValue"),
-            ("Verification notice", "routeInspectorVerificationValue"),
+            ("Draft status", "routeInspectorModeValue"),
+            ("Control type", "routeInspectorTypeValue"),
+            ("Physical control", "routeInspectorPhysicalValue"),
+            ("Current mapping", "routeInspectorOutputValue"),
+            ("Workspace", "routeInspectorContextValue"),
+            ("Boundary", "routeInspectorTruthValue"),
+            ("Editable target", "routeInspectorEditableValue"),
+            ("Warnings", "routeInspectorConflictValue"),
+            ("Status", "routeInspectorVerificationValue"),
         )
         for row, (label, object_name) in enumerate(rows, start=1):
             key = QLabel(label)
@@ -437,129 +476,6 @@ class MappingPage(QWidget):
         self._route_editor_layout = layout
         return panel
 
-    def _build_runtime_preflight_card(self) -> QWidget:
-        card = self._card("runtimePreflightCard")
-        card.setProperty("controlPolish", "post-rc-4d")
-        layout = QVBoxLayout(card)
-        layout.setContentsMargins(22, 18, 22, 20)
-        layout.setSpacing(12)
-        dashboard = QFrame(card)
-        dashboard.setObjectName("mappingPreflightDashboardCard")
-        dashboard.setProperty("uiRole", "preflightDashboard")
-        dashboard.setProperty("tabSplitDeferred", True)
-        dashboard.hide()
-
-        header = QHBoxLayout()
-        title = QLabel("Runtime Setup / Preflight")
-        title.setObjectName("cardTitle")
-        header.addWidget(title)
-        header.addStretch(1)
-        preflight = action_button("Run Preflight Check", object_name="runPreflightButton")
-        preflight.clicked.connect(
-            lambda: self._status_message(
-                f"Preflight status: {self._runtime_truth_label()}; output writes verified: "
-                f"{str(self._runtime_status.live_output_writes_verified).lower()}."
-            )
-        )
-        simulation = action_button("Use Simulation Mode", object_name="useSimulationModeButton")
-        simulation.clicked.connect(
-            lambda: self._status_message("Simulation mode remains available without HOTAS polling or vJoy writes.")
-        )
-        header.addWidget(preflight)
-        header.addWidget(simulation)
-        guide = action_button("Open Runtime Setup Guide", object_name="runtimeSetupGuideButton")
-        guide.clicked.connect(
-            lambda: QDesktopServices.openUrl(
-                QUrl.fromLocalFile(str(_project_root() / "docs" / "HelmForge" / "runtime-preflight-and-vjoy-setup.md"))
-            )
-        )
-        thrustmaster = action_button(
-            "Open Official Thrustmaster Support Page",
-            object_name="openThrustmasterSupportButton",
-        )
-        thrustmaster.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(OFFICIAL_THRUSTMASTER_SUPPORT_PAGE)))
-        header.addWidget(guide)
-        header.addWidget(thrustmaster)
-
-        grid = QGridLayout()
-        grid.setHorizontalSpacing(18)
-        grid.setVerticalSpacing(8)
-        rows = (
-            ("Physical HOTAS target", "Thrustmaster T-Flight HOTAS One / Thrustmaster T.Flight Hotas One"),
-            ("Input source", self._input_source_status.source_label),
-            ("Physical input backend", self._physical_input_diagnostics.physical_input_backend),
-            ("Selected input device", self._physical_input_diagnostics.selected_input_device),
-            ("Supported HOTAS", self._physical_input_diagnostics.supported_hotas),
-            ("Input sampling", self._input_source_status.source_status),
-            ("Last sample", self._physical_input_diagnostics.last_sample),
-            ("Sample source", self._input_source_status.sample_source),
-            ("Axis count", str(self._input_source_status.axis_count)),
-            ("Button count", str(self._input_source_status.button_count)),
-            ("Hat count", str(self._input_source_status.hat_count)),
-            ("Runtime frame", _runtime_frame_status(self._runtime_frame)),
-            ("Runtime frame source", _runtime_frame_source(self._runtime_frame)),
-            ("Pipeline status", _runtime_frame_pipeline_status(self._runtime_frame)),
-            ("Output intent ready", _runtime_frame_output_intent_ready(self._runtime_frame)),
-            ("Runtime frame output backend", _runtime_frame_output_backend(self._runtime_frame)),
-            ("Runtime frame output loop state", _runtime_frame_output_loop_state(self._runtime_frame)),
-            ("Runtime frame last output write", _runtime_frame_last_output_write(self._runtime_frame)),
-            ("Input proof", _runtime_frame_input_proof(self._runtime_frame)),
-            ("Pipeline proof", _runtime_frame_pipeline_proof(self._runtime_frame)),
-            ("Output proof", _runtime_frame_output_proof(self._runtime_frame)),
-            ("Full Live Runtime Ready gate", _runtime_frame_ready_gate(self._runtime_frame)),
-            ("Ready state", _runtime_frame_ready_state(self._runtime_frame)),
-            ("Telemetry proof", _runtime_frame_telemetry_proof(self._runtime_frame)),
-            ("Safety proof", _runtime_frame_safety_proof(self._runtime_frame)),
-            ("Fake/real path", _runtime_frame_fake_or_real_path(self._runtime_frame)),
-            ("Readiness evaluated", _runtime_frame_evaluated_at(self._runtime_frame)),
-            ("Runtime candidate", _runtime_frame_candidate(self._runtime_frame)),
-            ("Proof summary", _runtime_frame_proof_summary(self._runtime_frame)),
-            ("Input device status", self._input_status_label()),
-            ("Output / vJoy status", self._output_status_label()),
-            ("Virtual output backend", self._virtual_output_diagnostics.virtual_output_backend),
-            ("vJoy dependency", self._virtual_output_diagnostics.vjoy_dependency_status),
-            ("vJoy device", self._virtual_output_diagnostics.vjoy_device_status),
-            ("Selected output device", self._virtual_output_diagnostics.selected_output_device),
-            ("Output device status", self._virtual_output_diagnostics.output_device_status),
-            ("Output write status", self._virtual_output_diagnostics.output_write_status),
-            ("Output loop state", _output_loop_state(self._virtual_output_loop_snapshot)),
-            ("Output loop write count", _output_loop_write_count(self._virtual_output_loop_snapshot)),
-            ("Neutral restore status", _output_loop_neutral_restore(self._virtual_output_loop_snapshot)),
-            ("Output verification status", self._virtual_output_diagnostics.output_verification_status),
-            ("Output verification source", self._virtual_output_diagnostics.output_verification_source),
-            ("Fake output verified", str(self._virtual_output_diagnostics.fake_output_verified).lower()),
-            ("Real output verified", str(self._virtual_output_diagnostics.real_output_verified).lower()),
-            ("Last verification timestamp", self._virtual_output_diagnostics.last_verification_timestamp),
-            ("Runtime truth", self._runtime_truth_label()),
-            ("Output verified", str(self._output_verified()).lower()),
-            ("Output verification", f"Output writes verified: {str(self._output_verified()).lower()}"),
-            ("Full Live Runtime Ready", "false"),
-        )
-        for index, (label, value) in enumerate(rows):
-            key = QLabel(label)
-            key.setObjectName("tableMutedText")
-            val = QLabel(value)
-            val.setObjectName("routeSummaryValue")
-            val.setWordWrap(True)
-            self._runtime_preflight_rows[label] = val
-            grid.addWidget(key, index, 0)
-            grid.addWidget(val, index, 1)
-
-        caution = QLabel(
-            "Physical input samples are read-only when present. The UI can edit the mapping workspace while the "
-            "future Bridge owns real-time processing. Phase 15C output loops require explicit enable and a verified backend; "
-            "Phase 16D shows input, pipeline, output, telemetry, and safety proof separately. vJoy detection alone is not enough, "
-            "runtime_frame output intent is not a vJoy write, fake/test paths are not real readiness, and Full Live Runtime Ready "
-            "opens only when the central readiness gate has every required proof."
-        )
-        caution.setObjectName("cardBody")
-        caution.setWordWrap(True)
-
-        layout.addLayout(header)
-        layout.addLayout(grid)
-        layout.addWidget(caution)
-        return card
-
     def update_runtime_status(self, runtime_status: RuntimePreflightStatus) -> None:
         self._runtime_status = runtime_status
         self._snapshot = RuntimeBridge(
@@ -567,38 +483,29 @@ class MappingPage(QWidget):
             deterministic_simulation=True,
         ).snapshot()
         self._refresh_status_chips()
-        updates = {
-            "Input device status": self._input_status_label(),
-            "Output / vJoy status": self._output_status_label(),
-            "Runtime truth": self._runtime_truth_label(),
-            "Output verified": str(self._output_verified()).lower(),
-            "Output verification": f"Output writes verified: {str(self._output_verified()).lower()}",
-            "Full Live Runtime Ready": str(
-                self._runtime_status.truth is RuntimeTruth.LIVE_VERIFIED
-                and self._runtime_status.live_output_writes_verified
-            ).lower(),
-        }
-        for label, value in updates.items():
-            row = self._runtime_preflight_rows.get(label)
-            if row is not None:
-                row.setText(value)
 
     def _refresh_status_chips(self) -> None:
         runtime = self._status_chips.get("runtime")
         if runtime is not None:
             runtime.setText(self._runtime_chip_label())
-            runtime.setProperty("chipTone", self._state.runtime.tone)
+            runtime.setProperty("chipTone", self._runtime_chip_tone())
+            _repolish(runtime)
         hotas = self._status_chips.get("hotas")
         if hotas is not None:
             hotas.setVisible(self._runtime_status.input.status is InputStatus.MISSING)
         vjoy = self._status_chips.get("vjoy")
         if vjoy is not None:
             vjoy.setVisible(self._runtime_status.output.status in {OutputStatus.VJOY_DETECTED, OutputStatus.OUTPUT_VERIFIED})
-            vjoy.setText("vJoy Verified" if self._runtime_status.output.status is OutputStatus.OUTPUT_VERIFIED else "vJoy Detected")
+            vjoy_verified = (
+                self._runtime_status.output.status is OutputStatus.OUTPUT_VERIFIED
+                and self._runtime_status.live_output_writes_verified
+            )
+            vjoy.setText("vJoy Verified" if vjoy_verified else "vJoy Detected")
             vjoy.setProperty(
                 "chipTone",
-                "success" if self._runtime_status.output.status is OutputStatus.OUTPUT_VERIFIED else "caution",
+                "success" if vjoy_verified else "caution",
             )
+            _repolish(vjoy)
         output = self._status_chips.get("output")
         if output is not None:
             output.setVisible(not self._runtime_status.live_output_writes_verified)
@@ -616,12 +523,11 @@ class MappingPage(QWidget):
         body.setObjectName("cardBody")
         body.setWordWrap(True)
 
-        self._axis_table = QTableWidget(len(self._workspace.mappings.axis_routes), 7)
+        self._axis_table = QTableWidget(len(self._workspace.mappings.axis_routes), 5)
         table = self._axis_table
         table.setObjectName("axisRoutingTable")
-        live_raw_label = "Live Raw (Physical input sample)" if self._physical_raw_axes is not None else "Live Raw"
         table.setHorizontalHeaderLabels(
-            ("Function", "Raw Axis", "Logical Output", "Output Intent Axis", "Invert", live_raw_label, "Final Intent")
+            ("Function", "Raw Axis", "Logical Output", "Output Intent Axis", "Invert")
         )
         self._configure_table(table, minimum_height=320)
         self._populate_axis_table()
@@ -660,10 +566,10 @@ class MappingPage(QWidget):
         actions.addWidget(reset_button)
         actions.addStretch(1)
 
-        self._button_table = QTableWidget(len(self._workspace.mappings.button_routes), 4)
+        self._button_table = QTableWidget(len(self._workspace.mappings.button_routes), 2)
         table = self._button_table
         table.setObjectName("buttonRoutingTable")
-        table.setHorizontalHeaderLabels(("HOTAS Button", "vJoy Button", "Raw", "Output"))
+        table.setHorizontalHeaderLabels(("HOTAS Button", "vJoy Button"))
         self._configure_table(table, minimum_height=360)
         self._populate_button_table()
         table.currentCellChanged.connect(
@@ -721,56 +627,13 @@ class MappingPage(QWidget):
         table = self._axis_table
         table.setRowCount(len(self._workspace.mappings.axis_routes))
         for row, route in enumerate(self._workspace.mappings.axis_routes):
-            raw_value = (
-                self._physical_raw_axes.get(route.function_name, route.live_raw_value)
-                if self._physical_raw_axes is not None
-                else self._snapshot.raw_axis_values.get(route.function_name, route.live_raw_value)
-            )
-            output_value = self._snapshot.final_output_values.get(route.function_name, route.live_output_value)
             self._set_text_item(table, row, 0, route.function_name)
-            self._set_combo_cell(
-                table,
-                row,
-                1,
-                object_name=f"axisRaw_{_key(route.function_name)}",
-                options=RAW_AXIS_OPTIONS,
-                current=route.raw_axis_channel,
-                on_changed=lambda value, index=row: self._update_axis_route(index, raw_axis_channel=value),
-                metadata_id="mapping.raw_axis",
-            )
-            self._set_combo_cell(
-                table,
-                row,
-                2,
-                object_name=f"axisLogical_{_key(route.function_name)}",
-                options=LOGICAL_OUTPUT_OPTIONS,
-                current=route.logical_output,
-                on_changed=lambda value, index=row: self._update_axis_route(index, logical_output=value),
-                metadata_id="mapping.logical_output",
-            )
-            self._set_combo_cell(
-                table,
-                row,
-                3,
-                object_name=f"axisRuntime_{_key(route.function_name)}",
-                options=RUNTIME_VJOY_OPTIONS,
-                current=route.runtime_vjoy_output,
-                on_changed=lambda value, index=row: self._update_axis_route(index, runtime_vjoy_output=value),
-                metadata_id="mapping.runtime_output_axis",
-            )
-            checkbox = QCheckBox()
-            checkbox.setObjectName(f"invert_{_key(route.function_name)}")
-            apply_parameter_metadata(checkbox, "mapping.invert_axis")
-            checkbox.setChecked(route.invert)
-            checkbox.stateChanged.connect(
-                lambda _state, index=row: self._update_axis_route(index, invert=bool(self._axis_table.cellWidget(index, 4).isChecked()))
-            )
-            table.setItem(row, 4, QTableWidgetItem("true" if route.invert else "false"))
-            table.setCellWidget(row, 4, checkbox)
-            self._set_text_item(table, row, 5, _signed(raw_value))
-            self._set_text_item(table, row, 6, _signed(output_value))
+            self._set_text_item(table, row, 1, route.raw_axis_channel)
+            self._set_text_item(table, row, 2, route.logical_output)
+            self._set_text_item(table, row, 3, _friendly_output_axis(route.runtime_vjoy_output))
+            table.item(row, 3).setToolTip(route.runtime_vjoy_output)
+            self._set_text_item(table, row, 4, "Inverted" if route.invert else "Normal")
         self._apply_table_warning_state(table)
-        table.resizeColumnsToContents()
 
     def _populate_button_table(self) -> None:
         if self._button_table is None:
@@ -778,30 +641,9 @@ class MappingPage(QWidget):
         table = self._button_table
         table.setRowCount(len(self._workspace.mappings.button_routes))
         for row, route in enumerate(self._workspace.mappings.button_routes):
-            self._set_combo_cell(
-                table,
-                row,
-                0,
-                object_name=f"buttonHotas_{row}",
-                options=HOTAS_BUTTON_OPTIONS,
-                current=f"B{route.hotas_button}",
-                on_changed=lambda value, index=row: self._update_button_route(index, hotas_button=_parse_button(value)),
-                metadata_id="mapping.hotas_button",
-            )
-            self._set_combo_cell(
-                table,
-                row,
-                1,
-                object_name=f"buttonVjoy_{row}",
-                options=VJOY_BUTTON_OPTIONS,
-                current=str(route.output_button),
-                on_changed=lambda value, index=row: self._update_button_route(index, output_button=int(value)),
-                metadata_id="mapping.output_button",
-            )
-            self._set_text_item(table, row, 2, "Pressed" if route.raw_state else "Idle")
-            self._set_text_item(table, row, 3, "Pressed" if route.output_state else "Idle")
+            self._set_text_item(table, row, 0, f"B{route.hotas_button}")
+            self._set_text_item(table, row, 1, f"Virtual button {route.output_button}")
         self._apply_table_warning_state(table)
-        table.resizeColumnsToContents()
 
     def _populate_hat_table(self) -> None:
         if self._hat_table is None:
@@ -809,45 +651,17 @@ class MappingPage(QWidget):
         table = self._hat_table
         table.setRowCount(len(self._workspace.mappings.hat_routes))
         for row, route in enumerate(self._workspace.mappings.hat_routes):
-            self._set_combo_cell(
-                table,
-                row,
-                0,
-                object_name=f"hatHotas_{row}",
-                options=HAT_OPTIONS,
-                current=str(route.hotas_hat),
-                on_changed=lambda value, index=row: self._update_hat_route(index, hotas_hat=int(value)),
-                metadata_id="mapping.hotas_hat",
-            )
-            self._set_combo_cell(
-                table,
-                row,
-                1,
-                object_name=f"hatPov_{row}",
-                options=POV_OPTIONS,
-                current=str(route.vjoy_pov),
-                on_changed=lambda value, index=row: self._update_hat_route(index, vjoy_pov=int(value)),
-                metadata_id="mapping.output_pov",
-            )
-            for column, field_name, current in (
-                (2, "up_button", route.up_button),
-                (3, "right_button", route.right_button),
-                (4, "down_button", route.down_button),
-                (5, "left_button", route.left_button),
+            self._set_text_item(table, row, 0, f"Hat {route.hotas_hat}")
+            self._set_text_item(table, row, 1, f"POV {route.vjoy_pov}")
+            for column, current in (
+                (2, route.up_button),
+                (3, route.right_button),
+                (4, route.down_button),
+                (5, route.left_button),
             ):
-                self._set_combo_cell(
-                    table,
-                    row,
-                    column,
-                    object_name=f"hat{field_name.removesuffix('_button').title()}_{row}",
-                    options=DIRECTION_BUTTON_OPTIONS,
-                    current="None" if current is None else str(current),
-                    on_changed=lambda value, index=row, field=field_name: self._update_hat_route(index, **{field: _parse_direction_button(value)}),
-                    metadata_id="mapping.hat_direction_button",
-                )
+                self._set_text_item(table, row, column, _direction_text(current))
             self._set_text_item(table, row, 6, self._snapshot.hat_state or route.live_hat_state)
         self._apply_table_warning_state(table)
-        table.resizeColumnsToContents()
 
     def _update_axis_route(self, row: int, **changes) -> None:
         routes = list(self._workspace.mappings.axis_routes)
@@ -862,7 +676,13 @@ class MappingPage(QWidget):
             for field, column in (("raw_axis_channel", 1), ("logical_output", 2), ("runtime_vjoy_output", 3), ("invert", 4)):
                 if field in changes:
                     value = changes[field]
-                    self._set_text_item(self._axis_table, row, column, "true" if value is True else "false" if value is False else str(value))
+                    if field == "runtime_vjoy_output":
+                        text = _friendly_output_axis(str(value))
+                    elif field == "invert":
+                        text = "Inverted" if value else "Normal"
+                    else:
+                        text = str(value)
+                    self._set_text_item(self._axis_table, row, column, text)
         self._refresh_route_summary()
 
     def _update_button_route(self, row: int, **changes) -> None:
@@ -878,7 +698,7 @@ class MappingPage(QWidget):
             if "hotas_button" in changes:
                 self._set_text_item(self._button_table, row, 0, f"B{changes['hotas_button']}")
             if "output_button" in changes:
-                self._set_text_item(self._button_table, row, 1, str(changes["output_button"]))
+                self._set_text_item(self._button_table, row, 1, f"Virtual button {changes['output_button']}")
         self._refresh_counts()
 
     def _update_hat_route(self, row: int, **changes) -> None:
@@ -1018,6 +838,7 @@ class MappingPage(QWidget):
         if not control.editable:
             self._status_message("Selected route is read-only in this Mapping workspace.")
             return
+        self._show_route_remap_card()
         self._render_route_editor(control, route_type, row, route)
 
     def _selected_route_context(self):
@@ -1061,7 +882,7 @@ class MappingPage(QWidget):
         mode = QLabel("Editing workspace draft")
         mode.setObjectName("routeEditorModeLabel")
         mode.setProperty("inspectorValue", True)
-        truth = QLabel("Output intent only - not live output proof")
+        truth = QLabel("Draft mapping only")
         truth.setObjectName("routeEditorTruthNotice")
         truth.setWordWrap(True)
         header.addWidget(mode)
@@ -1069,7 +890,7 @@ class MappingPage(QWidget):
         header.addWidget(truth)
         self._route_editor_layout.addLayout(header)
 
-        persist = QLabel("Save Workspace required to persist changes")
+        persist = QLabel("Apply to Draft updates this workspace draft. Save Workspace keeps the change.")
         persist.setObjectName("routeEditorPersistNotice")
         persist.setWordWrap(True)
         self._route_editor_layout.addWidget(persist)
@@ -1098,7 +919,7 @@ class MappingPage(QWidget):
         self._route_editor_preview_label.setWordWrap(True)
         self._route_editor_layout.addWidget(self._route_editor_preview_label)
 
-        self._route_editor_dirty_label = QLabel("Workspace draft unchanged - Save Workspace required after Apply")
+        self._route_editor_dirty_label = QLabel("Draft unchanged")
         self._route_editor_dirty_label.setObjectName("routeEditorDirtyStateValue")
         self._route_editor_dirty_label.setWordWrap(True)
         self._route_editor_layout.addWidget(self._route_editor_dirty_label)
@@ -1302,7 +1123,7 @@ class MappingPage(QWidget):
             return
         route = self._route_from_editor()
         if route is None or self._route_editor_route_type is None or self._route_editor_route_row is None:
-            self._route_editor_preview_label.setText("workspace/config conflict preview: route is read-only or unsupported.")
+            self._route_editor_preview_label.setText("Route preview is not available for this control.")
             return
         mapping_config = self._mapping_config_with_route(
             self._workspace.mappings,
@@ -1311,17 +1132,17 @@ class MappingPage(QWidget):
             route,
         )
         if mapping_config is None:
-            self._route_editor_preview_label.setText("workspace/config conflict preview: unsupported route shape.")
+            self._route_editor_preview_label.setText("Route preview is not available for this control.")
             return
         candidate_workspace = replace(self._workspace, mappings=mapping_config)
         warnings = build_workspace_route_warnings(candidate_workspace)
         control_id = self._control_id_for_route(self._route_editor_route_type, self._route_editor_route_row, candidate_workspace)
         selected_warnings = tuple(warning for warning in warnings if warning.control_id == control_id)
         if selected_warnings:
-            text = "; ".join(warning.message for warning in selected_warnings)
+            text = "; ".join(_polish_mapping_warning(warning.message) for warning in selected_warnings)
         else:
-            text = "No workspace/config conflicts previewed."
-        self._route_editor_preview_label.setText(f"workspace/config conflict preview: {text}")
+            text = "No route conflicts previewed."
+        self._route_editor_preview_label.setText(text)
 
     def _apply_route_editor(self) -> None:
         route = self._route_from_editor()
@@ -1330,11 +1151,11 @@ class MappingPage(QWidget):
             return
         message = (
             f"Applied {self._route_editor_route_type} mapping to workspace draft. "
-            "Save Workspace required to persist changes."
+            "Save Workspace keeps the change."
         )
         self._apply_route_to_workspace(self._route_editor_route_type, self._route_editor_route_row, route, message)
         if self._route_editor_dirty_label is not None:
-            self._route_editor_dirty_label.setText("Workspace draft changed - Save Workspace required")
+            self._route_editor_dirty_label.setText("Draft changed")
         self._refresh_route_editor_preview()
 
     def _cancel_route_editor(self) -> None:
@@ -1455,6 +1276,7 @@ class MappingPage(QWidget):
 
     def _select_route_by_control_id(self, control_id: str) -> None:
         self._apply_route_selection(control_id, update_table=True)
+        self._open_route_editor()
 
     def _select_route_from_table(self, table_object_name: str, row: int) -> None:
         if self._syncing_route_selection or row < 0:
@@ -1493,18 +1315,18 @@ class MappingPage(QWidget):
         )
         values = {
             "routeInspectorModeValue": (
-                "Editing workspace draft"
+                "Editing draft"
                 if self._route_editor_panel is not None and not self._route_editor_panel.isHidden()
-                else "Inspecting workspace route"
+                else "Ready to edit"
             ),
-            "routeInspectorTypeValue": inspector.route_type,
+            "routeInspectorTypeValue": inspector.route_type.title(),
             "routeInspectorPhysicalValue": inspector.selected_physical_input,
             "routeInspectorOutputValue": inspector.mapped_virtual_output,
-            "routeInspectorContextValue": inspector.mode_profile_context,
-            "routeInspectorTruthValue": inspector.source_of_truth,
-            "routeInspectorEditableValue": inspector.editable_in_current_ui,
-            "routeInspectorConflictValue": inspector.conflict_status,
-            "routeInspectorVerificationValue": inspector.no_live_output_verification_notice,
+            "routeInspectorContextValue": self._workspace.active_profile,
+            "routeInspectorTruthValue": "Workspace draft",
+            "routeInspectorEditableValue": "Change the target below" if control.editable else "Read-only reference",
+            "routeInspectorConflictValue": _polish_mapping_warning(inspector.conflict_status),
+            "routeInspectorVerificationValue": "Draft mapping only",
         }
         for object_name, text in values.items():
             label = self._route_inspector_labels.get(object_name)
@@ -1518,6 +1340,55 @@ class MappingPage(QWidget):
                 if editable
                 else "This route is read-only or unsupported in the Mapping editor."
             )
+
+    def _show_route_remap_card(self) -> None:
+        if self._route_remap_card is None:
+            return
+        if self._route_overlay_scrim is None:
+            self._route_overlay_scrim = QFrame(self)
+            self._route_overlay_scrim.setObjectName("mappingRemapScrim")
+            self._route_overlay_scrim.setProperty("uiRole", "mappingRemapScrim")
+        self._route_overlay_scrim.setGeometry(self.rect())
+        self._route_overlay_scrim.show()
+        self._route_overlay_scrim.raise_()
+        self._position_route_remap_card()
+        self._route_remap_card.setVisible(True)
+        self.setProperty("diagramBackdropBlurred", True)
+        effect = QGraphicsOpacityEffect(self._route_remap_card)
+        effect.setOpacity(0.0)
+        self._route_remap_card.setGraphicsEffect(effect)
+        self._route_remap_card.raise_()
+        self._fade_animation = QPropertyAnimation(effect, b"opacity", self._route_remap_card)
+        self._fade_animation.setDuration(180)
+        self._fade_animation.setStartValue(0.0)
+        self._fade_animation.setEndValue(1.0)
+        self._fade_animation.start()
+
+    def _close_route_remap_card(self) -> None:
+        if self._route_remap_card is not None:
+            self._route_remap_card.setHidden(True)
+            self._route_remap_card.setGraphicsEffect(None)
+        if self._route_overlay_scrim is not None:
+            self._route_overlay_scrim.hide()
+        if self._route_editor_panel is not None:
+            self._route_editor_panel.setHidden(True)
+        self.setProperty("diagramBackdropBlurred", False)
+
+    def _position_route_remap_card(self) -> None:
+        if self._route_remap_card is None:
+            return
+        viewport = self.parentWidget()
+        visible_width = max(520, viewport.width() if viewport is not None else self.width())
+        visible_height = max(460, viewport.height() if viewport is not None else min(self.height(), 760))
+        scroll_y = 0
+        scroll_area = viewport.parentWidget() if viewport is not None else None
+        if hasattr(scroll_area, "verticalScrollBar"):
+            scroll_y = scroll_area.verticalScrollBar().value()
+        width = min(max(560, int(visible_width * 0.62)), max(560, visible_width - 64))
+        height = min(620, max(420, visible_height - 96))
+        x = max(28, int((visible_width - width) / 2))
+        y = scroll_y + max(36, int((visible_height - height) / 2))
+        self._route_remap_card.setGeometry(x, y, width, height)
 
     def _control_id_for_table_row(self, table_object_name: str, row: int) -> str | None:
         model = self._hotas_diagram_model or self._create_hotas_diagram_model()
@@ -1537,10 +1408,10 @@ class MappingPage(QWidget):
 
     def _telemetry_status_label(self) -> str:
         if self._runtime_frame is None:
-            return "Bridge telemetry unavailable"
+            return "Live device details are not available right now"
         if not self._runtime_frame.available:
-            return f"Bridge telemetry {self._runtime_frame.parse_status}"
-        return "Bridge telemetry available"
+            return f"Live device details are {self._runtime_frame.parse_status.replace('_', ' ')}"
+        return "Live device details available"
 
     def _diagram_raw_axis_values(self):
         return self._physical_raw_axes or self._snapshot.raw_axis_values
@@ -1567,7 +1438,7 @@ class MappingPage(QWidget):
 
     def _refresh_route_summary(self) -> None:
         for label, route in zip(self._axis_route_labels, self._workspace.mappings.axis_routes, strict=False):
-            label.setText(_route_summary(route))
+            label.setText(_friendly_output_axis(route.runtime_vjoy_output))
 
     def _set_combo_cell(
         self,
@@ -1604,13 +1475,15 @@ class MappingPage(QWidget):
     def _configure_table(self, table: QTableWidget, *, minimum_height: int) -> None:
         table.setProperty("polishedRouteTable", True)
         table.verticalHeader().hide()
-        table.verticalHeader().setDefaultSectionSize(42)
+        table.verticalHeader().setDefaultSectionSize(58)
         table.setAlternatingRowColors(False)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
-        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         table.horizontalHeader().setStretchLastSection(True)
+        table.horizontalHeader().setMinimumSectionSize(86)
+        table.setWordWrap(False)
         table.setMinimumHeight(minimum_height)
 
     def _add_count_row(self, layout: QGridLayout, row: int, label: str, object_name: str, value: int) -> None:
@@ -1623,12 +1496,65 @@ class MappingPage(QWidget):
         layout.addWidget(name, row, 0)
         layout.addWidget(count, row, 1)
 
+    def _count_badge(self, label: str, object_name: str, value: int) -> QWidget:
+        badge = QFrame()
+        badge.setObjectName("routeCountBadgeFrame")
+        badge.setProperty("uiRole", "routeCountBadge")
+        layout = QVBoxLayout(badge)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(4)
+        count = QLabel(str(value))
+        count.setObjectName("routeCountBadge")
+        count.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        count.setProperty("metricValue", True)
+        caption = QLabel(label)
+        caption.setObjectName("sectionHint")
+        caption.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._count_labels[object_name] = count
+        layout.addWidget(count)
+        layout.addWidget(caption)
+        return badge
+
+    def _route_flow_row(self, route: AxisMapping) -> tuple[QFrame, QLabel]:
+        row = QFrame()
+        row.setObjectName("routeFlowRow")
+        row.setProperty("uiRole", "routeFlowRow")
+        layout = QHBoxLayout(row)
+        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setSpacing(8)
+        physical = _route_pill(_plain_raw_axis(route.raw_axis_channel), "routePhysicalPill")
+        logical = _route_pill(route.function_name, "routeLogicalPill")
+        output = _route_pill(_friendly_output_axis(route.runtime_vjoy_output), "routeOutputPill")
+        output.setToolTip(_route_summary(route))
+        arrow1 = QLabel("->")
+        arrow1.setObjectName("routeArrow")
+        arrow2 = QLabel("->")
+        arrow2.setObjectName("routeArrow")
+        layout.addWidget(physical)
+        layout.addWidget(arrow1)
+        layout.addWidget(logical)
+        layout.addWidget(arrow2)
+        layout.addWidget(output)
+        layout.addStretch(1)
+        return row, output
+
     def _runtime_chip_label(self) -> str:
+        if self._runtime_status.truth is RuntimeTruth.LIVE_VERIFIED and self._runtime_status.live_output_writes_verified:
+            return "Live Verified"
         if self._runtime_status.truth is RuntimeTruth.BLOCKED_MISSING_DEVICE:
             return "Runtime Simulated"
         if self._runtime_status.truth is RuntimeTruth.DETECTED_UNVERIFIED:
             return "Runtime Idle"
         return self._state.runtime.runtime_card_label
+
+    def _runtime_chip_tone(self) -> str:
+        if self._runtime_status.truth is RuntimeTruth.LIVE_VERIFIED and self._runtime_status.live_output_writes_verified:
+            return "success"
+        if self._runtime_status.truth in {RuntimeTruth.DETECTED_UNVERIFIED, RuntimeTruth.SIMULATED}:
+            return "caution"
+        if self._runtime_status.truth is RuntimeTruth.ERROR:
+            return "danger"
+        return "warning"
 
     def _runtime_route_note(self) -> str:
         if self._runtime_status.live_output_writes_verified:
@@ -1667,12 +1593,12 @@ class MappingPage(QWidget):
 
     def _runtime_truth_label(self) -> str:
         return {
-            RuntimeTruth.SIMULATED: "simulated",
-            RuntimeTruth.DETECTED_UNVERIFIED: "detected_unverified / Detected Unverified",
-            RuntimeTruth.LIVE_VERIFIED: "live_verified",
-            RuntimeTruth.BLOCKED_MISSING_DRIVER: "blocked_missing_driver",
-            RuntimeTruth.BLOCKED_MISSING_DEVICE: "blocked_missing_device",
-            RuntimeTruth.ERROR: "error",
+            RuntimeTruth.SIMULATED: "Simulation",
+            RuntimeTruth.DETECTED_UNVERIFIED: "Device detected, output not verified",
+            RuntimeTruth.LIVE_VERIFIED: "Live checks passed",
+            RuntimeTruth.BLOCKED_MISSING_DRIVER: "Driver or output setup needed",
+            RuntimeTruth.BLOCKED_MISSING_DEVICE: "Waiting for HOTAS input",
+            RuntimeTruth.ERROR: "Runtime check needs attention",
         }[self._runtime_status.truth]
 
     def _status_message(self, message: str) -> None:
@@ -1690,6 +1616,36 @@ class MappingPage(QWidget):
 def _route_summary(route: AxisMapping) -> str:
     raw = route.raw_axis_channel.lower()
     return f"Raw {raw} -> {route.logical_output} -> {route.runtime_vjoy_output}"
+
+
+def _plain_raw_axis(value: str) -> str:
+    return value.replace("Axis", "Input").strip()
+
+
+def _friendly_output_axis(value: str) -> str:
+    if "(" in value:
+        label = value.split("(", 1)[0].strip()
+        return f"Virtual {label}"
+    return f"Virtual {value}"
+
+
+def _route_pill(text: str, object_name: str) -> QLabel:
+    label = QLabel(text)
+    label.setObjectName(object_name)
+    label.setProperty("uiRole", "routePill")
+    label.setWordWrap(True)
+    return label
+
+
+def _polish_mapping_warning(value: str) -> str:
+    return (
+        value.replace("workspace/config warning:", "")
+        .replace("workspace/config", "workspace")
+        .replace("No workspace conflicts detected", "No route conflicts detected")
+        .replace("output intent", "output target")
+        .replace("output target target", "output target")
+        .strip()
+    )
 
 
 def _virtual_output_loop_snapshot(
@@ -1865,6 +1821,12 @@ def _direction_text(value: int | None) -> str:
 
 def _signed(value: float) -> str:
     return f"{value:+.2f}"
+
+
+def _repolish(widget: QWidget) -> None:
+    widget.style().unpolish(widget)
+    widget.style().polish(widget)
+    widget.update()
 
 
 def _project_root() -> Path:

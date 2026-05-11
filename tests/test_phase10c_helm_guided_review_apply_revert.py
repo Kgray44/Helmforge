@@ -106,12 +106,10 @@ def test_phase10c_analysis_shows_guided_review_summary_counts_risk_and_outcome(t
     summary = overlay.findChild(QLabel, "helmReviewSummary")
 
     assert summary is not None
-    assert "I found 2 tuning groups affecting 5 parameters." in summary.text()
-    assert "5 changes are selected." in summary.text()
-    assert "affected axes: Yaw, Pitch" in summary.text()
+    assert "5 changes are selected across Yaw, Pitch." in summary.text()
     assert "Expected result:" in summary.text()
-    assert "Risk: moderate; these are reversible and not saved yet." in summary.text()
-    assert "In-memory only" in summary.text()
+    assert "Risk is moderate." in summary.text()
+    assert "staged in memory" in summary.text()
 
 
 def test_phase10c_group_selection_updates_diff_selection_and_selected_counts(tmp_path):
@@ -132,12 +130,12 @@ def test_phase10c_group_selection_updates_diff_selection_and_selected_counts(tmp
     assert not yaw_scale_check.isChecked()
     assert not yaw_center_check.isChecked()
     assert pitch_center_check.isChecked()
-    assert "1 change is selected." in summary.text()
+    assert "1 change is selected across Yaw, Pitch." in summary.text()
 
     group_check.setChecked(True)
     assert yaw_scale_check.isChecked()
     assert yaw_center_check.isChecked()
-    assert "5 changes are selected." in summary.text()
+    assert "5 changes are selected across Yaw, Pitch." in summary.text()
 
 
 def test_phase10c_apply_button_is_inactive_when_no_diffs_are_selected(tmp_path):
@@ -153,7 +151,7 @@ def test_phase10c_apply_button_is_inactive_when_no_diffs_are_selected(tmp_path):
     summary = overlay.findChild(QLabel, "helmReviewSummary")
 
     assert not apply_button.isEnabled()
-    assert "0 changes are selected." in summary.text()
+    assert "0 changes are selected across Yaw, Pitch." in summary.text()
     apply_button.click()
     assert "Select at least one change before applying." in status.text()
 
@@ -233,7 +231,7 @@ def test_phase10c_follow_up_questions_render_answer_choices_before_confident_dif
 
     refined_text = _all_label_text(overlay)
     assert "I found" in refined_text
-    assert "changes are selected." in refined_text
+    assert "changes are selected across" in refined_text
     assert "Review these before applying." in refined_text
 
 
@@ -241,9 +239,9 @@ def test_phase10c_findings_are_workspace_focused_without_fake_live_claims(tmp_pa
     _shell, overlay = _overlay_after_analysis(tmp_path, "Hard to track smoothly")
 
     text = _all_label_text(overlay)
-    assert "I'm using workspace values only; live hardware analysis is not active." in text
+    assert "Workspace-only review; live hardware analysis is not active." in text
     assert "Yaw deadzone is 0.08" in text
-    assert "Yaw combat scale is lower than pitch" in text
+    assert "Roll Curve Strength" in text
     assert "Full Live Runtime Ready" not in text
     assert "output verified true" not in text.casefold()
 
@@ -258,7 +256,8 @@ def test_phase10c_overlay_identity_and_runtime_boundaries_remain_frozen(tmp_path
     overlay = shell.helm_overlay
 
     assert overlay.objectName() == "helmOverlay"
-    assert overlay.windowModality().name.endswith("ApplicationModal")
+    assert overlay.property("paneMode") == "in-app-slide"
+    assert overlay.parentWidget() is shell
     assert "helm" not in shell.page_widgets
 
     button_text = " ".join(button.text() for button in overlay.findChildren(QPushButton))

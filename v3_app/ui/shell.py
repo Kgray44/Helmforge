@@ -14,6 +14,7 @@ from shared_core.models.runtime import (
     RuntimeTruth,
 )
 from shared_core.models.workspace import CONFIG_FILENAME, WorkspaceConfig, create_default_workspace
+from shared_core.persistence.workspace_identity import compute_workspace_hash
 from shared_core.persistence.workspace_store import WorkspaceJsonError, load_workspace, save_workspace
 from shared_core.runtime.device_discovery import build_runtime_preflight_status
 from shared_core.runtime.telemetry import BridgeTelemetrySnapshot
@@ -29,9 +30,11 @@ from v3_app.pages.mapping_page import MappingPage
 from v3_app.pages.modes_page import ModesPage
 from v3_app.pages.placeholders import PAGE_DEFINITIONS, create_placeholder_page, page_definition_by_id
 from v3_app.pages.perf_diagnostics_page import PerfDiagnosticsPage
+from v3_app.pages.preflight_page import PreflightPage
 from v3_app.pages.profiles_page import ProfilesPage
 from v3_app.helm.helm_overlay import HelmOverlay
 from v3_app.services.app_state import AppState, build_initial_app_state
+from v3_app.services.bridge_commands import BridgeCommandClient
 from v3_app.services.bridge_client import BridgeTelemetryClient
 from v3_app.services.perf_diagnostics import DiagnosticsCollector
 from v3_app.ui.footer import Footer
@@ -48,15 +51,19 @@ class HelmForgeShell(QWidget):
         workspace_path: str | Path | None = None,
         runtime_status: RuntimePreflightStatus | None = None,
         diagnostics_collector: DiagnosticsCollector | None = None,
+        bridge_command_path: str | Path | None = None,
     ) -> None:
         super().__init__()
         self.setObjectName("helmforgeShell")
         self.state = state or build_initial_app_state()
         self.workspace_path = Path(workspace_path or CONFIG_FILENAME)
         self._bridge_telemetry_path = None if state is None else self.workspace_path.parent / f".{self.workspace_path.name}.fixture_bridge_telemetry.json"
+        self._applied_workspace_path = self.workspace_path.parent / f".{self.workspace_path.stem}.applied{self.workspace_path.suffix}"
+        self._bridge_command_client = BridgeCommandClient(command_path=bridge_command_path)
         self.workspace = workspace or self._load_initial_workspace()
         self._last_saved_workspace = self.workspace
         self.state.source_config = str(self.workspace_path)
+        self.state.active_profile = self.workspace.active_profile
         self.runtime_status = runtime_status or _runtime_status_from_state(self.state)
         self.active_page_id = self.state.active_page_id
         self.page_widgets: dict[str, QScrollArea] = {}
@@ -76,11 +83,13 @@ class HelmForgeShell(QWidget):
             page_definition_by_id(self.active_page_id),
             on_import_profile=self.import_profile_placeholder,
             on_revert=self.revert_workspace,
+            on_apply=self.apply_workspace,
             on_save=self.save_workspace,
         )
 
         main = QWidget()
         main.setObjectName("contentViewport")
+        self.content_viewport = main
         main_layout = QVBoxLayout(main)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(16)
@@ -135,6 +144,8 @@ class HelmForgeShell(QWidget):
             "workspace": self.workspace,
             "runtime_status": self.runtime_status,
         }
+        if page_id == "preflight":
+            return PreflightPage(**common, on_status=self.set_status_message)
         if page_id == "mapping":
             return MappingPage(
                 **common,
@@ -214,7 +225,9 @@ class HelmForgeShell(QWidget):
             self.runtime_status,
             driver_detected=self.state.runtime.driver_detected,
         ).runtime
+        self.state.active_profile = telemetry.active_profile
         self.header.update_state(self.state)
+        self.sidebar.update_runtime(self.state)
         self.footer.update_state(self.state, page_definition_by_id(self.active_page_id))
         scroll = self.page_widgets.get(self.active_page_id)
         content = scroll.widget() if scroll is not None else None
@@ -223,6 +236,28 @@ class HelmForgeShell(QWidget):
 
     def import_profile_placeholder(self) -> None:
         self.set_status_message("Import Profile is reserved for a later import phase; no workspace file was changed.")
+
+    def apply_workspace(self) -> None:
+        try:
+            save_workspace(self.workspace, self._applied_workspace_path, overwrite=True)
+            workspace_hash = compute_workspace_hash(self.workspace)
+            result = self._bridge_command_client.reload_config(
+                config_path=self._applied_workspace_path,
+                expected_workspace_hash=workspace_hash,
+                expected_workspace_revision=workspace_hash[:12],
+            )
+        except Exception as exc:
+            self.state.status_message = f"Apply Workspace failed: {exc}"
+            self.footer.update_state(self.state, page_definition_by_id(self.active_page_id))
+            return
+        self.state.saved = False
+        self.state.status_message = (
+            "Applied workspace draft to the Bridge. Save Workspace is still required to keep it."
+            if result.success
+            else f"Apply Workspace command failed: {result.message}"
+        )
+        self.header.update_state(self.state)
+        self.footer.update_state(self.state, page_definition_by_id(self.active_page_id))
 
     def open_helm_overlay(self) -> HelmOverlay:
         if self.helm_overlay is None:
@@ -250,7 +285,7 @@ class HelmForgeShell(QWidget):
             return
         self._last_saved_workspace = self.workspace
         self.state.saved = True
-        self.state.status_message = f"Saved workspace draft to {self.workspace_path}."
+        self.state.status_message = "Saved workspace draft."
         self.header.update_state(self.state)
         self.footer.update_state(self.state, page_definition_by_id(self.active_page_id))
 

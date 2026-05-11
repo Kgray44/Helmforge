@@ -53,41 +53,68 @@ def _mapping_page(shell):
     return shell.page_widgets["mapping"].widget()
 
 
+def _open_route_editor(page, marker_name: str | None = None):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QLabel, QPushButton
+
+    if marker_name is not None:
+        marker = page.findChild(QLabel, marker_name)
+        assert marker is not None
+        QTest.mouseClick(marker, Qt.MouseButton.LeftButton)
+    button = page.findChild(QPushButton, "changeMappingButton")
+    assert button is not None
+    QTest.mouseClick(button, Qt.MouseButton.LeftButton)
+    _app().processEvents()
+
+
 def test_phase6b_axis_route_editors_exist_and_update_workspace_dirty():
-    from PySide6.QtWidgets import QComboBox
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QComboBox, QPushButton
 
     shell = _shell()
     page = _mapping_page(shell)
-    raw_combo = page.findChild(QComboBox, "axisRaw_roll")
-    logical_combo = page.findChild(QComboBox, "axisLogical_roll")
-    runtime_combo = page.findChild(QComboBox, "axisRuntime_roll")
+    _open_route_editor(page)
+    raw_combo = page.findChild(QComboBox, "routeEditorAxisRawCombo")
+    logical_combo = page.findChild(QComboBox, "routeEditorAxisLogicalCombo")
+    runtime_combo = page.findChild(QComboBox, "routeEditorAxisOutputCombo")
 
     assert "Axis 8" in [raw_combo.itemText(index) for index in range(raw_combo.count())]
     assert "SL1" in [logical_combo.itemText(index) for index in range(logical_combo.count())]
     assert "RZ(axis6)" in [runtime_combo.itemText(index) for index in range(runtime_combo.count())]
 
     raw_combo.setCurrentText("Axis 4")
+    QTest.mouseClick(page.findChild(QPushButton, "routeEditorApplyButton"), Qt.MouseButton.LeftButton)
 
     assert shell.state.saved is False
     assert shell.workspace.mappings.axis_routes[0].raw_axis_channel == "Axis 4"
 
 
 def test_phase6b_axis_invert_and_button_hat_edits_update_workspace_dirty():
-    from PySide6.QtWidgets import QCheckBox, QComboBox
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QCheckBox, QComboBox, QPushButton
 
     shell = _shell()
     page = _mapping_page(shell)
 
-    invert = page.findChild(QCheckBox, "invert_roll")
+    _open_route_editor(page)
+    invert = page.findChild(QCheckBox, "routeEditorAxisInvertCheckbox")
     invert.setChecked(True)
+    QTest.mouseClick(page.findChild(QPushButton, "routeEditorApplyButton"), Qt.MouseButton.LeftButton)
     assert shell.workspace.mappings.axis_routes[0].invert is True
 
-    button_combo = page.findChild(QComboBox, "buttonHotas_0")
-    button_combo.setCurrentText("B15")
-    assert shell.workspace.mappings.button_routes[0].hotas_button == 15
+    _open_route_editor(page, "hotasMarker_button_b1")
+    button_combo = page.findChild(QComboBox, "routeEditorButtonOutputCombo")
+    button_combo.setCurrentText("15")
+    QTest.mouseClick(page.findChild(QPushButton, "routeEditorApplyButton"), Qt.MouseButton.LeftButton)
+    assert shell.workspace.mappings.button_routes[0].output_button == 15
 
-    hat_combo = page.findChild(QComboBox, "hatRight_0")
+    _open_route_editor(page, "hotasMarker_hat_pov")
+    hat_combo = page.findChild(QComboBox, "routeEditorHatRightButtonCombo")
     hat_combo.setCurrentText("20")
+    QTest.mouseClick(page.findChild(QPushButton, "routeEditorApplyButton"), Qt.MouseButton.LeftButton)
     assert shell.workspace.mappings.hat_routes[0].right_button == 20
     assert shell.state.saved is False
 
@@ -111,7 +138,6 @@ def test_phase6b_button_add_remove_reset_actions_are_functional():
     assert table.rowCount() == 15
     assert len(shell.workspace.mappings.button_routes) == 15
 
-    table.cellWidget(0, 0).setCurrentText("B15")
     page.findChild(QPushButton, "resetButtonRoutesButton").click()
 
     assert [route.hotas_button for route in shell.workspace.mappings.button_routes] == list(range(1, 16))
@@ -139,13 +165,17 @@ def test_phase6b_hat_add_remove_actions_are_functional():
 
 
 def test_phase6b_save_workspace_round_trips_mapping_edit_and_revert_restores(tmp_path):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
     from PySide6.QtWidgets import QComboBox, QPushButton
     from shared_core.persistence.workspace_store import load_workspace
 
     shell = _shell(tmp_path)
     page = _mapping_page(shell)
-    raw_combo = page.findChild(QComboBox, "axisRaw_roll")
+    _open_route_editor(page)
+    raw_combo = page.findChild(QComboBox, "routeEditorAxisRawCombo")
     raw_combo.setCurrentText("Axis 4")
+    QTest.mouseClick(page.findChild(QPushButton, "routeEditorApplyButton"), Qt.MouseButton.LeftButton)
 
     shell.footer.findChild(QPushButton, "saveWorkspaceButton").click()
 
@@ -154,12 +184,16 @@ def test_phase6b_save_workspace_round_trips_mapping_edit_and_revert_restores(tmp
     assert shell.state.saved is True
 
     page = _mapping_page(shell)
-    page.findChild(QComboBox, "axisRaw_roll").setCurrentText("Axis 5")
+    _open_route_editor(page)
+    page.findChild(QComboBox, "routeEditorAxisRawCombo").setCurrentText("Axis 5")
+    QTest.mouseClick(page.findChild(QPushButton, "routeEditorApplyButton"), Qt.MouseButton.LeftButton)
     shell.footer.findChild(QPushButton, "revertButton").click()
 
     assert shell.workspace.mappings.axis_routes[0].raw_axis_channel == "Axis 4"
     assert shell.state.saved is True
-    assert _mapping_page(shell).findChild(QComboBox, "axisRaw_roll").currentText() == "Axis 4"
+    page = _mapping_page(shell)
+    _open_route_editor(page)
+    assert page.findChild(QComboBox, "routeEditorAxisRawCombo").currentText() == "Axis 4"
 
 
 def test_phase6b_mapping_page_stays_truthful_about_runtime_output():
@@ -169,9 +203,9 @@ def test_phase6b_mapping_page_stays_truthful_about_runtime_output():
     page = _mapping_page(shell)
     labels_text = " ".join(label.text() for label in page.findChildren(QLabel))
 
-    assert "Output writes verified: false" in labels_text
+    assert "Draft mapping only" in labels_text
     assert "Output Verified" not in labels_text
-    assert "Full Live Runtime Ready false" in labels_text
+    assert "Full Live Runtime Ready false" not in labels_text
 
 
 def test_phase6b_shared_core_boundary_still_excludes_ui_imports():

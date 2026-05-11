@@ -21,12 +21,13 @@ class PageDefinition:
 
 
 PAGE_DEFINITIONS = (
+    PageDefinition("preflight", "Preflight", "Verify device, pipeline, data, and runtime-readiness signals before live use.", "Preflight shows the runtime setup dashboard and Bridge readiness checks."),
     PageDefinition("mapping", "Mapping", "Map raw HOTAS axes, buttons, and hats to bridge outputs.", "Routing tables and live route summaries will be rebuilt here."),
+    PageDefinition("profiles", "Profiles", "Manage built-in and personal workspaces for different flight styles.", "Profile library and detail cards will be reconstructed in a later phase."),
     PageDefinition("modes", "Modes", "Configure precision, combat, zoom, and extra mode behavior.", "Mode gates and button bindings will arrive after the shell is reviewed."),
     PageDefinition("base_tuning", "Base Tuning", "Shape the underlying axis response before mode-specific modifiers get involved.", "Curve controls, deadzone settings, and previews will be rebuilt in this workspace."),
     PageDefinition("filtering", "Filtering", "Tune smoothing, edge response, and same/reverse-direction slew limits.", "Step response and filtering controls will be added without moving processing into the UI."),
     PageDefinition("combat_profile", "Combat Profile", "Adjust combat-focused curve, scale, filtering, and slew behavior.", "Combat profile controls will remain configuration-only for the future Bridge."),
-    PageDefinition("profiles", "Profiles", "Manage built-in and personal workspaces for different flight styles.", "Profile library and detail cards will be reconstructed in a later phase."),
     PageDefinition("conditional_rules", "Conditional Rules", "Build responsive modifier rules, track their live state, and see exactly where they inject into the response stack.", "Rule list, detail, editor, and live status are rebuilt in the rules phase."),
     PageDefinition("effective_response_stack", "Effective Response Stack", "Inspect one selected axis at a time from raw HOTAS input through shaping, filtering, mode modifiers, rule injections, and final output.", "Stage cards are powered by the shared-core stack results."),
     PageDefinition("live_monitor", "Live Monitor", "Watch input source truth, final output intent, buttons, hats, and axis levels in one dedicated runtime workspace.", "Live Monitor is backed by simulation, runtime_frame telemetry, and explicit output-loop truth; output intent is not a vJoy write."),

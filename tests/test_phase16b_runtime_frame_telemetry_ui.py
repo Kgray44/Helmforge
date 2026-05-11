@@ -223,10 +223,9 @@ def test_phase16b_mapping_live_monitor_and_diagnostics_show_runtime_frame_truth(
     perf_text = _text(perf)
     copy_text = perf.prepare_copy_diagnostics()
 
-    assert "Runtime frame\navailable" in mapping_text
-    assert "Runtime frame source\nsimulation" in mapping_text
-    assert "Pipeline status\nsimulated_output_intent_ready" in mapping_text
-    assert "Output intent ready\ntrue" in mapping_text
+    assert "Runtime frame\navailable" not in mapping_text
+    assert "Runtime frame source\nsimulation" not in mapping_text
+    assert "Draft mapping only" in mapping_text
     assert "Runtime frame: available" in live_text
     assert "Runtime frame source: simulation" in live_text
     assert "Output intent ready: true" in live_text

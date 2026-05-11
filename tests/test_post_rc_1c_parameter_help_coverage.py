@@ -208,23 +208,42 @@ def test_post_rc_1c_overlay_and_recorder_surfaces_apply_metadata_help():
 def test_post_rc_1c_mapping_combo_cells_are_metadata_backed(tmp_path):
     _app()
 
-    from PySide6.QtWidgets import QComboBox
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QLabel, QComboBox, QPushButton
 
     shell = _shell(tmp_path)
     shell.switch_page("mapping")
     page = shell.page_widgets["mapping"].widget()
 
-    expected = {
-        "axisRaw_roll": "mapping.raw_axis",
-        "axisLogical_roll": "mapping.logical_output",
-        "axisRuntime_roll": "mapping.runtime_output_axis",
-        "buttonHotas_0": "mapping.hotas_button",
-        "buttonVjoy_0": "mapping.output_button",
-        "hatHotas_0": "mapping.hotas_hat",
-        "hatPov_0": "mapping.output_pov",
-        "hatUp_0": "mapping.hat_direction_button",
+    page.findChild(QPushButton, "changeMappingButton").click()
+    expected_axis = {
+        "routeEditorAxisRawCombo": "mapping.raw_axis",
+        "routeEditorAxisLogicalCombo": "mapping.logical_output",
+        "routeEditorAxisOutputCombo": "mapping.runtime_output_axis",
     }
-    for object_name, metadata_id in expected.items():
+    for object_name, metadata_id in expected_axis.items():
+        combo = page.findChild(QComboBox, object_name)
+        assert combo is not None, object_name
+        assert combo.property("metadataId") == metadata_id
+        assert combo.toolTip()
+
+    marker = page.findChild(QLabel, "hotasMarker_button_b1")
+    QTest.mouseClick(marker, Qt.MouseButton.LeftButton)
+    page.findChild(QPushButton, "changeMappingButton").click()
+    combo = page.findChild(QComboBox, "routeEditorButtonOutputCombo")
+    assert combo is not None
+    assert combo.property("metadataId") == "mapping.output_button"
+    assert combo.toolTip()
+
+    marker = page.findChild(QLabel, "hotasMarker_hat_pov")
+    QTest.mouseClick(marker, Qt.MouseButton.LeftButton)
+    page.findChild(QPushButton, "changeMappingButton").click()
+    expected_hat = {
+        "routeEditorHatPovCombo": "mapping.output_pov",
+        "routeEditorHatUpButtonCombo": "mapping.hat_direction_button",
+    }
+    for object_name, metadata_id in expected_hat.items():
         combo = page.findChild(QComboBox, object_name)
         assert combo is not None, object_name
         assert combo.property("metadataId") == metadata_id

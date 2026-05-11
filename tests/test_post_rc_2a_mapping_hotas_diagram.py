@@ -114,9 +114,9 @@ def test_post_rc_2a_mapping_page_includes_hotas_diagram_card():
 
     labels_text = "\n".join(label.text() for label in page.findChildren(QLabel))
     assert "HOTAS Diagram" in labels_text
-    assert "physical controls, current mappings, and output intent targets" in labels_text
-    assert "Read-only visual/diagnostic diagram" in labels_text
-    assert "Output intent is not output write proof" in labels_text
+    assert "Pick a physical control to review or remap it as a workspace draft." in labels_text
+    assert "Diagram selections open a draft editor." in labels_text
+    assert "Apply to Draft updates the workspace draft" in labels_text
 
 
 def test_post_rc_2a_diagram_widget_constructs_offscreen_with_marker_tooltips():

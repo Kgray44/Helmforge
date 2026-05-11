@@ -152,18 +152,12 @@ def test_phase10e_context_summary_and_findings_show_final_evidence_boundaries(tm
     context_summary = overlay.findChild(QLabel, "helmContextSummary").text()
     text = _all_label_text(overlay)
 
-    assert "Axis context: Roll" in context_summary
-    assert "Evidence: Workspace values, Mode settings, Conditional rules, Runtime diagnostics" in context_summary
-    assert "Runtime: blocked_missing_device" in context_summary
-    assert "Output verified: false" in context_summary
-    assert "Discovery-only status: no_supported_device" in context_summary
-    assert "Live analysis: not active" in context_summary
-    for group in ("Workspace findings", "Mode findings", "Rule findings", "Stack findings", "Runtime boundary"):
+    assert "Roll review using Workspace values, Mode settings, Conditional rules, Runtime diagnostics" in context_summary
+    assert "output proof pending" in context_summary
+    for group in ("Workspace findings", "Mode findings", "Rule findings", "Runtime boundary", "Recommendation summary"):
         assert group in text
-    assert "Response stack context is unavailable here; I will not pretend stage evidence exists." in text
-    assert "I'm using workspace/simulation context only; live hardware analysis is not active." in text
-    assert "Output verification is false, so these are draft tuning changes only." in text
-    assert "No physical HOTAS is currently available for live validation." in text
+    assert "Workspace-only review; live hardware analysis is not active." in text
+    assert "Draft" in text
     assert "Full Live Runtime Ready true" not in text
     assert "Output verified true" not in text
 
@@ -181,7 +175,7 @@ def test_phase10e_group_and_individual_selection_apply_and_revert_stay_in_memory
 
     overlay.findChild(QCheckBox, "helmGroupCheck_Fine_Aim_Control").setChecked(False)
     overlay.findChild(QCheckBox, "helmDiffCheck_Yaw_Combat_Scale").setChecked(False)
-    assert "3 changes are selected." in overlay.findChild(QLabel, "helmReviewSummary").text()
+    assert "3 changes are selected across Yaw, Pitch." in overlay.findChild(QLabel, "helmReviewSummary").text()
 
     overlay.findChild(QPushButton, "helmApplySelectedButton").click()
 
@@ -223,7 +217,7 @@ def test_phase10e_apply_inactive_no_prior_revert_and_no_raw_object_dumps(tmp_pat
             check.setChecked(False)
 
     assert overlay.findChild(QPushButton, "helmApplySelectedButton").isEnabled() is False
-    assert "0 changes are selected." in _all_label_text(overlay)
+    assert "0 changes are selected across Yaw, Pitch." in _all_label_text(overlay)
     text = _all_label_text(overlay)
     for raw_dump in ("HelmRecommendationResult(", "HelmDiff(", "HelmFinding(", "MatchedSymptom("):
         assert raw_dump not in text

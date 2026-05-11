@@ -66,28 +66,29 @@ def _label_text(widget) -> str:
     )
 
 
-def test_post_rc_4d_mapping_has_polished_preflight_dashboard_and_route_tables(tmp_path):
+def test_post_rc_4d_mapping_route_tables_are_polished_and_preflight_is_split(tmp_path):
     _app()
 
     from PySide6.QtWidgets import QFrame, QPushButton, QTableWidget
 
-    page = _page(_shell(tmp_path), "mapping")
+    shell = _shell(tmp_path)
+    page = _page(shell, "mapping")
 
-    preflight = page.findChild(QFrame, "mappingPreflightDashboardCard")
+    preflight = _page(shell, "preflight").findChild(QFrame, "preflightDeviceDriverSection")
     assert preflight is not None
     assert preflight.property("uiRole") == "preflightDashboard"
-    assert preflight.property("tabSplitDeferred") is True
+    assert page.findChild(QFrame, "runtimePreflightCard") is None
 
     for object_name in ("axisRoutingTable", "buttonRoutingTable", "hatRoutingTable"):
         table = page.findChild(QTableWidget, object_name)
         assert table is not None
         assert table.property("polishedRouteTable") is True
         assert table.horizontalHeader().stretchLastSection()
-        assert table.verticalHeader().defaultSectionSize() >= 42
+        assert table.verticalHeader().defaultSectionSize() >= 48
 
     assert page.findChild(QFrame, "routeInspectorPanel") is not None
     assert page.findChild(QPushButton, "changeMappingButton") is not None
-    assert "Save Workspace required" in _label_text(page)
+    assert "Change the target below" in _label_text(page)
 
 
 def test_post_rc_4d_mapping_preserves_2c_editor_and_documents_absent_2d(tmp_path):
@@ -106,9 +107,9 @@ def test_post_rc_4d_mapping_preserves_2c_editor_and_documents_absent_2d(tmp_path
         for expected in ("Mapping Draft Review", "Undo", "Redo", "Preset", "Search"):
             assert expected in text
     else:
-        deferred = page.findChild(QLabel, "mappingDraftReviewDeferredNotice")
-        assert deferred is not None
-        assert "Post-RC 2D" in deferred.text()
+        text = _label_text(page)
+        assert page.findChild(QLabel, "mappingDraftReviewDeferredNotice") is None
+        assert "Post-RC 2D" not in text
 
 
 def test_post_rc_4d_profiles_selection_updates_detail_and_column_width(tmp_path):

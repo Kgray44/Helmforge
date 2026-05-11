@@ -139,7 +139,7 @@ def test_post_rc_2b_diagram_click_selects_related_table_row_and_inspector():
     assert button_table.currentRow() == 4
     assert page.findChild(QLabel, "routeInspectorPhysicalValue").text() == "B5"
     assert page.findChild(QLabel, "routeInspectorOutputValue").text() == "Button 5"
-    assert "Editable in Mapping table" in page.findChild(QLabel, "routeInspectorEditableValue").text()
+    assert "Change the target below" in page.findChild(QLabel, "routeInspectorEditableValue").text()
 
 
 def test_post_rc_2b_table_selection_selects_related_diagram_marker_and_inspector():
@@ -160,7 +160,7 @@ def test_post_rc_2b_table_selection_selects_related_diagram_marker_and_inspector
     assert marker.property("selected") is True
     assert page.findChild(QLabel, "routeInspectorPhysicalValue").text() == "Axis 2"
     assert page.findChild(QLabel, "routeInspectorOutputValue").text() == "Y(axis2)"
-    assert page.findChild(QLabel, "routeInspectorTypeValue").text() == "axis"
+    assert page.findChild(QLabel, "routeInspectorTypeValue").text() == "Axis"
 
 
 def test_post_rc_2b_blocked_missing_telemetry_wording_stays_workspace_focused():
@@ -171,11 +171,11 @@ def test_post_rc_2b_blocked_missing_telemetry_wording_stays_workspace_focused():
     page = _mapping_page()
     labels_text = "\n".join(label.text() for label in page.findChildren(QLabel))
 
-    assert "Bridge telemetry unavailable" in labels_text
-    assert "workspace/config" in labels_text
-    assert "No live output verification" in labels_text
-    assert "Output intent does not prove live output" in labels_text
-    assert "Full Live Runtime Ready" in labels_text
+    assert "Workspace draft" in labels_text
+    assert "Draft mapping only" in labels_text
+    assert "Change the target below" in labels_text
+    assert "source of truth" not in labels_text.casefold()
+    assert "workspace/config" not in labels_text
     assert "Full Live Runtime Ready true" not in labels_text
 
 

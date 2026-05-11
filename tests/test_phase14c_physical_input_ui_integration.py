@@ -134,7 +134,7 @@ def test_phase14c_input_source_model_distinguishes_simulation_active_stale_and_e
 
 
 def test_phase14c_mapping_page_displays_physical_sample_truth_and_values(tmp_path):
-    from PySide6.QtWidgets import QTableWidget
+    from PySide6.QtWidgets import QFrame, QTableWidget
     from shared_core.models.workspace import create_default_workspace
     from v3_app.pages.mapping_page import MappingPage
     from v3_app.services.app_state import AppState
@@ -152,19 +152,13 @@ def test_phase14c_mapping_page_displays_physical_sample_truth_and_values(tmp_pat
     text = _text(page)
     axis_table = page.findChild(QTableWidget, "axisRoutingTable")
 
-    assert "Physical input backend\nfake_input: Available" in text
-    assert "Selected input device\nThrustmaster T.Flight Hotas One" in text
-    assert "Input source\nPhysical input" in text
-    assert "Input sampling\nPhysical input sampling active" in text
-    assert "Sample source\nfake" in text
-    assert "Axis count\n3" in text
-    assert "Button count\n2" in text
-    assert "Hat count\n1" in text
-    assert "Output verified\nfalse" in text
-    assert "Full Live Runtime Ready\nfalse" in text
-    assert "physical input samples are read-only" in text.lower()
-    assert axis_table.item(0, 5).text() == "+1.00"
-    assert axis_table.horizontalHeaderItem(5).text() == "Live Raw (Physical input sample)"
+    assert page.findChild(QFrame, "runtimePreflightCard") is None
+    assert "Physical input backend\nfake_input: Available" not in text
+    assert "Selected input device\nThrustmaster T.Flight Hotas One" not in text
+    assert "Input source\nPhysical input" not in text
+    assert axis_table.columnCount() == 5
+    assert all("Live Raw" not in axis_table.horizontalHeaderItem(index).text() for index in range(axis_table.columnCount()))
+    assert "Draft mapping only" in text
     assert "vJoy output active" not in text
 
 
@@ -181,10 +175,10 @@ def test_phase14c_mapping_page_falls_back_when_physical_input_unavailable():
     )
     text = _text(page)
 
-    assert "Input source\nSimulation" in text
-    assert "Input sampling\nSimulation fallback" in text
-    assert "Output verified\nfalse" in text
-    assert "Full Live Runtime Ready\nfalse" in text
+    assert "Input source\nSimulation" not in text
+    assert "Input sampling\nSimulation fallback" not in text
+    assert "Draft mapping only" in text
+    assert "Full Live Runtime Ready false" not in text
 
 
 def test_phase14c_live_monitor_displays_physical_input_sample_read_only(tmp_path):

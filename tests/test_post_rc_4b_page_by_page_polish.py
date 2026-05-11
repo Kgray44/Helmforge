@@ -111,9 +111,9 @@ def test_post_rc_4b_mapping_polish_preserves_draft_only_workflow(tmp_path):
     assert page.findChild(QLabel, "mappingPolishTruthNotice") is not None
     assert page.findChild(QLabel, "mappingPolishTruthNotice").property("uiRole") == "truthNotice"
     assert page.findChild(QPushButton, "changeMappingButton") is not None
-    assert "Route Inspector" in text
-    assert "Output intent is not output write proof" in text
-    assert "Save Workspace required" in text
+    assert "Selected Control" in text
+    assert "Draft mapping only" in text
+    assert "Change the target below" in text
     assert "draft" in text.lower()
 
     if (PROJECT_ROOT / "tests" / "test_post_rc_2d_advanced_mapping_editor.py").exists():

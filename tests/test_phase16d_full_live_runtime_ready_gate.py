@@ -372,12 +372,10 @@ def test_phase16d_ui_docs_report_and_boundary_text_show_final_readiness_gate(tmp
     perf_text = _widget_text(perf)
     copy_text = perf.prepare_copy_diagnostics()
 
-    assert "Full Live Runtime Ready gate\nblocked" in mapping_text
-    assert "Ready state\nblocked" in mapping_text
-    assert "Telemetry proof\nfresh" in mapping_text
-    assert "Safety proof\nok" in mapping_text
-    assert "Fake/real path\nreal" in mapping_text
-    assert "Readiness evaluated" in mapping_text
+    assert "Full Live Runtime Ready gate\nblocked" not in mapping_text
+    assert "Ready state\nblocked" not in mapping_text
+    assert "Telemetry proof\nfresh" not in mapping_text
+    assert "Draft mapping only" in mapping_text
     assert "Ready state: blocked" in live_text
     assert "Telemetry proof: fresh" in live_text
     assert "Proof summary: Input: fresh physical sample" in live_text

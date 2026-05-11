@@ -66,6 +66,7 @@ class BridgeServiceOptions:
     simulate: bool = True
     tick_interval_ms: int = 16
     discovery_refresh_interval_seconds: float = 2.0
+    enable_periodic_discovery_refresh: bool = True
     command_stale_after_seconds: int = 30
     discovery_backend: DeviceDiscoveryBackend | None = None
     physical_input_backend: PhysicalInputBackend | None = None
@@ -90,6 +91,11 @@ class BridgeTimingStats:
     last_command_duration_ms: float = 0.0
     last_discovery_duration_ms: float = 0.0
     last_discovery_age_ms: float | None = None
+    last_slow_lane_duration_ms: float = 0.0
+    last_discovery_blocked_ms: float = 0.0
+    last_discovery_refresh_reason: str = "startup"
+    discovery_running: bool = False
+    discovery_skipped_reason: str = ""
     last_runtime_io_duration_ms: float = 0.0
     last_runtime_frame_duration_ms: float = 0.0
     last_input_read_duration_ms: float = 0.0
@@ -100,6 +106,15 @@ class BridgeTimingStats:
     output_loop_rate_limited: bool = False
     output_loop_safety_stopped: bool = False
     last_telemetry_publish_duration_ms: float = 0.0
+    last_json_publish_retry_count: int = 0
+    last_json_publish_blocked_ms: float = 0.0
+    last_worker_tick_duration_ms: float = 0.0
+    embedded_worker_late_tick_count: int = 0
+    selected_physical_device_id: str | None = None
+    selected_physical_device_source: str = "missing"
+    device_selection_refresh_count: int = 0
+    device_enumeration_duration_ms: float = 0.0
+    device_enumeration_skipped_cached_count: int = 0
     fast_loop_status: str = "starting"
     slow_lane_status: str = "not_checked"
 
@@ -113,6 +128,11 @@ class BridgeTimingStats:
             "last_command_duration_ms": self.last_command_duration_ms,
             "last_discovery_duration_ms": self.last_discovery_duration_ms,
             "last_discovery_age_ms": self.last_discovery_age_ms,
+            "last_slow_lane_duration_ms": self.last_slow_lane_duration_ms,
+            "last_discovery_blocked_ms": self.last_discovery_blocked_ms,
+            "last_discovery_refresh_reason": self.last_discovery_refresh_reason,
+            "discovery_running": self.discovery_running,
+            "discovery_skipped_reason": self.discovery_skipped_reason,
             "last_runtime_io_duration_ms": self.last_runtime_io_duration_ms,
             "last_runtime_frame_duration_ms": self.last_runtime_frame_duration_ms,
             "last_input_read_duration_ms": self.last_input_read_duration_ms,
@@ -123,6 +143,15 @@ class BridgeTimingStats:
             "output_loop_rate_limited": self.output_loop_rate_limited,
             "output_loop_safety_stopped": self.output_loop_safety_stopped,
             "last_telemetry_publish_duration_ms": self.last_telemetry_publish_duration_ms,
+            "last_json_publish_retry_count": self.last_json_publish_retry_count,
+            "last_json_publish_blocked_ms": self.last_json_publish_blocked_ms,
+            "last_worker_tick_duration_ms": self.last_worker_tick_duration_ms,
+            "embedded_worker_late_tick_count": self.embedded_worker_late_tick_count,
+            "selected_physical_device_id": self.selected_physical_device_id,
+            "selected_physical_device_source": self.selected_physical_device_source,
+            "device_selection_refresh_count": self.device_selection_refresh_count,
+            "device_enumeration_duration_ms": self.device_enumeration_duration_ms,
+            "device_enumeration_skipped_cached_count": self.device_enumeration_skipped_cached_count,
             "fast_loop_status": self.fast_loop_status,
             "slow_lane_status": self.slow_lane_status,
         }
@@ -188,6 +217,8 @@ class BridgeService:
         self.command_execution_count = 0
         self._last_discovery_monotonic: float | None = None
         self._discovery_warnings: tuple[str, ...] = ()
+        self._selected_physical_device_id: str | None = None
+        self._selected_physical_device_source = "missing"
         self.timing = BridgeTimingStats(
             bridge_pid=os.getpid(),
             bridge_started_at=self.state.started_at,
@@ -201,7 +232,7 @@ class BridgeService:
             "last_success_at": None,
             "last_failure_at": None,
         }
-        self._refresh_device_discovery_if_due(force=True)
+        self._run_slow_discovery(reason="startup")
         self._refresh_runtime_io()
 
     def shutdown(self) -> None:
@@ -220,11 +251,11 @@ class BridgeService:
         self.state = self.state.with_messages(warnings=self.config.warnings, errors=self.config.errors)
         return self.config
 
-    def run_once(self) -> BridgeTelemetrySnapshot:
+    def run_once(self, *, publish_telemetry: bool = True) -> BridgeTelemetrySnapshot:
         tick_started = time.perf_counter()
         self.timing.fast_loop_status = "ok"
         self._consume_pending_command()
-        self._refresh_device_discovery_if_due()
+        self._refresh_device_discovery_for_runtime_tick()
         self._refresh_runtime_io()
 
         lifecycle_state = BridgeLifecycleState.STOPPING if self._stop_requested else lifecycle_for_preflight(
@@ -239,13 +270,27 @@ class BridgeService:
         telemetry = self._telemetry_from_runtime(lifecycle_state)
         self.timing.tick_count = self.state.tick_count + 1
         self.timing.last_tick_duration_ms = _elapsed_ms(tick_started)
-        publish_status = self._publish_telemetry(telemetry)
-        if not publish_status.get("json_success", True):
-            telemetry = replace(
-                telemetry,
-                warnings=telemetry.warnings
-                + (f"Bridge telemetry JSON publish failed: {publish_status.get('json_error')}",),
-            )
+        if publish_telemetry:
+            publish_status = self._publish_telemetry(telemetry)
+            if not publish_status.get("json_success", True):
+                telemetry = replace(
+                    telemetry,
+                    warnings=telemetry.warnings
+                    + (f"Bridge telemetry JSON publish failed: {publish_status.get('json_error')}",),
+                )
+        else:
+            self.timing.last_telemetry_publish_duration_ms = 0.0
+            self.timing.last_json_publish_retry_count = 0
+            self.timing.last_json_publish_blocked_ms = 0.0
+            self.telemetry_publish_status = {
+                "json_success": None,
+                "json_error": "",
+                "json_attempts": 0,
+                "json_path": str(self.options.telemetry_path),
+                "last_success_at": self.telemetry_publish_status.get("last_success_at"),
+                "last_failure_at": self.telemetry_publish_status.get("last_failure_at"),
+                "status": "skipped_in_memory_only",
+            }
         self.state = self.state.next_tick()
         self.timing.tick_count = self.state.tick_count
         if self._stop_requested:
@@ -292,6 +337,7 @@ class BridgeService:
             return self._reload_config_command_details(command, loaded)
         if command.command is BridgeCommandType.RUN_PREFLIGHT:
             self._refresh_device_discovery_if_due(force=True)
+            self._clear_physical_device_selection_cache()
             self.output_runtime_session.refresh_verification(force=True, reason="run_preflight")
             self.virtual_output_verification = self.output_runtime_session.verification
             self.virtual_output_loop = self.output_runtime_session.output_loop
@@ -346,17 +392,44 @@ class BridgeService:
         now = time.monotonic()
         interval = max(2.0, float(self.options.discovery_refresh_interval_seconds))
         due = self._last_discovery_monotonic is None or (now - self._last_discovery_monotonic) >= interval
+        if not force and not self.options.enable_periodic_discovery_refresh and self.device_discovery is not None:
+            self.timing.slow_lane_status = "cached_periodic_disabled"
+            self.timing.last_discovery_age_ms = self._discovery_age_ms()
+            self.timing.last_slow_lane_duration_ms = 0.0
+            self.timing.discovery_running = False
+            self.timing.discovery_skipped_reason = "periodic_disabled"
+            return self.device_discovery
         if force or due:
             self.timing.slow_lane_status = "refreshing"
-            return self._run_slow_discovery()
+            return self._run_slow_discovery(reason="forced" if force else "periodic_due")
         self.timing.slow_lane_status = "cached"
         self.timing.last_discovery_age_ms = self._discovery_age_ms()
+        self.timing.discovery_running = False
+        self.timing.discovery_skipped_reason = "not_due"
         if self.device_discovery is None:
-            return self._run_slow_discovery()
+            return self._run_slow_discovery(reason="missing_initial_result")
         return self.device_discovery
 
-    def _run_slow_discovery(self) -> HotasDiscoveryResult:
+    def _refresh_device_discovery_for_runtime_tick(self) -> HotasDiscoveryResult | None:
+        if self._sampler_healthy():
+            self.timing.slow_lane_status = "cached_sampler_active"
+            self.timing.discovery_running = False
+            self.timing.discovery_skipped_reason = "active_sampler_healthy"
+            self.timing.last_discovery_age_ms = self._discovery_age_ms()
+            return self.device_discovery
+        if not self.options.enable_periodic_discovery_refresh and self.device_discovery is not None:
+            self.timing.slow_lane_status = "cached_periodic_disabled"
+            self.timing.discovery_running = False
+            self.timing.discovery_skipped_reason = "periodic_disabled"
+            self.timing.last_discovery_age_ms = self._discovery_age_ms()
+            return self.device_discovery
+        return self._refresh_device_discovery_if_due()
+
+    def _run_slow_discovery(self, *, reason: str = "startup") -> HotasDiscoveryResult:
         started = time.perf_counter()
+        self.timing.discovery_running = True
+        self.timing.discovery_skipped_reason = ""
+        self.timing.last_discovery_refresh_reason = reason
         if self.options.simulate and self.options.discovery_backend is None:
             result = HotasDiscoveryResult(
                 status=DeviceDiscoveryState.NO_SUPPORTED_DEVICE,
@@ -367,9 +440,12 @@ class BridgeService:
         else:
             result = discover_supported_hotas(backend=self.options.discovery_backend)
         self.timing.last_discovery_duration_ms = _elapsed_ms(started)
+        self.timing.last_slow_lane_duration_ms = self.timing.last_discovery_duration_ms
+        self.timing.last_discovery_blocked_ms = self.timing.last_discovery_duration_ms
         self._last_discovery_monotonic = time.monotonic()
         self.timing.last_discovery_age_ms = 0.0
         self.timing.slow_lane_status = "refreshed"
+        self.timing.discovery_running = False
         if result.status.value in {"discovery_error", "backend_unavailable"} and self.device_discovery is not None:
             self._discovery_warnings = (
                 f"Slow HOTAS discovery reported {result.status.value}; keeping last cached discovery result.",
@@ -381,6 +457,16 @@ class BridgeService:
         input_names = (result.device_name,) if result.matched and result.device_name else ()
         self.runtime_status = build_runtime_preflight_status(input_device_names=input_names)
         return result
+
+    def _sampler_healthy(self) -> bool:
+        snapshot = self.physical_sampler.latest_snapshot if self.physical_sampler is not None else None
+        return bool(
+            self.physical_sampler is not None
+            and self.physical_sampler.selected_device_id
+            and snapshot is not None
+            and snapshot.sampling_active
+            and not snapshot.errors
+        )
 
     def _discovery_age_ms(self) -> float | None:
         if self._last_discovery_monotonic is None:
@@ -396,7 +482,11 @@ class BridgeService:
             if self.physical_sampler is None or self.physical_sampler.selected_device_id != selected_device_id:
                 if self.physical_sampler is not None:
                     self.physical_sampler.close()
-                self.physical_sampler = PhysicalInputSampler(self.physical_input_backend, selected_device_id=selected_device_id)
+                self.physical_sampler = PhysicalInputSampler(
+                    self.physical_input_backend,
+                    selected_device_id=selected_device_id,
+                    validate_selection_on_read=False,
+                )
                 self.physical_sampler.open()
             latest_snapshot = self.physical_sampler.read_once()
             if (
@@ -419,8 +509,13 @@ class BridgeService:
                         warnings=fallback.choice.warnings + ("Raw Input fallback preserved because no sample arrived yet.",),
                         errors=fallback.choice.errors,
                     )
+                    self._clear_physical_device_selection_cache()
                     selected_device_id = self._select_physical_device_id()
-                    self.physical_sampler = PhysicalInputSampler(self.physical_input_backend, selected_device_id=selected_device_id)
+                    self.physical_sampler = PhysicalInputSampler(
+                        self.physical_input_backend,
+                        selected_device_id=selected_device_id,
+                        validate_selection_on_read=False,
+                    )
                     self.physical_sampler.open()
                     latest_snapshot = self.physical_sampler.read_once()
         elif self.physical_sampler is not None:
@@ -470,10 +565,41 @@ class BridgeService:
 
     def _select_physical_device_id(self) -> str | None:
         if self.options.simulate or not self.options.enable_live_input:
+            self._selected_physical_device_id = None
+            self._selected_physical_device_source = "missing"
+            self._sync_device_selection_timing()
             return None
-        devices = self.physical_input_backend.enumerate_devices()
+        if self._sampler_healthy() and self._selected_physical_device_id:
+            self._selected_physical_device_source = "cached"
+            self.timing.device_enumeration_skipped_cached_count += 1
+            self._sync_device_selection_timing()
+            return self._selected_physical_device_id
+        started = time.perf_counter()
+        try:
+            devices = self.physical_input_backend.enumerate_devices()
+        except Exception:
+            self.timing.device_enumeration_duration_ms = _elapsed_ms(started)
+            self._selected_physical_device_id = None
+            self._selected_physical_device_source = "error"
+            self.timing.device_selection_refresh_count += 1
+            self._sync_device_selection_timing()
+            return None
+        self.timing.device_enumeration_duration_ms = _elapsed_ms(started)
+        self.timing.device_selection_refresh_count += 1
         supported = next((device for device in devices if device.is_supported), None)
-        return supported.device_id if supported is not None else None
+        self._selected_physical_device_id = supported.device_id if supported is not None else None
+        self._selected_physical_device_source = "refreshed" if supported is not None else "missing"
+        self._sync_device_selection_timing()
+        return self._selected_physical_device_id
+
+    def _clear_physical_device_selection_cache(self) -> None:
+        self._selected_physical_device_id = None
+        self._selected_physical_device_source = "missing"
+        self._sync_device_selection_timing()
+
+    def _sync_device_selection_timing(self) -> None:
+        self.timing.selected_physical_device_id = self._selected_physical_device_id
+        self.timing.selected_physical_device_source = self._selected_physical_device_source
 
     def _consume_pending_command(self) -> None:
         command = read_command(self.options.command_path)
@@ -616,15 +742,18 @@ class BridgeService:
         payload["telemetry_stream"] = self.telemetry_stream.status().to_dict()
         status = self._write_telemetry_snapshot(payload, publish_started=publish_started)
         payload["telemetry_publish"] = dict(status)
-        if status.get("json_success", False):
-            self._write_telemetry_snapshot(payload, publish_started=publish_started)
         return status
+
+    def build_telemetry_payload(self, telemetry: BridgeTelemetrySnapshot) -> dict[str, object]:
+        return self._telemetry_payload(telemetry)
 
     def _write_telemetry_snapshot(self, payload: dict[str, object], *, publish_started: float) -> dict[str, object]:
         try:
             write_telemetry(self.options.telemetry_path, payload)
         except (PermissionError, OSError) as exc:
             self.timing.last_telemetry_publish_duration_ms = _elapsed_ms(publish_started)
+            self.timing.last_json_publish_retry_count = 1
+            self.timing.last_json_publish_blocked_ms = self.timing.last_telemetry_publish_duration_ms
             self.telemetry_publish_status = {
                 "json_success": False,
                 "json_error": str(exc),
@@ -635,6 +764,8 @@ class BridgeService:
             }
             return self.telemetry_publish_status
         self.timing.last_telemetry_publish_duration_ms = _elapsed_ms(publish_started)
+        self.timing.last_json_publish_retry_count = 1
+        self.timing.last_json_publish_blocked_ms = self.timing.last_telemetry_publish_duration_ms
         self.telemetry_publish_status = {
             "json_success": True,
             "json_error": "",

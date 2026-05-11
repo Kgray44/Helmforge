@@ -3,11 +3,12 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import replace
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEasingCurve, QPropertyAnimation, QRect, Qt
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QCheckBox,
-    QDialog,
+    QFrame,
+    QGraphicsBlurEffect,
     QGridLayout,
     QGraphicsOpacityEffect,
     QHBoxLayout,
@@ -34,7 +35,7 @@ WorkspaceChanged = Callable[[WorkspaceConfig, str], None]
 StatusChanged = Callable[[str], None]
 
 
-class HelmOverlay(QDialog):
+class HelmOverlay(QFrame):
     def __init__(
         self,
         *,
@@ -47,9 +48,7 @@ class HelmOverlay(QDialog):
     ) -> None:
         super().__init__(parent)
         self.setObjectName("helmOverlay")
-        self.setWindowTitle("Helm")
-        self.setWindowModality(Qt.WindowModality.ApplicationModal)
-        self.setModal(True)
+        self.setWindowFlags(Qt.WindowType.Widget)
         self._workspace = workspace
         self._runtime_status = runtime_status
         self._selected_axis = selected_axis
@@ -58,8 +57,16 @@ class HelmOverlay(QDialog):
         self._engine = HelmEngine()
         self._last_result: HelmRecommendationResult | None = None
         self._last_applied_diffs: tuple[HelmDiff, ...] = ()
-        self._parent_effect: QGraphicsOpacityEffect | None = None
+        self._blur_effects: list[tuple[QWidget, QGraphicsBlurEffect]] = []
         self._scrim: QWidget | None = None
+        self._slide_animation: QPropertyAnimation | None = None
+        self._bulb_animation: QPropertyAnimation | None = None
+        self._content_grid: QGridLayout | None = None
+        self._symptom_card: QWidget | None = None
+        self._diffs_card: QWidget | None = None
+        self._findings_card: QWidget | None = None
+        self._apply_card: QWidget | None = None
+        self._finding_value_labels: dict[str, QLabel] = {}
         self._diff_checks: dict[str, QCheckBox] = {}
         self._group_checks: dict[str, QCheckBox] = {}
         self._group_diff_labels: dict[str, tuple[str, ...]] = {}
@@ -70,29 +77,38 @@ class HelmOverlay(QDialog):
     def open_for_parent(self) -> None:
         parent = self.parentWidget()
         if parent is not None:
-            width = min(680, max(560, int(parent.width() * 0.42)))
+            width = min(max(860, int(parent.width() * 0.78)), max(680, parent.width() - 70))
             height = max(620, parent.height() - 48)
-            x = parent.geometry().x() + max(0, parent.width() - width - 22)
-            y = parent.geometry().y() + 24
-            self.setGeometry(x, y, width, height)
+            x = max(0, parent.width() - width - 22)
+            y = 24
+            start = QRect(parent.width() + 12, y, width, height)
+            end = QRect(x, y, width, height)
+            self.setGeometry(start)
             self.setProperty("overlayPlacement", "right-glide")
-            self.setProperty("blurDeferred", True)
+            self.setProperty("paneMode", "in-app-slide")
+            self.setProperty("blurDeferred", False)
+            self.setProperty("slideAnimation", "right-pane")
             self._show_scrim(parent)
-            self._parent_effect = QGraphicsOpacityEffect(parent)
-            self._parent_effect.setOpacity(0.72)
-            parent.setGraphicsEffect(self._parent_effect)
+            self._apply_parent_blur(parent)
+            self._apply_responsive_layout(width)
         self.show()
         self.raise_()
+        if parent is not None:
+            self._slide_animation = QPropertyAnimation(self, b"geometry", self)
+            self._slide_animation.setDuration(240)
+            self._slide_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+            self._slide_animation.setStartValue(start)
+            self._slide_animation.setEndValue(end)
+            self._slide_animation.start()
 
     def closeEvent(self, event: QCloseEvent) -> None:
         self._restore_parent_effect()
         super().closeEvent(event)
 
     def _restore_parent_effect(self) -> None:
-        parent = self.parentWidget()
-        if parent is not None and self._parent_effect is not None:
-            parent.setGraphicsEffect(None)
-            self._parent_effect = None
+        for widget, _effect in self._blur_effects:
+            widget.setGraphicsEffect(None)
+        self._blur_effects = []
         if self._scrim is not None:
             self._scrim.hide()
             self._scrim.deleteLater()
@@ -107,6 +123,16 @@ class HelmOverlay(QDialog):
         self._scrim.setGeometry(parent.rect())
         self._scrim.show()
         self._scrim.raise_()
+
+    def _apply_parent_blur(self, parent: QWidget) -> None:
+        for object_name in ("appSidebar", "contentViewport"):
+            target = parent.findChild(QWidget, object_name)
+            if target is None:
+                continue
+            effect = QGraphicsBlurEffect(target)
+            effect.setBlurRadius(5.0)
+            target.setGraphicsEffect(effect)
+            self._blur_effects.append((target, effect))
 
     def _build_ui(self) -> None:
         root = QVBoxLayout(self)
@@ -135,18 +161,45 @@ class HelmOverlay(QDialog):
         content_layout.addWidget(intro)
         content_layout.addWidget(status_chip("In-memory only", tone="success", object_name="helmSafetyPill"))
 
-        grid = QGridLayout()
-        grid.setHorizontalSpacing(18)
-        grid.setVerticalSpacing(18)
-        grid.addWidget(self._build_symptom_card(), 0, 0, Qt.AlignmentFlag.AlignTop)
-        grid.addWidget(self._build_diffs_card(), 1, 0, Qt.AlignmentFlag.AlignTop)
-        grid.addWidget(self._build_findings_card(), 2, 0, Qt.AlignmentFlag.AlignTop)
-        grid.addWidget(self._build_apply_card(), 3, 0, Qt.AlignmentFlag.AlignTop)
-        grid.setColumnStretch(0, 1)
-        content_layout.addLayout(grid)
+        self._content_grid = QGridLayout()
+        self._content_grid.setHorizontalSpacing(18)
+        self._content_grid.setVerticalSpacing(18)
+        self._symptom_card = self._build_symptom_card()
+        self._diffs_card = self._build_diffs_card()
+        self._findings_card = self._build_findings_card()
+        self._apply_card = self._build_apply_card()
+        self._apply_responsive_layout(0)
+        content_layout.addLayout(self._content_grid)
         content_layout.addStretch(1)
         scroll.setWidget(content)
         root.addWidget(scroll, 1)
+
+    def _apply_responsive_layout(self, available_width: int) -> None:
+        if (
+            self._content_grid is None
+            or self._symptom_card is None
+            or self._diffs_card is None
+            or self._findings_card is None
+            or self._apply_card is None
+        ):
+            return
+        wide = available_width >= 1280
+        if wide:
+            self._content_grid.addWidget(self._symptom_card, 0, 0, Qt.AlignmentFlag.AlignTop)
+            self._content_grid.addWidget(self._findings_card, 1, 0, Qt.AlignmentFlag.AlignTop)
+            self._content_grid.addWidget(self._diffs_card, 0, 1, 2, 1, Qt.AlignmentFlag.AlignTop)
+            self._content_grid.addWidget(self._apply_card, 2, 0, 1, 2, Qt.AlignmentFlag.AlignTop)
+            self._content_grid.setColumnStretch(0, 1)
+            self._content_grid.setColumnStretch(1, 1)
+            self.setProperty("helmResponsiveLayout", "two-column-wide")
+        else:
+            self._content_grid.addWidget(self._symptom_card, 0, 0, Qt.AlignmentFlag.AlignTop)
+            self._content_grid.addWidget(self._diffs_card, 1, 0, Qt.AlignmentFlag.AlignTop)
+            self._content_grid.addWidget(self._findings_card, 2, 0, Qt.AlignmentFlag.AlignTop)
+            self._content_grid.addWidget(self._apply_card, 3, 0, Qt.AlignmentFlag.AlignTop)
+            self._content_grid.setColumnStretch(0, 1)
+            self._content_grid.setColumnStretch(1, 0)
+            self.setProperty("helmResponsiveLayout", "single-column")
 
     def _build_header(self) -> QWidget:
         header = QWidget()
@@ -171,9 +224,20 @@ class HelmOverlay(QDialog):
         status_layout.setSpacing(12)
         pulse = QLabel("")
         pulse.setObjectName("helmActiveBulb")
-        pulse.setProperty("pulseStyle", "static-qss")
-        pulse.setProperty("polish", "bulb")
-        pulse.setFixedSize(24, 24)
+        pulse.setProperty("pulseStyle", "qt-pulse")
+        pulse.setProperty("polish", "led-bulb")
+        pulse.setFixedSize(28, 28)
+        pulse_effect = QGraphicsOpacityEffect(pulse)
+        pulse_effect.setOpacity(0.42)
+        pulse.setGraphicsEffect(pulse_effect)
+        self._bulb_animation = QPropertyAnimation(pulse_effect, b"opacity", pulse)
+        self._bulb_animation.setDuration(3000)
+        self._bulb_animation.setStartValue(0.38)
+        self._bulb_animation.setKeyValueAt(0.75, 0.38)
+        self._bulb_animation.setKeyValueAt(0.88, 1.0)
+        self._bulb_animation.setEndValue(0.38)
+        self._bulb_animation.setLoopCount(-1)
+        self._bulb_animation.start()
         status_text = QVBoxLayout()
         status_text.setSpacing(4)
         active = QLabel("Helm is active")
@@ -202,6 +266,7 @@ class HelmOverlay(QDialog):
         self.symptom_input.setObjectName("helmSymptomInput")
         self.symptom_input.setPlaceholderText("Example: Can't hold aim steady on target.")
         self.symptom_input.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
+        self.symptom_input.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.symptom_input.setMinimumHeight(92)
         self.symptom_input.setMaximumHeight(220)
         self.symptom_input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -258,7 +323,7 @@ class HelmOverlay(QDialog):
         layout = card_layout(frame)
         layout.addWidget(card_header("What I found", "Diagnosis, confidence, and context from the current stack and runtime state."))
         self.confidence_chip = status_chip("Idle", tone="warning", object_name="helmConfidenceChip")
-        self.context_summary = QLabel("Axis context: workspace-wide\nEvidence: Workspace values\nLive analysis: not active")
+        self.context_summary = QLabel("Workspace values are ready for review.")
         self.context_summary.setObjectName("helmContextSummary")
         self.context_summary.setWordWrap(True)
         self.findings_title = QLabel("I'm ready when you are.")
@@ -269,6 +334,30 @@ class HelmOverlay(QDialog):
         self.findings_body.setWordWrap(True)
         layout.addWidget(self.confidence_chip)
         layout.addWidget(self.context_summary)
+        finding_grid = QGridLayout()
+        finding_grid.setHorizontalSpacing(14)
+        finding_grid.setVerticalSpacing(9)
+        for row, label in enumerate(
+            (
+                "Active axis",
+                "Evidence used",
+                "Runtime boundary",
+                "Workspace findings",
+                "Mode findings",
+                "Rule findings",
+                "Warnings",
+                "Recommendation summary",
+            )
+        ):
+            key = QLabel(label)
+            key.setObjectName("sectionHint")
+            value = QLabel("Waiting for analysis")
+            value.setObjectName("helmFindingValue")
+            value.setWordWrap(True)
+            self._finding_value_labels[label] = value
+            finding_grid.addWidget(key, row, 0, Qt.AlignmentFlag.AlignTop)
+            finding_grid.addWidget(value, row, 1)
+        layout.addLayout(finding_grid)
         layout.addWidget(self.findings_title)
         layout.addWidget(self.findings_body)
         return frame
@@ -336,7 +425,9 @@ class HelmOverlay(QDialog):
         self._clear_diffs("I'll propose draft-only changes before anything is applied.")
         self.confidence_chip.setText("Idle")
         self.confidence_chip.setProperty("chipTone", "warning")
-        self.context_summary.setText("Axis context: workspace-wide\nEvidence: Workspace values\nLive analysis: not active")
+        self.context_summary.setText("Workspace values are ready for review.")
+        for value in self._finding_value_labels.values():
+            value.setText("Waiting for analysis")
         self.findings_title.setText("I'm ready when you are.")
         self.findings_body.setText("Tell me what feels wrong and I'll compare it against the current workspace.")
         self.review_summary.setText("Nothing has been applied yet. Selected changes are staged only after analysis.")
@@ -391,6 +482,7 @@ class HelmOverlay(QDialog):
         self.confidence_chip.setText(result.confidence if result.confidence != "None" else "Idle")
         self.confidence_chip.setProperty("chipTone", "success" if result.status == "ready" else "warning")
         self.context_summary.setText(_context_summary_text(result.context))
+        self._render_structured_findings(result)
         self.findings_title.setText(result.summary)
         self.findings_body.setText(_findings_text(result))
         if result.diffs:
@@ -582,18 +674,36 @@ class HelmOverlay(QDialog):
         change_word = "change is" if selected_count == 1 else "changes are"
         group_word = "group" if group_count == 1 else "groups"
         self.review_summary.setText(
-            f"I found {group_count} tuning {group_word} affecting {parameter_count} parameters.\n"
-            f"{selected_count} {change_word} selected.\n"
-            f"affected axes: {axes}\n"
-            f"Expected result: {expected}\n"
-            f"Risk: {risk}; these are reversible and not saved yet.\n"
-            "In-memory only. Save Workspace is still required to keep them."
+            f"{selected_count} {change_word} selected across {axes}. "
+            f"Expected result: {expected} Risk is {risk}. "
+            "Changes are reversible, staged in memory, and not saved yet."
         )
         if selected_count == 0:
             self.apply_status.setText("Select at least one change before applying.")
         elif not any(diff.applied for diff in self._last_result.diffs):
             self.apply_status.setText(f"{selected_count} changes ready. Review these before applying. Selected changes are staged only.")
         self.apply_button.setEnabled(selected_count > 0)
+
+    def _render_structured_findings(self, result: HelmRecommendationResult) -> None:
+        context = result.context
+        analysis_by_group: dict[str, list[str]] = {}
+        for finding in result.analysis_findings:
+            analysis_by_group.setdefault(finding.source_group, []).append(finding.text)
+
+        rows = {
+            "Active axis": context.selected_axis if context is not None else "Workspace-wide",
+            "Evidence used": ", ".join(context.evidence_labels) if context is not None else "Workspace values",
+            "Runtime boundary": _runtime_boundary_text(context),
+            "Workspace findings": _first_group_text(analysis_by_group, "Workspace findings", "No workspace conflict found."),
+            "Mode findings": _first_group_text(analysis_by_group, "Mode findings", "No mode concern found."),
+            "Rule findings": _first_group_text(analysis_by_group, "Rule findings", "No rule concern found."),
+            "Warnings": "; ".join(result.warnings) if result.warnings else "No warnings raised.",
+            "Recommendation summary": result.summary if result.summary else "No recommendation yet.",
+        }
+        for label, value in rows.items():
+            target = self._finding_value_labels.get(label)
+            if target is not None:
+                target.setText(_polish_runtime_text(value))
 
 
 def _key(value: str) -> str:
@@ -642,34 +752,45 @@ def _review_risk_summary(diffs: tuple[HelmDiff, ...] | list[HelmDiff]) -> str:
 
 def _context_summary_text(context: HelmContext | None) -> str:
     if context is None:
-        return "Axis context: workspace-wide\nEvidence: Workspace values\nLive analysis: not active"
-    return "\n".join(
-        (
-            f"Axis context: {context.selected_axis}",
-            f"Evidence: {', '.join(context.evidence_labels)}",
-            f"Runtime: {context.runtime.runtime_truth}",
-            f"Output verified: {str(context.runtime.output_verified).lower()}",
-            f"Discovery-only status: {context.runtime.device_discovery_status}",
-            "Live analysis: not active",
-        )
-    )
+        return "Workspace-wide review using saved tuning values."
+    output = "output proof available" if context.runtime.output_verified else "output proof pending"
+    return f"{context.selected_axis} review using {', '.join(context.evidence_labels)}; {output}."
 
 
 def _findings_text(result: HelmRecommendationResult) -> str:
-    lines = list(result.findings)
-    lines.append("I'm using workspace values only; live hardware analysis is not active.")
-    if result.analysis_findings:
-        lines.append("")
-        grouped: dict[str, list[str]] = {}
-        for finding in result.analysis_findings:
-            grouped.setdefault(finding.source_group, []).append(f"- {finding.title}: {finding.text}")
-        for group, entries in grouped.items():
-            lines.append(group)
-            lines.extend(entries)
+    if result.status == "idle":
+        return "Tell me what feels wrong and I will compare it with the workspace."
     if result.follow_up_questions:
-        lines.append("")
-        lines.extend(f"Question: {question.prompt}" for question in result.follow_up_questions)
-    if result.warnings:
-        lines.append("")
-        lines.extend(f"Warning: {warning}" for warning in result.warnings)
-    return "\n".join(lines)
+        return "A little more detail will narrow the recommendation before staging changes."
+    warning = f" Warning: {result.warnings[0]}" if result.warnings else ""
+    return _polish_runtime_text(f"Recommendation is based on workspace values and remains in memory until you apply it.{warning}")
+
+
+def _runtime_boundary_text(context: HelmContext | None) -> str:
+    if context is None:
+        return "Workspace-only review."
+    if context.runtime.output_verified:
+        return "Live checks passed; Helm changes still stay staged until applied."
+    return "Workspace-only review; live hardware analysis is not active."
+
+
+def _first_group_text(grouped: dict[str, list[str]], group: str, fallback: str) -> str:
+    entries = grouped.get(group)
+    if not entries:
+        return fallback
+    return entries[0]
+
+
+def _polish_runtime_text(value: str) -> str:
+    return (
+        value.replace("runtime truth is live_verified", "live checks passed")
+        .replace("runtime truth is blocked_missing_device", "live checks are waiting for hardware")
+        .replace("live_verified", "live checks passed")
+        .replace("blocked_missing_device", "waiting for HOTAS input")
+        .replace("no_supported_device", "no supported HOTAS detected")
+        .replace("Output verification is true", "Output is verified")
+        .replace("Output verification is false", "Output proof is pending")
+        .replace("Bridge telemetry says", "Runtime status shows")
+        .replace("workspace/config", "workspace")
+        .replace("Output intent", "Draft mapping")
+    )

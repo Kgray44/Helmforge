@@ -105,6 +105,8 @@ class HotasDiagramWidget(QFrame):
             marker.setText(_marker_text(control))
             marker.setMouseTracking(True)
             marker.control_selected.connect(self.control_selected)
+            marker.show()
+            marker.raise_()
             self._markers.append((control, marker))
         self._position_markers()
 
@@ -128,8 +130,10 @@ class HotasDiagramWidget(QFrame):
         for control, marker in self._markers:
             filtered_out = not _control_matches_filter(control, self._active_filter)
             marker.setProperty("filteredOut", filtered_out)
+            marker.setVisible(True)
             marker.style().unpolish(marker)
             marker.style().polish(marker)
+            marker.raise_()
             marker.update()
 
     def _position_markers(self) -> None:
@@ -146,7 +150,12 @@ class HotasDiagramWidget(QFrame):
                 width = max(width, 110)
             x = int(diagram.left() + diagram.width() * control.anchor_x - width / 2)
             y = int(diagram.top() + diagram.height() * control.anchor_y - height / 2)
+            x = max(int(diagram.left() + 4), min(x, int(diagram.right() - width - 4)))
+            y = max(int(diagram.top() + 4), min(y, int(diagram.bottom() - height - 4)))
             marker.setGeometry(x, y, width, height)
+            marker.setVisible(True)
+            marker.raise_()
+        self.update()
 
     def _diagram_rect(self) -> QRectF:
         return QRectF(18, 16, max(1, self.width() - 36), max(1, self.height() - 32))

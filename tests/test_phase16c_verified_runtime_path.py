@@ -375,11 +375,10 @@ def test_phase16c_ui_docs_and_boundary_text_show_runtime_proof_fields(tmp_path):
     perf_text = _widget_text(perf)
     copy_text = perf.prepare_copy_diagnostics()
 
-    assert "Input proof\nfresh physical sample" in mapping_text
-    assert "Pipeline proof\nok" in mapping_text
-    assert "Output proof\nguarded real verification" in mapping_text
-    assert "Runtime candidate\nblocked - blocked_output_loop_disabled" in mapping_text
-    assert "Proof summary\ninput=fresh_physical_sample" in mapping_text
+    assert "Input proof\nfresh physical sample" not in mapping_text
+    assert "Pipeline proof\nok" not in mapping_text
+    assert "Output proof\nguarded real verification" not in mapping_text
+    assert "Draft mapping only" in mapping_text
     assert "Input proof: fresh physical sample" in live_text
     assert "Output proof: guarded real verification" in live_text
     assert "Runtime candidate: blocked - blocked_output_loop_disabled" in live_text

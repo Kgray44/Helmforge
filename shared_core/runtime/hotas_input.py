@@ -802,6 +802,7 @@ class WindowsJoystickInputBackend(PhysicalInputBackend):
     def __init__(self, *, backend_name: str = "windows_winmm_joystick") -> None:
         self._backend_name = backend_name
         self._open_device_id: str | None = None
+        self._open_device_info: PhysicalInputDeviceInfo | None = None
         self._sequence = 0
 
     def enumerate_devices(self) -> tuple[PhysicalInputDeviceInfo, ...]:
@@ -865,13 +866,15 @@ class WindowsJoystickInputBackend(PhysicalInputBackend):
         )
 
     def open_device(self, device_id: str) -> PhysicalInputBackendStatus:
-        if not any(device.device_id == device_id for device in self.enumerate_devices()):
+        device = next((device for device in self.enumerate_devices() if device.device_id == device_id), None)
+        if device is None:
             return PhysicalInputBackendStatus(
                 status=PhysicalInputSamplingStatus.DEVICE_MISSING.value,
                 backend_name=self._backend_name,
                 message=f"Selected joystick device is not available: {device_id}.",
             )
         self._open_device_id = device_id
+        self._open_device_info = device
         return PhysicalInputBackendStatus(
             status=PhysicalInputSamplingStatus.ACTIVE.value,
             backend_name=self._backend_name,
@@ -880,6 +883,7 @@ class WindowsJoystickInputBackend(PhysicalInputBackend):
 
     def close_device(self) -> PhysicalInputBackendStatus:
         self._open_device_id = None
+        self._open_device_info = None
         return PhysicalInputBackendStatus(
             status=PhysicalInputSamplingStatus.INACTIVE.value,
             backend_name=self._backend_name,
@@ -918,7 +922,7 @@ class WindowsJoystickInputBackend(PhysicalInputBackend):
                 sample_source="winmm",
                 errors=("Invalid Windows joystick device id.",),
             )
-        device = next((item for item in self.enumerate_devices() if item.device_id == self._open_device_id), None)
+        device = self._open_device_info
         if device is None:
             return _empty_snapshot(
                 device_id=self._open_device_id,
@@ -1889,6 +1893,7 @@ class PhysicalInputSampler:
     backend: PhysicalInputBackend
     selected_device_id: str | None = None
     latest_snapshot: PhysicalInputSnapshot | None = None
+    validate_selection_on_read: bool = True
 
     def open(self) -> PhysicalInputBackendStatus:
         selection = resolve_physical_input_selection(self.backend, selected_device_id=self.selected_device_id)
@@ -1922,6 +1927,17 @@ class PhysicalInputSampler:
         return self.backend.close_device()
 
     def read_once(self) -> PhysicalInputSnapshot:
+        if not self.validate_selection_on_read:
+            if not self.selected_device_id:
+                self.latest_snapshot = _empty_snapshot(
+                    backend_name=self.backend.get_capabilities().backend_name,
+                    status=PhysicalInputSamplingStatus.NO_DEVICE_SELECTED,
+                    sample_source="unavailable",
+                    errors=("No physical input device selected; sampling did not start.",),
+                )
+                return self.latest_snapshot
+            self.latest_snapshot = self.backend.read_current_state()
+            return self.latest_snapshot
         selection = resolve_physical_input_selection(self.backend, selected_device_id=self.selected_device_id)
         if selection.selection_status is PhysicalInputSelectionStatus.BACKEND_UNAVAILABLE:
             self.latest_snapshot = _empty_snapshot(

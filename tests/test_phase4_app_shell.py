@@ -67,7 +67,7 @@ def test_phase4_all_placeholder_pages_are_registered_and_reused():
     shell = HelmForgeShell()
 
     assert tuple(page.page_id for page in PAGE_DEFINITIONS) == PAGE_IDS
-    assert len(PAGE_DEFINITIONS) == 12
+    assert len(PAGE_DEFINITIONS) == 13
     assert set(shell.page_widgets) == set(PAGE_IDS)
 
     original_page = shell.page_widgets["live_monitor"]
@@ -144,7 +144,9 @@ def test_phase4_status_chips_and_action_buttons_are_distinguishable():
         button for button in shell.findChildren(QPushButton) if button.property("uiRole") == "actionButton"
     ]
 
-    assert {chip.text() for chip in status_chips} >= {"Workspace Copy", "Saved"}
+    chip_texts = {chip.text() for chip in status_chips}
+    assert "Saved" in chip_texts
+    assert any("workspace" in text.lower() for text in chip_texts)
     assert {button.text() for button in action_buttons} >= {
         "Helm",
         "Import Profile",

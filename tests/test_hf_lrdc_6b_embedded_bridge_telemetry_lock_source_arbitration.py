@@ -3,8 +3,19 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 
 NOW = datetime(2026, 5, 10, 16, 0, 0, tzinfo=timezone.utc)
+
+
+@pytest.fixture(autouse=True)
+def _clear_embedded_telemetry_cache():
+    from v3_app.services.embedded_bridge_telemetry import clear_embedded_bridge_telemetry
+
+    clear_embedded_bridge_telemetry()
+    yield
+    clear_embedded_bridge_telemetry()
 
 
 def _hotas_device():

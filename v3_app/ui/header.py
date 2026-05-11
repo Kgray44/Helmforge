@@ -19,6 +19,7 @@ class Header(QWidget):
         self._on_helm = on_helm
         self._runtime_chip: QLabel | None = None
         self._saved_chip: QLabel | None = None
+        self._workspace_chip: QLabel | None = None
 
         root = QHBoxLayout(self)
         root.setContentsMargins(26, 22, 26, 22)
@@ -58,7 +59,8 @@ class Header(QWidget):
             object_name="runtimeTruthChip",
         )
         layout.addWidget(label)
-        layout.addWidget(status_chip("Workspace Copy", tone="success"))
+        self._workspace_chip = status_chip(self._state.active_profile, tone="success", object_name="headerWorkspaceChip")
+        layout.addWidget(self._workspace_chip)
         layout.addWidget(self._saved_chip)
         layout.addWidget(self._runtime_chip)
         return cluster
@@ -83,6 +85,14 @@ class Header(QWidget):
         if self._saved_chip is not None:
             self._saved_chip.setText("Saved" if state.saved else "Unsaved")
             self._saved_chip.setProperty("chipTone", "success" if state.saved else "warning")
+            self._saved_chip.style().unpolish(self._saved_chip)
+            self._saved_chip.style().polish(self._saved_chip)
+            self._saved_chip.update()
         if self._runtime_chip is not None:
             self._runtime_chip.setText(state.runtime.header_truth_label)
             self._runtime_chip.setProperty("chipTone", state.runtime.tone)
+            self._runtime_chip.style().unpolish(self._runtime_chip)
+            self._runtime_chip.style().polish(self._runtime_chip)
+            self._runtime_chip.update()
+        if self._workspace_chip is not None:
+            self._workspace_chip.setText(state.active_profile)

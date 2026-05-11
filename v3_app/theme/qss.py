@@ -12,14 +12,15 @@ def app_qss() -> str:
 
     QWidget#appHeader,
     QWidget#appFooter,
-    QDialog#helmOverlay,
+    QFrame#helmOverlay,
     QWidget#runtimeCard,
     QWidget#placeholderCard,
     QFrame[cardRole="pageCard"],
+    QFrame#preflightActionBar,
     QFrame#routingOverviewCard,
     QFrame#liveRouteSummaryCard,
     QFrame#hotasDiagramCard,
-    QFrame#runtimePreflightCard,
+    QFrame#routeRemapCard,
     QFrame#axisRoutingCard,
     QFrame#buttonRoutingCard,
     QFrame#hatRoutingCard {
@@ -156,10 +157,47 @@ def app_qss() -> str:
         border-radius: 12px;
     }
 
+    QFrame#routeRemapCard {
+        background: rgba(12, 27, 41, 236);
+        border: 1px solid #6fdb9f;
+        border-radius: 16px;
+    }
+
     QFrame#routeEditorPanel {
         background: #0a1622;
         border: 1px solid #3e6b91;
         border-radius: 12px;
+    }
+
+    QFrame#mappingRemapScrim {
+        background: rgba(3, 8, 14, 150);
+        border: none;
+    }
+
+    QFrame#routeFlowRow,
+    QFrame#routeCountBadgeFrame {
+        background: #0b1724;
+        border: 1px solid #254766;
+        border-radius: 10px;
+    }
+
+    QLabel[uiRole="routePill"] {
+        background: #07111d;
+        border: 1px solid #315577;
+        border-radius: 8px;
+        padding: 6px 10px;
+        color: #dceeff;
+        font-weight: 650;
+    }
+
+    QLabel#routeOutputPill {
+        border-color: #76d39b;
+        color: #d9ffe7;
+    }
+
+    QLabel#routeArrow {
+        color: #6f8daa;
+        font-weight: 800;
     }
 
     QFrame[uiRole="preflightDashboard"],
@@ -349,6 +387,29 @@ def app_qss() -> str:
     QLabel[chipTone="danger"] {
         color: #ff9a9a;
         border-color: #8d3d3d;
+    }
+
+    QLabel#footerWorkspaceStateChip[chipTone="warning"] {
+        background: #241a08;
+        border-color: #f0c46a;
+        color: #ffe4a3;
+    }
+
+    QLabel#routeCountBadge {
+        color: #ffffff;
+        font-size: 24px;
+        font-weight: 800;
+    }
+
+    QLabel#preflightDatumLabel {
+        color: #8fb4d0;
+        font-weight: 600;
+    }
+
+    QLabel#preflightDatumValue,
+    QLabel#helmFindingValue {
+        color: #f5f9ff;
+        font-weight: 600;
     }
 
     QPushButton,
@@ -610,9 +671,20 @@ def app_qss() -> str:
     QLabel#helmActiveBulb,
     QLabel#helmPulseIndicator {
         background: qradialgradient(cx:0.42, cy:0.38, radius:0.72, fx:0.32, fy:0.28,
-            stop:0 #f0fff6, stop:0.23 #96ffc5, stop:0.58 #45c97d, stop:1 #153c2b);
-        border: 5px solid #2f8f60;
-        border-radius: 12px;
+            stop:0 #ffffff, stop:0.18 #d8ffe6, stop:0.42 #7ff5ad, stop:0.72 #2f8f60, stop:1 #102318);
+        border: 4px solid #1f6f46;
+        border-radius: 14px;
+    }
+
+    QFrame#helmOverlay {
+        background: rgba(16, 29, 42, 232);
+        border: 1px solid #5f8db8;
+        border-radius: 18px;
+    }
+
+    QFrame[uiRole="preflightDashboard"] {
+        background: #0d1b29;
+        border-color: #3e6b91;
     }
 
     QWidget#helmActionRow {
@@ -719,6 +791,16 @@ def app_qss() -> str:
     QLabel#helpParameterWarning {
         color: #f0c46a;
         font-weight: 600;
+    }
+
+    QPushButton#applyWorkspaceButton {
+        background: #0e2b25;
+        border-color: #2f8f60;
+    }
+
+    QPushButton#applyWorkspaceButton:hover {
+        background: #124331;
+        border-color: #96ffc5;
     }
 
     QPushButton#saveWorkspaceButton {

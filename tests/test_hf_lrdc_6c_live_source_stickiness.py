@@ -4,8 +4,19 @@ import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import pytest
+
 
 NOW = datetime(2026, 5, 10, 17, 0, 0, tzinfo=timezone.utc)
+
+
+@pytest.fixture(autouse=True)
+def _clear_embedded_telemetry_cache():
+    from v3_app.services.embedded_bridge_telemetry import clear_embedded_bridge_telemetry
+
+    clear_embedded_bridge_telemetry()
+    yield
+    clear_embedded_bridge_telemetry()
 
 
 class FakeClock:

@@ -175,8 +175,8 @@ def test_phase9c_live_monitor_uses_fresh_bridge_telemetry(tmp_path):
     )
     page.refresh_snapshot(force_new=True)
 
-    assert page.telemetry_source_label == "Bridge Telemetry"
-    assert page.findChild(QLabel, "liveMonitorTelemetrySourceChip").text() == "Bridge Telemetry"
+    assert page.telemetry_source_label == "Bridge JSON Snapshot"
+    assert page.findChild(QLabel, "liveMonitorTelemetrySourceChip").text() == "Bridge JSON Snapshot"
     assert page.findChild(QLabel, "axisRawValue_Roll").text() == "R +0.42"
     assert page.findChild(QLabel, "axisFinalValue_Roll").text() == "F +0.21"
     assert page.findChild(QLabel, "hotasHatStateChip").text() == "HOTAS Hat: Up"

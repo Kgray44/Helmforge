@@ -13,7 +13,7 @@ from v3_app.theme.tokens import Layout
 
 
 SIDEBAR_GROUPS = (
-    ("SETUP", "Routing, profiles, and live mode control.", ("mapping", "profiles", "modes")),
+    ("SETUP", "Runtime readiness, routing, profiles, and live mode control.", ("preflight", "mapping", "profiles", "modes")),
     ("TUNING", "Base shaping, filtering, combat, and rule logic.", ("base_tuning", "filtering", "combat_profile", "conditional_rules")),
     ("ANALYSIS", "Effective stack view, live telemetry, and capture.", ("effective_response_stack", "live_monitor", "flight_recorder")),
     ("SUPPORT", "Built-in reference and diagnostics.", ("help_docs", "perf_diagnostics")),
@@ -145,3 +145,6 @@ class Sidebar(QWidget):
         if self._runtime_state_label is not None:
             self._runtime_state_label.setText(state.runtime.runtime_card_label)
             self._runtime_state_label.setProperty("chipTone", state.runtime.tone)
+            self._runtime_state_label.style().unpolish(self._runtime_state_label)
+            self._runtime_state_label.style().polish(self._runtime_state_label)
+            self._runtime_state_label.update()

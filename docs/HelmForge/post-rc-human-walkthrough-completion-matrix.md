@@ -8,6 +8,8 @@ Post-RC 4D update: the Mapping, Profiles, Modes, Base Tuning, Filtering, Combat 
 
 Post-RC 4E update: Live Monitor, Live Overlay, Flight Recorder, Help / Docs, and Perf / Diagnostics were re-audited for runtime/status-heavy walkthrough polish and final acceptance prep. Rows in those sections use "Fix included in 4E" language where this pass changed or verified code.
 
+Post-RC 4F update: Global runtime/workspace status, Mapping, Preflight, and Helm were re-audited from the latest page-by-page walkthrough notes. Rows in those sections use "Fix included in 4F" language where this pass changed or verified code.
+
 ## Global / Shell
 
 | Original issue summary | Current status | Evidence from code or tests | Fix included in 4C | Deferred phase | Notes |
@@ -22,6 +24,10 @@ Post-RC 4E update: Live Monitor, Live Overlay, Flight Recorder, Help / Docs, and
 | Helm button should not look pressed/light-blue by default. | Fixed | `helmButton` uses `uiRole="actionButton"`, is not checkable, and no object-specific active rule exists. | Verified. | None | |
 | Dropdowns should show closed text and popup options correctly. | Partial | QSS themes `QComboBox` and popup items; 1A tests verify representative dropdown counts/current text. | Verified representative global selectors. | Post-RC 4D | Offscreen tests cannot prove all popups render correctly on a human display. |
 | Bottom bar should not show Page / Axis / Profile / Source. | Fixed | `Footer` only renders status message and Import/Revert/Save actions; 1A and 4C tests check forbidden labels. | Verified. | None | |
+| Bottom bar should always show saved status and make unsaved state obvious. | Fixed | `Footer` now renders `footerWorkspaceStateChip`; `test_post_rc_4f_global_runtime_and_footer_workspace_state_are_truthful` checks Saved and Unsaved changes tones. | Fix included in 4F. | None | |
+| Apply Workspace should sit next to Save Workspace and apply draft settings without saving the main workspace file. | Fixed | `Footer` adds `applyWorkspaceButton`; `HelmForgeShell.apply_workspace()` writes a temporary applied draft and sends `ReloadConfig`; 4F tests assert the main workspace file is not created. | Fix included in 4F. | None | |
+| Page/app width should be reduced from the too-wide default while preserving current default height. | Fixed | `Layout.window_width` is now 1152 while `Layout.window_height` remains 800; 1A and Phase 17 layout tests pass. | Fix included in 4F. | None | This is an app-shell default width change; pages still scroll vertically as needed. |
+| Left sidebar runtime indicator should follow live Bridge telemetry. | Fixed | `HelmForgeShell.apply_bridge_telemetry()` now calls `sidebar.update_runtime()`; 4F tests update telemetry to Live Verified and assert the sidebar changes to success. | Fix included in 4F. | None | |
 | Global text hierarchy should improve. | Partial | Shared QSS defines page/card/body/section roles and 4B selectors. | 4C adds Helm-specific hierarchy selectors. | Post-RC 4D | Remaining page-specific typography belongs to the next control-editing polish pass. |
 
 ## Helm
@@ -29,22 +35,22 @@ Post-RC 4E update: Live Monitor, Live Overlay, Flight Recorder, Help / Docs, and
 | Original issue summary | Current status | Evidence from code or tests | Fix included in 4C | Deferred phase | Notes |
 |---|---|---|---|---|---|
 | Helm should not be a separate app screen/sidebar page. | Fixed | `HelmForgeShell` has no `helm` page id; `open_helm_overlay()` uses `HelmOverlay`; Phase 10A/4C tests assert this. | Verified. | None | |
-| Helm should glide out from the right side and feel part of the app. | Partial | `HelmOverlay.open_for_parent()` positions a narrower right-side modal and sets `overlayPlacement="right-glide"`. | Narrow right-side geometry added. | Post-RC 4D | True animation is deferred to avoid fragile timing behavior. |
-| App behind Helm should blur/dim. | Partial | 4C adds `helmOverlayScrim`, `scrimMode="dimmed"`, and a parent opacity effect. | Added dim scrim. | Post-RC 4D | True blur is deferred; Qt blur would require a higher-risk graphics-effect pass. |
-| Helm page/cards have darker/inconsistent backgrounds. | Partial | Shared card/background QSS covers `QDialog#helmOverlay`, `helmOverlayContent`, scroll area, and cards. | 4C keeps Helm cards on shared page-card surfaces. | Visible QA | Offscreen inspection cannot prove all perceived color differences are resolved. |
+| Helm should glide out from the right side and feel part of the app. | Fixed | `HelmOverlay` is now an in-app `QFrame` child pane with `paneMode="in-app-slide"` and `slideAnimation="right-pane"`; 4F tests assert the in-app parent and animation contract. | Fix included in 4F. | Visible QA | Offscreen tests verify structure and animation hooks, not final perceived motion. |
+| App behind Helm should blur/dim. | Fixed | `HelmOverlay.open_for_parent()` applies blur effects to sidebar/content and keeps the scrim; 4F/4C tests assert in-app pane and scrim. | Fix included in 4F. | Visible QA | Human QA should tune blur strength if needed. |
+| Helm page/cards have darker/inconsistent backgrounds. | Partial | Shared card/background QSS now covers `QFrame#helmOverlay`, `helmOverlayContent`, scroll area, and cards. | Fix included in 4F. | Visible QA | Offscreen inspection cannot prove all perceived color differences are resolved. |
 | Symptom prompt chips should be smaller/less loud. | Fixed | `QPushButton[uiRole="symptomChip"]` padding/font-size reduced in QSS. | Reduced chip weight. | None | |
 | Symptom input should be slightly smaller vertically. | Fixed | `helmSymptomInput` min height reduced to 92 and max height 220. | Implemented. | None | |
 | Symptom input should wrap horizontally. | Fixed | `setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)` and 4C test. | Implemented. | None | |
 | Symptom input should auto-resize vertically within sensible min/max. | Partial | `textChanged` calls `_resize_symptom_input()` and clamps 92 to 220 px. | Implemented simple auto-resize. | Visible QA | Human QA should confirm feel with long text. |
 | Analyze / Review Changes / Cancel / Close should not look always pressed. | Fixed | Buttons are normal `action_button` instances, not checkable/checked; 4C tests assert. | Verified. | None | |
-| What's wrong and What I'd change boxes should not be locked to equal heights. | Fixed | 4C changed Helm grid to one column with top-aligned content cards and removed forced stretch from diffs. | Implemented. | None | |
+| What's wrong and What I'd change boxes should not be locked to equal heights. | Fixed | 4F keeps content-sized cards and switches wide Helm to a two-column layout with What I'd Change on the second column. | Fix included in 4F. | None | |
 | What I found and Apply / Revert boxes should not be locked to equal heights. | Fixed | 4C uses content-sized sequential cards and `helmCardContentSized` properties. | Implemented. | None | |
 | All Helm cards should size to contents with reasonable whitespace. | Partial | `helmCardContentSized=True` on major/dynamic cards; no equal-height grid. | Implemented. | Visible QA | Offscreen tests verify properties, not final human perception. |
-| What I'd change should be easier to read/comprehend. | Partial | 4C adds Helm recommendation card selectors and content-sized rows; existing grouped diff copy remains deterministic. | Improved hierarchy. | Post-RC 4D | Further copy/layout work may be useful after visible QA. |
+| What I'd change should be easier to read/comprehend. | Partial | 4F places the recommendation card in the wide second column and keeps grouped diff rows content-sized. | Fix included in 4F. | Visible QA | Further copy tuning may be useful after visible QA. |
 | What I found should be easier to read/comprehend. | Partial | `helmFindingCard` gets clearer hierarchy and retains grouped evidence labels. | Improved hierarchy. | Post-RC 4D | |
 | Apply/Revert content should be easier to read. | Partial | `helmApplyRevertCard` now places summary/status before a separated action row. | Reordered content. | Visible QA | |
 | Apply/Revert buttons should be at the bottom/action area. | Fixed | 4C adds `helmActionRow` after review/status content; tests assert the action row exists. | Implemented. | None | |
-| Helm active indicator should be polished green bulb with pulse. | Partial | 4C adds `helmActiveBulb` with radial QSS bulb styling and `pulseStyle="static-qss"`. | Polished static bulb. | Post-RC 4D | Timed pulse animation deferred as test-risky. |
+| Helm active indicator should be polished green bulb with pulse. | Fixed | `helmActiveBulb` uses radial LED styling and a 3-second `QPropertyAnimation` pulse; 4F tests assert `pulseStyle="qt-pulse"` and `polish="led-bulb"`. | Fix included in 4F. | Visible QA | |
 | Preserve deterministic/local Helm behavior. | Fixed | Helm still uses `HelmEngine` and local workspace context only; no cloud imports. | Verified. | None | |
 | Preserve in-memory-only Apply/Revert and Save Workspace persistence boundary. | Fixed | Existing Phase 10 tests verify no file write until Save Workspace; 4C did not change apply/revert model. | Verified. | None | |
 
@@ -53,11 +59,12 @@ Post-RC 4E update: Live Monitor, Live Overlay, Flight Recorder, Help / Docs, and
 | Original issue summary | Current status | Evidence from code or tests | Fix included in 4C | Deferred phase | Notes |
 |---|---|---|---|---|---|
 | Text in boxes is hard to read / mono-styled. | Partial | 4D adds `controlPolish="post-rc-4d"` hooks to route cards and keeps shared typography/QSS selectors. | Fix included in 4D: route card polish hooks and table sizing properties. | Visible QA | Offscreen tests verify structure, not final human readability. |
-| Move Preflight to its own tab/dashboard. | Partial | `runtimePreflightCard` remains present for compatibility; 4D adds `mappingPreflightDashboardCard` with `uiRole="preflightDashboard"` and `tabSplitDeferred=True`. | Fix included in 4D: clearer dashboard marker; real tab split deferred. | Post-RC 4E or later | A real tab split would be a larger navigation change. |
-| Axis/Button/Hat routing backgrounds and card design need polish and content fit. | Partial | `axisRoutingTable`, `buttonRoutingTable`, and `hatRoutingTable` have `polishedRouteTable=True`, taller rows, resize-to-content columns, and stretch-last-section. | Fix included in 4D. | Visible QA | |
+| Move Preflight to its own tab/dashboard. | Fixed | Setup now starts with `Preflight`; `PreflightPage` owns the dashboard sections and Mapping no longer contains `runtimePreflightCard`; 4F tests assert the split. | Fix included in 4F. | None | |
+| Axis/Button/Hat routing backgrounds and card design need polish and content fit. | Partial | `axisRoutingTable`, `buttonRoutingTable`, and `hatRoutingTable` have `polishedRouteTable=True`, 50 px rows, resize-to-content columns, and stretch-last-section. | Fix included in 4F. | Visible QA | |
 | Mapping dropdowns appear empty. | Partial | Mapping route/editor dropdowns remain metadata-backed and populated; 4D keeps table cell widgets and sizing. | Fix included in 4D: table sizing/polish, not popup-render changes. | Visible QA | Offscreen tests cannot prove popup paint. |
 | Mapping buttons should not look always on and should hover. | Fixed | Global QPushButton states apply and 4D preservation tests verify 2C editor actions remain normal buttons. | Verified in 4D. | None | |
-| Route Inspector/editor should be easy to read and Save Workspace required wording clear. | Partial | `routeInspectorPanel`, `routeEditorPanel`, `routeEditorPersistNotice`, and 2C tests verify wording and draft-only behavior. | Fix included in 4D: preserved editor and added deferred 2D notice when 2D is absent. | Visible QA | |
+| Route Inspector/editor should be easy to read and Save Workspace required wording clear. | Partial | Diagram clicks now open `routeRemapCard`, which contains the same inspector/editor data as a graphical card with fade/blur hooks; 2C and 4F tests verify draft-only controls remain available. | Fix included in 4F. | Visible QA | |
+| Live Raw / Final Intent / Raw / Output columns should be removed from Mapping routing tables. | Fixed | Axis Routing now has 5 columns and Button Routing has 2 columns; 4F tests assert the removed headers are absent. | Fix included in 4F. | None | |
 
 ## Profiles
 

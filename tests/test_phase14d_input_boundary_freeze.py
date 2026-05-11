@@ -169,10 +169,11 @@ def test_phase14d_mapping_live_monitor_and_stack_keep_samples_read_only_and_fall
         physical_input_snapshot=fresh_snapshot,
     )
     mapping_text = _text(mapping)
-    assert "Live Raw (Physical input sample)" in mapping.findChild(__import__("PySide6.QtWidgets").QtWidgets.QTableWidget, "axisRoutingTable").horizontalHeaderItem(5).text()
-    assert "physical input samples are read-only" in mapping_text.lower()
-    assert "Output verified\nfalse" in mapping_text
-    assert "Full Live Runtime Ready\nfalse" in mapping_text
+    axis_table = mapping.findChild(__import__("PySide6.QtWidgets").QtWidgets.QTableWidget, "axisRoutingTable")
+    assert axis_table.columnCount() == 5
+    assert all("Live Raw" not in axis_table.horizontalHeaderItem(index).text() for index in range(axis_table.columnCount()))
+    assert "Draft mapping only" in mapping_text
+    assert "Full Live Runtime Ready false" not in mapping_text
 
     live = LiveMonitorPage(
         state=state,

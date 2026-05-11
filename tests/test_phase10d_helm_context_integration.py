@@ -198,12 +198,11 @@ def test_phase10d_overlay_shows_compact_context_summary_without_sidebar_or_runti
     text = "\n".join(label.text() for label in overlay.findChildren(QLabel))
 
     assert context_summary is not None
-    assert "Axis context: Roll" in context_summary.text()
-    assert "Evidence: Workspace values, Mode settings, Conditional rules, Runtime diagnostics" in context_summary.text()
-    assert "Runtime: blocked_missing_device" in context_summary.text()
-    assert "Output verified: false" in context_summary.text()
-    assert "Live analysis: not active" in context_summary.text()
-    assert "Discovery-only status: no_supported_device" in context_summary.text()
+    assert "Roll review using Workspace values, Mode settings, Conditional rules, Runtime diagnostics" in context_summary.text()
+    assert "output proof pending" in context_summary.text()
+    assert "Runtime boundary" in text
+    assert "Workspace-only review; live hardware analysis is not active." in text
+    assert "waiting for HOTAS input" not in text
     assert "helm" not in shell.page_widgets
     assert "Full Live Runtime Ready true" not in text
     assert "Output verified true" not in text

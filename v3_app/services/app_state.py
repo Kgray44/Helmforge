@@ -9,12 +9,13 @@ from shared_core.runtime.driver_setup import detect_thrustmaster_driver_software
 
 
 PAGE_IDS = (
+    "preflight",
     "mapping",
+    "profiles",
     "modes",
     "base_tuning",
     "filtering",
     "combat_profile",
-    "profiles",
     "conditional_rules",
     "effective_response_stack",
     "live_monitor",
@@ -80,7 +81,7 @@ class AppState:
     active_profile: str = "Current Workspace"
     source_config: str = CONFIG_FILENAME
     saved: bool = True
-    status_message: str = "Workspace shell ready. Runtime truth is shown without claiming output writes."
+    status_message: str = "Workspace ready."
     page_switch_timings_ms: dict[str, float] = field(default_factory=dict)
 
     @classmethod

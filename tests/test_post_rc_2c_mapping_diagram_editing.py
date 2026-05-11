@@ -75,9 +75,9 @@ def test_post_rc_2c_inspector_exposes_change_mapping_for_editable_route():
     assert button.text() == "Change Mapping"
 
     labels_text = "\n".join(label.text() for label in page.findChildren(QLabel))
-    assert "Inspecting workspace route" in labels_text
-    assert "Output intent only - not live output proof" in labels_text
-    assert "Save Workspace required to persist changes" in labels_text
+    assert "Selected Control" in labels_text
+    assert "Draft mapping only" in labels_text
+    assert "Change the target below" in labels_text
 
 
 def test_post_rc_2c_axis_edit_panel_opens_for_selected_axis_route():
@@ -174,7 +174,7 @@ def test_post_rc_2c_apply_changes_workspace_draft_only_and_updates_dirty_state()
     assert "workspace draft" in events[-1][1]
     assert "vJoy" not in events[-1][1]
     assert "verified" not in events[-1][1].casefold()
-    assert page.findChild(QLabel, "routeEditorDirtyStateValue").text() == "Workspace draft changed - Save Workspace required"
+    assert page.findChild(QLabel, "routeEditorDirtyStateValue").text() == "Draft changed"
 
 
 def test_post_rc_2c_cancel_preserves_previous_draft_route():
@@ -242,13 +242,13 @@ def test_post_rc_2c_conflict_preview_detects_duplicate_and_missing_output_target
     output = page.findChild(QComboBox, "routeEditorAxisOutputCombo")
     assert preview is not None
     assert output is not None
-    assert "workspace/config warning" in preview.text()
-    assert "no output intent target" in preview.text()
+    assert "workspace/config warning" not in preview.text()
+    assert "no output target" in preview.text()
 
     output.setCurrentText("Y(axis2)")
     _app().processEvents()
 
-    assert "share output intent Y(axis2)" in preview.text()
+    assert "share output target Y(axis2)" in preview.text()
     assert "live runtime failure" not in preview.text().casefold()
 
 
@@ -316,7 +316,7 @@ def test_post_rc_2c_keyboard_focus_selects_marker_without_breaking_mouse_sync():
 
     QTest.keyClick(marker, Qt.Key.Key_Return)
     _app().processEvents()
-    assert page.findChild(QLabel, "routeInspectorTypeValue").text() == "axis"
+    assert page.findChild(QLabel, "routeInspectorTypeValue").text() == "Axis"
 
 
 def test_post_rc_2c_no_output_write_proof_or_runtime_authority_is_claimed():
@@ -327,9 +327,9 @@ def test_post_rc_2c_no_output_write_proof_or_runtime_authority_is_claimed():
 
     labels_text = "\n".join(label.text() for label in page.findChildren(QLabel))
     lower_text = labels_text.casefold()
-    assert "output intent only - not live output proof" in lower_text
-    assert "save workspace required to persist changes" in lower_text
-    assert "workspace/config conflict" in lower_text or "workspace/config warning" in lower_text
+    assert "draft mapping only" in lower_text
+    assert "apply to draft updates this workspace draft" in lower_text
+    assert "no route conflicts previewed" in lower_text or "no output target" in lower_text
     assert "writing to vjoy" not in lower_text
     assert "live output changed" not in lower_text
     assert "full live runtime ready true" not in lower_text
