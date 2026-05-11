@@ -82,6 +82,19 @@ Launch the app:
 python -m v3_app.main
 ```
 
+Select the UI presentation mode when needed:
+
+```powershell
+$env:HELMFORGE_UI_MODE = "cockpit"
+python -m v3_app.main
+
+$env:HELMFORGE_UI_MODE = "legacy"
+python -m v3_app.main
+Remove-Item Env:\HELMFORGE_UI_MODE
+```
+
+Default/unset mode loads the static Cockpit UI. Legacy mode remains available for recovering the previous stable interface.
+
 Run an offscreen smoke launch:
 
 ```powershell
