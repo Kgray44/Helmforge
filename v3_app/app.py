@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 import os
 from pathlib import Path
 
@@ -9,14 +10,21 @@ from PySide6.QtWidgets import QMainWindow
 
 from v3_app.services.app_state import AppState
 from v3_app.services.embedded_bridge_runtime import EmbeddedBridgeRuntime
+from v3_app.theme.cockpit_qss import cockpit_qss
 from v3_app.theme.qss import app_qss
 from v3_app.theme.tokens import Layout
+from v3_app.ui.cockpit.shell import CockpitShell
 from v3_app.ui.shell import HelmForgeShell
 
 UI_SHELL_ENV = "HELMFORGE_UI_SHELL"
 LEGACY_UI_SHELL = "legacy"
 LIQUID_UI_SHELL = "liquid"
 VALID_UI_SHELLS = (LEGACY_UI_SHELL, LIQUID_UI_SHELL)
+
+UI_MODE_ENV_VAR = "HELMFORGE_UI_MODE"
+LEGACY_UI_MODE = "legacy"
+COCKPIT_UI_MODE = "cockpit"
+SUPPORTED_UI_MODES = {LEGACY_UI_MODE, COCKPIT_UI_MODE}
 
 
 def _icon_path() -> Path:
@@ -30,11 +38,23 @@ def _icon_path() -> Path:
 
 
 class HelmForgeMainWindow(QMainWindow):
-    def __init__(self, *, title: str, state: AppState | None = None, ui_shell: str | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        title: str,
+        state: AppState | None = None,
+        ui_shell: str | None = None,
+        ui_mode: str | None = None,
+    ) -> None:
         super().__init__()
         self.setObjectName("helmforgeMainWindow")
         self.setWindowTitle(title)
         self.ui_shell = resolve_ui_shell(ui_shell)
+        self.ui_mode = resolve_ui_mode({UI_MODE_ENV_VAR: ui_mode} if ui_mode is not None else None)
+        if self.ui_shell == LIQUID_UI_SHELL:
+            self.ui_mode = LEGACY_UI_MODE
+        self.setProperty("uiShell", self.ui_shell)
+        self.setProperty("uiMode", self.ui_mode)
         requested_minimum_size, requested_default_size = window_sizes_for_shell(self.ui_shell)
         applied_minimum_size, applied_default_size = window_sizes_for_shell(
             self.ui_shell,
@@ -49,13 +69,13 @@ class HelmForgeMainWindow(QMainWindow):
         icon_file = _icon_path()
         if icon_file.exists():
             self.setWindowIcon(QIcon(str(icon_file)))
-        self.shell = _build_shell(self.ui_shell, state)
+        self.shell = _build_shell(self.ui_shell, self.ui_mode, state)
         self.embedded_bridge_runtime = None
         self._embedded_bridge_started = False
         if state is None:
             self.embedded_bridge_runtime = EmbeddedBridgeRuntime(on_telemetry=self.shell.apply_bridge_telemetry, parent=self)
         self.setCentralWidget(self.shell)
-        self.setStyleSheet(app_qss())
+        self.setStyleSheet(app_qss() + (cockpit_qss() if self.ui_mode == COCKPIT_UI_MODE else ""))
 
     def showEvent(self, event) -> None:  # type: ignore[override]
         super().showEvent(event)
@@ -69,8 +89,14 @@ class HelmForgeMainWindow(QMainWindow):
         super().closeEvent(event)
 
 
-def build_window(*, title: str, state: AppState | None = None, ui_shell: str | None = None) -> HelmForgeMainWindow:
-    return HelmForgeMainWindow(title=title, state=state, ui_shell=ui_shell)
+def build_window(
+    *,
+    title: str,
+    state: AppState | None = None,
+    ui_shell: str | None = None,
+    ui_mode: str | None = None,
+) -> HelmForgeMainWindow:
+    return HelmForgeMainWindow(title=title, state=state, ui_shell=ui_shell, ui_mode=ui_mode)
 
 
 def resolve_ui_shell(ui_shell: str | None = None) -> str:
@@ -79,6 +105,12 @@ def resolve_ui_shell(ui_shell: str | None = None) -> str:
         valid = ", ".join(VALID_UI_SHELLS)
         raise ValueError(f"Unknown HelmForge UI shell {requested!r}; expected one of: {valid}.")
     return requested
+
+
+def resolve_ui_mode(env: Mapping[str, str | None] | None = None) -> str:
+    source = os.environ if env is None else env
+    requested = str(source.get(UI_MODE_ENV_VAR) or LEGACY_UI_MODE).strip().casefold()
+    return requested if requested in SUPPORTED_UI_MODES else LEGACY_UI_MODE
 
 
 def window_sizes_for_shell(ui_shell: str, *, available_size: QSize | None = None) -> tuple[QSize, QSize]:
@@ -90,10 +122,9 @@ def window_sizes_for_shell(ui_shell: str, *, available_size: QSize | None = None
         if available_size is None or available_size.width() <= 0 or available_size.height() <= 0:
             return minimum, default
         return _clamped_window_sizes(minimum=minimum, default=default, available_size=available_size)
-    else:
-        minimum = QSize(Layout.window_min_width, Layout.window_min_height)
-        default = QSize(Layout.window_width, Layout.window_height)
-        return minimum, default
+    minimum = QSize(Layout.window_min_width, Layout.window_min_height)
+    default = QSize(Layout.window_width, Layout.window_height)
+    return minimum, default
 
 
 def _available_screen_size() -> QSize | None:
@@ -116,9 +147,11 @@ def _clamped_window_sizes(*, minimum: QSize, default: QSize, available_size: QSi
     return QSize(minimum_width, minimum_height), QSize(default_width, default_height)
 
 
-def _build_shell(ui_shell: str, state: AppState | None):
+def _build_shell(ui_shell: str, ui_mode: str, state: AppState | None):
     if ui_shell == LIQUID_UI_SHELL:
         from v3_app.liquid.app_shell import LiquidCommandShell
 
         return LiquidCommandShell(state)
+    if ui_mode == COCKPIT_UI_MODE:
+        return CockpitShell(state)
     return HelmForgeShell(state)
