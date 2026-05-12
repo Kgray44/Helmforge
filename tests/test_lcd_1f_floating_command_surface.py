@@ -156,6 +156,11 @@ def test_lcd_1f_all_modes_keep_embedded_placeholder_regions():
     for definition in LIQUID_PLACEHOLDER_PAGES:
         shell.switch_mode(definition.mode_id)
         page = shell.page_host.currentWidget()
+        if definition.mode_id == "preflight":
+            assert page.findChild(QWidget, "liquidPreflightHeroGoNoGo") is not None
+            assert page.findChild(QWidget, "liquidPreflightSystemDetails") is not None
+            assert page.findChild(QWidget, "liquidPreflightActionPanel") is not None
+            continue
         for suffix in (
             "liquidHeroRegion",
             "liquidContextInspectorRegion",

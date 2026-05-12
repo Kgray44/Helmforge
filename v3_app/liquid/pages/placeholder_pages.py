@@ -27,6 +27,7 @@ from v3_app.liquid.parameter_controls import (
     NumericParameterControl,
     ParameterRow,
 )
+from v3_app.liquid.pages.preflight_command_page import create_preflight_command_page
 from v3_app.liquid.status_components import MetricTile, ReadinessGate, StatusChip, TelemetryFreshnessRail, TruthBadge
 
 
@@ -451,6 +452,7 @@ _PAGE_BY_MODE = {page.mode_id: page for page in LIQUID_PLACEHOLDER_PAGES}
 LIQUID_ROUTE_PAGE_FACTORIES = {
     definition.route_key: _make_factory(definition) for definition in LIQUID_ROUTE_PLACEHOLDER_PAGES
 }
+LIQUID_ROUTE_PAGE_FACTORIES["preflight.command_readiness"] = create_preflight_command_page
 
 
 def placeholder_definition_by_mode_id(mode_id: str) -> LiquidPlaceholderPageDefinition:

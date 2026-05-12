@@ -348,7 +348,12 @@ def test_lcd_2_placeholder_pages_demonstrate_representative_components_truthfull
         shell.switch_mode(mode_id)
         page = shell.page_host.currentWidget()
         page_text = _texts(page)
-        assert "Liquid Command Deck placeholder" in page_text
+        if mode_id == "preflight":
+            assert "Command Readiness" in page_text
+            assert "Can I safely use live output right now?" in page_text
+            assert "Liquid Command Deck placeholder" not in page_text
+        else:
+            assert "Liquid Command Deck placeholder" in page_text
         assert roles <= _component_roles(page)
 
         for forbidden in (

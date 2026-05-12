@@ -160,16 +160,29 @@ class LiquidSubpageSelector(QFrame):
         self._active_mode_id = active_mode_id
         self._clear()
         mode = self._model.mode_by_id(active_mode_id)
-        label = QLabel(f"{mode.display_name} routes")
+        single_route = len(mode.subpages) == 1
+        self.setProperty("singleRouteMode", single_route)
+        self.setMaximumHeight(36 if single_route else 46)
+        if single_route:
+            self._layout.setContentsMargins(8, 4, 8, 4)
+        else:
+            self._layout.setContentsMargins(12, 8, 12, 8)
+        self._layout.setSpacing(6 if single_route else 8)
+        label_text = (
+            f"{mode.display_name} / {mode.subpages[0].display_name}"
+            if single_route
+            else f"{mode.display_name} routes"
+        )
+        label = QLabel(label_text)
         label.setObjectName("liquidSubpageSelectorModeLabel")
         label.setProperty("liquidRole", "liquid_subpage_selector_label")
-        label.setAccessibleName(f"{mode.display_name} routes")
+        label.setAccessibleName(label_text)
         self._layout.addWidget(label)
         for subpage in mode.subpages:
             button = QPushButton(subpage.display_name)
             button.setObjectName(f"liquidSubpage_{subpage.route_key.replace('.', '_')}")
             button.setProperty("uiRole", "liquidSubpageSelectorButton")
-            button.setProperty("selectorDensity", "compact_segmented")
+            button.setProperty("selectorDensity", "single_route_chip" if single_route else "compact_segmented")
             button.setProperty("subpageId", subpage.subpage_id)
             button.setProperty("routeKey", subpage.route_key)
             button.setProperty("modeId", mode.mode_id)
@@ -178,6 +191,8 @@ class LiquidSubpageSelector(QFrame):
             button.setStatusTip(subpage.purpose)
             button.setCheckable(True)
             button.setCursor(Qt.CursorShape.PointingHandCursor)
+            if single_route:
+                button.setMaximumHeight(26)
             button.clicked.connect(lambda checked=False, subpage_id=subpage.subpage_id: self._on_subpage_selected(subpage_id))
             self._group.addButton(button)
             self._buttons[subpage.subpage_id] = button

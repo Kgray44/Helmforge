@@ -128,13 +128,13 @@ def test_lcd_2f_placeholder_header_uses_separate_title_subtitle_and_chip_regions
     from v3_app.liquid.app_shell import LiquidCommandShell
 
     shell = LiquidCommandShell(state=_state(_blocked_runtime_status()))
-    shell.switch_mode("preflight")
+    shell.switch_mode("mapping")
     page = shell.page_host.currentWidget()
 
     for object_name in (
-        "liquidPlaceholderHeaderTitleRegion_preflight",
-        "liquidPlaceholderHeaderSubtitleRegion_preflight",
-        "liquidPlaceholderHeaderChipRegion_preflight",
+        "liquidPlaceholderHeaderTitleRegion_mapping",
+        "liquidPlaceholderHeaderSubtitleRegion_mapping",
+        "liquidPlaceholderHeaderChipRegion_mapping",
     ):
         widget = page.findChild(QWidget, object_name)
         assert widget is not None, object_name
@@ -173,12 +173,21 @@ def test_lcd_2f_geometry_smoke_has_footer_clearance_and_nonempty_major_regions()
         shell.switch_mode(mode_id)
         app.processEvents()
         page = shell.page_host.currentWidget()
-        for object_name in (
-            f"liquidHeroRegion_{mode_id}",
-            f"liquidContextInspectorRegion_{mode_id}",
-            f"liquidDetailActionRegion_{mode_id}",
-            f"liquidAdvancedRegion_{mode_id}",
-        ):
+        if mode_id == "preflight":
+            object_names = (
+                "liquidPreflightHeroGoNoGo",
+                "liquidPreflightSystemDetails",
+                "liquidPreflightActionPanel",
+                "liquidPreflightAdvancedDiagnostics",
+            )
+        else:
+            object_names = (
+                f"liquidHeroRegion_{mode_id}",
+                f"liquidContextInspectorRegion_{mode_id}",
+                f"liquidDetailActionRegion_{mode_id}",
+                f"liquidAdvancedRegion_{mode_id}",
+            )
+        for object_name in object_names:
             widget = page.findChild(QWidget, object_name)
             assert widget is not None, object_name
             assert widget.geometry().width() > 0, object_name
@@ -202,10 +211,9 @@ def test_lcd_2f_live_verified_top_truth_does_not_conflict_with_static_demo_chips
         for label in page_labels
         if any(phrase in label for phrase in ("Runtime blocked", "Output proof missing", "Telemetry stale"))
     ]
-    assert contradictory_samples
-    for label in contradictory_samples:
-        lowered = label.casefold()
-        assert any(marker in lowered for marker in ("demo", "example", "static", "placeholder")), label
+    assert not contradictory_samples
+    assert "Ready for live output" in page_labels
+    assert "Output proof verified" in page_labels
 
     page_text = "\n".join(page_labels)
     for forbidden in (

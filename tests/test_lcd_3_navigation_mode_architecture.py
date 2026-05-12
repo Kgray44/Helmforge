@@ -169,9 +169,15 @@ def test_lcd_3_route_registry_exposes_distinct_placeholder_factories():
         assert route.mode_display_name in text
         assert route.subpage_display_name in text
         assert route.purpose in text
-        assert route.route_key in text
-        assert "Placeholder route" in text
-        assert "future page rebuild" in text.casefold()
+        if route.route_key == "preflight.command_readiness":
+            assert page.objectName() == "liquidPreflightCommandPage"
+            assert route.route_key not in text
+            assert "Placeholder route" not in text
+            assert "future page rebuild" not in text.casefold()
+        else:
+            assert route.route_key in text
+            assert "Placeholder route" in text
+            assert "future page rebuild" in text.casefold()
 
 
 def test_lcd_3_liquid_shell_constructs_with_dock_selector_and_route_host():

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFrame, QLabel, QScrollArea, QSizePolicy, QStackedWidget, QWidget
 
@@ -43,18 +45,26 @@ _PAGE_ID_TO_ROUTE_KEY = {
 }
 
 
+def _lcd4f_trace(message: str) -> None:
+    if os.environ.get("HELMFORGE_LCD4F_TRACE") == "1":
+        print(f"LCD4F_TRACE: {message}", flush=True)
+
+
 class LiquidCommandShell(QWidget):
     def __init__(self, state: AppState | None = None) -> None:
         super().__init__()
+        _lcd4f_trace("constructing liquid shell")
         self.setObjectName("liquidCommandShell")
         self.setStyleSheet(liquid_qss())
         self.state = state or build_initial_app_state()
+        _lcd4f_trace("creating navigation model")
         self.navigation_model = build_liquid_navigation_model()
         self.navigation_state = _navigation_state_from_state(self.state, self.navigation_model)
         self.active_mode_id = self.navigation_state.current_mode_id
         self.active_subpage_id = self.navigation_state.current_subpage_id
         self.current_route_key = self.navigation_state.current_route.route_key
         self.page_widgets: dict[str, QWidget] = {}
+        self._latest_bridge_telemetry: BridgeTelemetrySnapshot | None = None
 
         root = vertical_layout(
             self,
@@ -78,7 +88,7 @@ class LiquidCommandShell(QWidget):
         surface_layout = grid_layout(self.command_surface, margins=(0, 0, 0, 0), spacing=0)
         self.surface_glass_field = glass_panel("liquid_surface_glass_field", role="liquid_surface_glass_field")
         self.surface_glass_field.setProperty("footerScrim", "none")
-        field_layout = vertical_layout(self.surface_glass_field, margins=(110, 18, 28, 0), spacing=10)
+        field_layout = vertical_layout(self.surface_glass_field, margins=(110, 16, 28, 0), spacing=9)
         self.mode_dock = LiquidModeDock(
             active_mode_id=self.active_mode_id,
             on_mode_selected=self.switch_mode,
@@ -93,6 +103,7 @@ class LiquidCommandShell(QWidget):
         self.page_host = QStackedWidget()
         self.page_host.setObjectName("liquid_page_host")
         self.page_host.setProperty("liquidRole", "liquid_page_host")
+        _lcd4f_trace("initializing page host")
         self._build_placeholder_pages()
         field_layout.addWidget(self.subpage_selector)
         field_layout.addWidget(self.page_host, 1)
@@ -100,6 +111,7 @@ class LiquidCommandShell(QWidget):
         self.footer_clearance.setProperty("footerClearance", True)
         self.footer_clearance.setProperty("footerClearanceTransparent", True)
         self.footer_clearance.setProperty("footerScrim", "none")
+        self.footer_clearance.setProperty("footerBackdrop", "transparent_compact")
         self.footer_clearance.setFixedHeight(LiquidLayout.footer_clearance_height)
         field_layout.addWidget(self.footer_clearance)
         self.footer = _LiquidFooterActionStrip(self.state)
@@ -110,14 +122,27 @@ class LiquidCommandShell(QWidget):
 
         root.addWidget(self.top_bar)
         root.addWidget(self.workspace_frame, 1)
+        _lcd4f_trace("selecting initial route")
         self.switch_route(self.current_route_key)
+        _lcd4f_trace("completed liquid shell init")
 
     def _build_placeholder_pages(self) -> None:
+        _lcd4f_trace("creating route registry pages")
         for route in self.navigation_model.routes:
-            page = LIQUID_ROUTE_PAGE_FACTORIES[route.route_key]()
+            if route.route_key == "preflight.command_readiness":
+                _lcd4f_trace("constructing preflight page")
+            page = (
+                LIQUID_ROUTE_PAGE_FACTORIES[route.route_key](
+                    state=self.state,
+                    runtime_status=_runtime_status_from_state(self.state),
+                )
+                if route.route_key == "preflight.command_readiness"
+                else LIQUID_ROUTE_PAGE_FACTORIES[route.route_key]()
+            )
             scroll = QScrollArea()
             scroll.setObjectName("liquid_page_scroll_area")
             scroll.setProperty("liquidRole", "liquid_page_scroll_area")
+            scroll.setProperty("scrollbarStyle", "liquid_subtle")
             scroll.setWidgetResizable(True)
             scroll.setFrameShape(QFrame.Shape.NoFrame)
             scroll.setWidget(page)
@@ -143,14 +168,27 @@ class LiquidCommandShell(QWidget):
 
     def _show_route(self, route_key: str) -> None:
         route = self.navigation_model.route_by_key(route_key)
+        target_widget = self.page_widgets[route.route_key]
+        already_current = self.current_route_key == route.route_key and self.page_host.currentWidget() is target_widget
         self.active_mode_id = route.mode_id
         self.active_subpage_id = route.subpage_id
         self.current_route_key = route.route_key
-        self.page_host.setCurrentWidget(self.page_widgets[route.route_key])
+        if not already_current:
+            self.page_host.setCurrentWidget(target_widget)
+            _lcd4f_trace(f"route host set page: {route.route_key}")
+        else:
+            _lcd4f_trace(f"route host already current: {route.route_key}")
         self.mode_dock.update_active(route.mode_id)
         self.subpage_selector.update_for_route(route.mode_id, route.subpage_id)
+        if route.route_key == "preflight.command_readiness":
+            self._sync_preflight_page(
+                _runtime_status_from_state(self.state),
+                telemetry=self._latest_bridge_telemetry,
+                state=self.state,
+            )
 
     def apply_bridge_telemetry(self, telemetry: BridgeTelemetrySnapshot) -> None:
+        self._latest_bridge_telemetry = telemetry
         runtime_status = _runtime_status_from_bridge_telemetry(telemetry)
         self.state.runtime = AppState.from_runtime_status(
             runtime_status,
@@ -159,6 +197,23 @@ class LiquidCommandShell(QWidget):
         self.state.active_profile = telemetry.active_profile
         self.top_bar.update_state(self.state)
         self.footer.update_state(self.state)
+        if self.current_route_key == "preflight.command_readiness":
+            self._sync_preflight_page(runtime_status, telemetry=telemetry, state=self.state)
+        else:
+            _lcd4f_trace(f"skipping hidden preflight telemetry sync on route: {self.current_route_key}")
+
+    def _sync_preflight_page(
+        self,
+        runtime_status: RuntimePreflightStatus,
+        *,
+        telemetry: BridgeTelemetrySnapshot | None = None,
+        state: AppState | None = None,
+    ) -> None:
+        preflight_scroll = self.page_widgets.get("preflight.command_readiness")
+        preflight_page = preflight_scroll.widget() if preflight_scroll is not None else None
+        if hasattr(preflight_page, "update_runtime_status"):
+            _lcd4f_trace("syncing preflight readiness page")
+            preflight_page.update_runtime_status(runtime_status, telemetry=telemetry, state=state or self.state)
 
 
 class _LiquidTopCommandBar(QFrame):
@@ -190,20 +245,25 @@ class _LiquidTopCommandBar(QFrame):
         subtitle.setObjectName("liquidDeckSubtitle")
         subtitle.setWordWrap(True)
         subtitle.setMinimumWidth(0)
-        subtitle.setMaximumWidth(360)
+        subtitle.setMaximumWidth(460)
         title_area.addWidget(title)
         title_area.addWidget(subtitle)
 
         status_cluster = glass_panel("liquidTopStatusCapsule", role="liquid_status_cluster")
-        status_cluster.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+        status_cluster.setMinimumWidth(520)
+        status_cluster.setMaximumWidth(760)
+        status_cluster.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         status_layout = horizontal_layout(status_cluster, margins=(12, 9, 12, 9), spacing=8)
         self._workspace_chip = status_chip(_workspace_label(state), tone="info", object_name="liquidWorkspaceChip")
+        self._workspace_chip.setMaximumWidth(178)
         self._saved_chip = status_chip(_saved_label(state), tone=_saved_tone(state), object_name="liquidSavedChip")
+        self._saved_chip.setMaximumWidth(96)
         self._runtime_chip = status_chip(
             state.runtime.header_truth_label,
             tone=state.runtime.tone,
             object_name="liquidRuntimeTruthChip",
         )
+        self._runtime_chip.setMaximumWidth(164)
         self._source_chip = status_chip(_source_label(state), tone="neutral", object_name="liquidSourceChip")
         _configure_source_chip(self._source_chip, state)
         self._source_detail_label = QLabel(_source_full_label(state), status_cluster)
@@ -218,12 +278,13 @@ class _LiquidTopCommandBar(QFrame):
 
         command_cluster = glass_panel("liquidTopCommandCluster", role="liquid_command_cluster")
         command_cluster.setProperty("compactActionCluster", True)
-        command_cluster.setMaximumWidth(164)
+        command_cluster.setMaximumWidth(124)
         command_cluster.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
         command_layout = horizontal_layout(command_cluster, margins=(8, 8, 8, 8), spacing=7)
         status_rail = glass_panel("liquidTopStatusRail", role="liquid_status_rail")
         status_rail.setFixedSize(6, 28)
         helm_button = action_button("Helm", object_name="liquidHelmButton", enabled=False)
+        helm_button.setMaximumWidth(64)
         helm_button.setToolTip("Helm")
         helm_button.setStatusTip("Future Helm action location; not wired in LCD-3F.")
         helm_button.setAccessibleName("Helm action")
@@ -305,12 +366,14 @@ def _saved_tone(state: AppState) -> str:
 def _source_label(state: AppState) -> str:
     if state.source_config:
         source_name = _leaf_name(state.source_config)
-        if source_name == "hotas_bridge_config_v3.json":
+        if "hotas_bridge_config" in source_name.lower():
             return "Source: Bridge Config"
-        return f"Source: {_ellipsize(source_name, 24)}"
+        return "Source: Workspace Config"
     if state.runtime.backend_name:
-        return f"Source: {state.runtime.backend_name}"
-    return "Source: workspace state"
+        return "Source: Telemetry"
+    if state.runtime.truth is RuntimeTruth.SIMULATED:
+        return "Source: Simulation"
+    return "Source: Workspace Config"
 
 
 def _source_full_label(state: AppState) -> str:
@@ -335,7 +398,7 @@ def _ellipsize(text: str, max_length: int) -> str:
 
 def _configure_source_chip(chip: QLabel, state: AppState) -> None:
     detail = _source_full_label(state)
-    chip.setMaximumWidth(210)
+    chip.setMaximumWidth(188)
     chip.setWordWrap(False)
     chip.setToolTip(detail)
     chip.setStatusTip(detail)
@@ -357,4 +420,19 @@ def _runtime_status_from_bridge_telemetry(telemetry: BridgeTelemetrySnapshot) ->
         ),
         warnings=telemetry.warnings,
         errors=telemetry.errors,
+    )
+
+
+def _runtime_status_from_state(state: AppState) -> RuntimePreflightStatus:
+    return RuntimePreflightStatus(
+        mode=RuntimeMode.FULL_LIVE
+        if state.runtime.truth is RuntimeTruth.LIVE_VERIFIED and state.runtime.output_verified
+        else RuntimeMode.SIMULATED,
+        truth=state.runtime.truth,
+        input=InputDeviceDetection(status=state.runtime.input_status),
+        output=OutputBackendDetection(
+            status=state.runtime.output_status,
+            backend_name=state.runtime.backend_name,
+            live_output_writes_verified=state.runtime.output_verified,
+        ),
     )

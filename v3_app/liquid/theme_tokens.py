@@ -94,9 +94,9 @@ def liquid_qss() -> str:
     QFrame#liquid_surface_glass_field {{
         background: qlineargradient(
             x1: 0, y1: 0, x2: 1, y2: 1,
-            stop: 0 rgba(80, 190, 255, 22),
-            stop: 0.44 rgba(11, 34, 52, 58),
-            stop: 1 rgba(4, 12, 20, 58)
+            stop: 0 rgba(80, 190, 255, 18),
+            stop: 0.44 rgba(11, 34, 52, 42),
+            stop: 1 rgba(4, 12, 20, 28)
         );
         border: 1px solid rgba(118, 217, 255, 42);
         border-radius: 22px;
@@ -108,9 +108,15 @@ def liquid_qss() -> str:
     }}
 
     QFrame#liquid_subpage_selector {{
-        background: rgba(5, 15, 25, 154);
-        border: 1px solid rgba(118, 217, 255, 72);
-        border-radius: 16px;
+        background: rgba(5, 15, 25, 132);
+        border: 1px solid rgba(118, 217, 255, 58);
+        border-radius: 14px;
+    }}
+
+    QFrame#liquid_subpage_selector[singleRouteMode="true"] {{
+        background: rgba(5, 15, 25, 72);
+        border-color: rgba(118, 217, 255, 34);
+        border-radius: 12px;
     }}
 
     QScrollArea#liquid_page_scroll_area {{
@@ -123,21 +129,21 @@ def liquid_qss() -> str:
     }}
 
     QScrollBar:vertical {{
-        background: rgba(3, 10, 18, 118);
+        background: rgba(3, 10, 18, 58);
         border: none;
-        border-radius: 4px;
+        border-radius: 3px;
         margin: 2px 0px 2px 0px;
-        width: 8px;
+        width: 5px;
     }}
 
     QScrollBar::handle:vertical {{
-        background: rgba(118, 217, 255, 96);
-        border-radius: 4px;
+        background: rgba(92, 139, 164, 82);
+        border-radius: 3px;
         min-height: 28px;
     }}
 
     QScrollBar::handle:vertical:hover {{
-        background: rgba(126, 224, 166, 128);
+        background: rgba(118, 217, 255, 116);
     }}
 
     QScrollBar::add-line:vertical,
@@ -345,7 +351,7 @@ def liquid_qss() -> str:
         color: {colors.status_cyan};
         font-size: 11px;
         font-weight: 850;
-        padding: 7px 7px 7px 3px;
+        padding: 5px 7px 5px 3px;
     }}
 
     QPushButton[uiRole="liquidSubpageSelectorButton"] {{
@@ -354,7 +360,15 @@ def liquid_qss() -> str:
         border-radius: 12px;
         color: {colors.primary_text};
         font-weight: 760;
-        padding: 7px 10px;
+        padding: 6px 9px;
+    }}
+
+    QPushButton[uiRole="liquidSubpageSelectorButton"][selectorDensity="single_route_chip"] {{
+        background: rgba(8, 20, 32, 96);
+        border-color: rgba(118, 217, 255, 44);
+        border-radius: 10px;
+        color: {colors.muted_text};
+        padding: 4px 8px;
     }}
 
     QPushButton[uiRole="liquidActionButton"] {{
@@ -445,6 +459,19 @@ def liquid_qss() -> str:
         border-radius: 17px;
     }}
 
+    QFrame#liquidPreflightStatusRail[mergedIntoHero="true"] {{
+        background: transparent;
+        border: none;
+        min-height: 0px;
+        max-height: 0px;
+    }}
+
+    QFrame#liquidPreflightPageHeader {{
+        background: rgba(5, 15, 25, 104);
+        border: 1px solid rgba(118, 217, 255, 42);
+        border-radius: 14px;
+    }}
+
     QFrame[componentRole="LiquidPlaceholderHeader"] {{
         background: rgba(5, 15, 25, 146);
         border: 1px solid rgba(118, 217, 255, 64);
@@ -468,6 +495,45 @@ def liquid_qss() -> str:
         );
         border: 1px solid rgba(118, 217, 255, 108);
         border-radius: 22px;
+    }}
+
+    QFrame#liquidPreflightHeroGoNoGo[preflightVisualRole="primary_go_no_go"] {{
+        background: qlineargradient(
+            x1: 0, y1: 0, x2: 1, y2: 1,
+            stop: 0 rgba(41, 92, 112, 236),
+            stop: 0.34 rgba(9, 31, 49, 242),
+            stop: 1 rgba(4, 12, 20, 244)
+        );
+        border: 1px solid rgba(118, 217, 255, 142);
+        border-radius: 24px;
+    }}
+
+    QFrame#liquidPreflightHeroGoNoGo QLabel#liquidComponentTitle {{
+        font-size: 30px;
+        font-weight: 900;
+    }}
+
+    QFrame#liquidPreflightHeroGoNoGo QLabel#liquidComponentBody {{
+        font-size: 15px;
+        color: {colors.primary_text};
+    }}
+
+    QFrame#liquidPreflightHeroTruthChips,
+    QFrame#liquidPreflightReadinessGates {{
+        background: transparent;
+        border: none;
+        border-radius: 0px;
+    }}
+
+    QFrame[componentRole="ReadinessGate"][preflightGateVisual="compact_scan"] {{
+        background: rgba(7, 20, 33, 146);
+        border: 1px solid rgba(72, 112, 140, 88);
+        border-radius: 14px;
+    }}
+
+    QFrame[componentRole="ReadinessGate"][preflightGateVisual="compact_scan"][gateEmphasis="subtle"] {{
+        background: rgba(7, 25, 32, 126);
+        border-color: rgba(126, 224, 166, 66);
     }}
 
     QFrame[componentRole="LiquidInspectorPanel"],
@@ -501,6 +567,43 @@ def liquid_qss() -> str:
         background: rgba(7, 20, 33, 166);
         border: 1px solid rgba(72, 112, 140, 78);
         border-radius: 16px;
+    }}
+
+    QFrame#liquidPreflightSystemDetails,
+    QFrame#liquidPreflightActionPanel {{
+        background: rgba(7, 20, 33, 178);
+        border-color: rgba(72, 112, 140, 90);
+    }}
+
+    QFrame[componentRole="PreflightSystemDetailGroup"],
+    QFrame[componentRole="PreflightChecklistPanel"] {{
+        background: rgba(5, 15, 25, 92);
+        border: 1px solid rgba(72, 112, 140, 58);
+        border-radius: 13px;
+    }}
+
+    QFrame[componentRole="PreflightDetailRow"][detailRowStyle="soft"] {{
+        background: transparent;
+        border: none;
+        border-radius: 0px;
+    }}
+
+    QFrame[componentRole="PreflightChecklistItem"][actionRowStyle="breathing"] {{
+        background: rgba(7, 20, 33, 112);
+        border: 1px solid rgba(72, 112, 140, 52);
+        border-radius: 12px;
+    }}
+
+    QFrame#liquidPreflightAdvancedDiagnostics[visualWeight="subdued"] {{
+        background: rgba(5, 14, 24, 108);
+        border-color: rgba(72, 112, 140, 46);
+    }}
+
+    QFrame#liquidPreflightAdvancedDiagnosticsGrid[diagnosticsDensity="subdued"],
+    QFrame#liquidPreflightAdvancedSummary[visualWeight="subdued"] {{
+        background: rgba(5, 15, 25, 70);
+        border: 1px solid rgba(72, 112, 140, 42);
+        border-radius: 12px;
     }}
 
     QFrame[toneRole="success"],
@@ -561,6 +664,13 @@ def liquid_qss() -> str:
         font-weight: 800;
     }}
 
+    QLabel#liquidPreflightSystemGroupTitle,
+    QLabel#liquidPreflightChecklistLabel {{
+        color: {colors.primary_text};
+        font-size: 14px;
+        font-weight: 850;
+    }}
+
     QLabel#liquidComponentBody,
     QLabel#liquidComponentHelper,
     QLabel#liquidReadinessGateDetail,
@@ -573,6 +683,17 @@ def liquid_qss() -> str:
     QLabel#liquidControlMarkerSummary,
     QLabel#liquidMiniCurveBody {{
         color: {colors.muted_text};
+    }}
+
+    QLabel#liquidPreflightDetailLabel,
+    QLabel#liquidPreflightChecklistReason,
+    QLabel#liquidPreflightAdvancedSummaryText {{
+        color: {colors.muted_text};
+    }}
+
+    QLabel#liquidPreflightDetailValue {{
+        color: {colors.primary_text};
+        font-weight: 750;
     }}
 
     QLineEdit[componentRole="NumericParameterControl"],

@@ -117,6 +117,23 @@ def test_lcd_1r_each_placeholder_exposes_future_page_composition_regions():
         shell.switch_mode(definition.mode_id)
         page = shell.page_host.currentWidget()
         labels = "\n".join(label.text() for label in page.findChildren(QLabel))
+        if definition.mode_id == "preflight":
+            for object_name, role in (
+                ("liquidPreflightStatusRail", "liquid_status_rail"),
+                ("liquidPreflightHeroGoNoGo", "liquid_hero_panel"),
+                ("liquidPreflightSystemDetails", "liquid_context_inspector_region"),
+                ("liquidPreflightActionPanel", "liquid_detail_action_region"),
+                ("liquidPreflightAdvancedDiagnostics", "liquid_advanced_region"),
+            ):
+                widget = page.findChild(QWidget, object_name)
+                assert widget is not None, object_name
+                assert widget.property("liquidRole") == role
+
+            assert "LIQUID COMMAND DECK" in labels
+            assert "Command Readiness" in labels
+            assert "Can I safely use live output right now?" in labels
+            assert "placeholder / static shell foundation" not in labels.casefold()
+            continue
         for object_name, role in (
             (f"liquidModeStatusRail_{definition.mode_id}", "liquid_status_cluster"),
             (f"liquidHeroRegion_{definition.mode_id}", "liquid_hero_region"),

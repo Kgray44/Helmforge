@@ -87,7 +87,12 @@ def test_lcd_1_mode_dock_contains_required_modes_and_switches_placeholders():
         page = shell.page_host.currentWidget()
         labels = "\n".join(label.text() for label in page.findChildren(QLabel))
         assert shell.active_mode_id == mode_id
-        assert "Placeholder / static shell foundation" in labels
+        if mode_id == "preflight":
+            assert "Command Readiness" in labels
+            assert "Can I safely use live output right now?" in labels
+            assert "Placeholder / static shell foundation" not in labels
+        else:
+            assert "Placeholder / static shell foundation" in labels
         assert button.property("active") is True
 
 
