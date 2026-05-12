@@ -276,6 +276,7 @@ def test_lcd_3f_preserves_routes_and_deferred_runtime_boundaries():
         "tuning.filtering",
         "tuning.combat_profile",
         "tuning.conditional_rules",
+        "tuning.profiles_library",
         "analysis.effective_response_stack",
         "analysis.live_monitor",
         "recorder.flight_recorder",

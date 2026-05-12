@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QDoubleValidator
 from PySide6.QtWidgets import QButtonGroup, QComboBox, QFrame, QLabel, QLineEdit, QPushButton, QWidget
 
+from v3_app.liquid.glass import configure_command_action, refresh_style
 from v3_app.liquid.layout import horizontal_layout, vertical_layout
 from v3_app.liquid.status_components import StatusChip, status_tone_for_role
 
@@ -158,6 +159,7 @@ class AxisSelectorPills(QFrame):
             button.setObjectName(f"liquidAxisPill_{axis.replace(' ', '_').lower()}")
             button.setProperty("uiRole", "liquidAxisPill")
             button.setProperty("axis", axis)
+            configure_command_action(button, action_kind="select_state")
             button.setCheckable(True)
             button.clicked.connect(lambda checked=False, selected=axis: self.set_selected_axis(selected))
             self._group.addButton(button)
@@ -179,6 +181,7 @@ class AxisSelectorPills(QFrame):
             active = label == axis
             button.setChecked(active)
             button.setProperty("active", active)
+            refresh_style(button)
         self.selectionChanged.emit(axis)
 
 
@@ -266,7 +269,9 @@ class LiveSnapshotBlock(QFrame):
             liquid_role="live_snapshot_block",
         )
         layout = vertical_layout(self, margins=(14, 12, 14, 12), spacing=7)
-        layout.addWidget(StatusChip(source_truth_label, state_role=state_role))
+        self._source_chip = StatusChip(source_truth_label, state_role=state_role)
+        layout.addWidget(self._source_chip)
+        self._value_labels: dict[str, QLabel] = {}
         for title, value in (
             ("Selected control", selected_control),
             ("Raw/current value", raw_value),
@@ -274,5 +279,21 @@ class LiveSnapshotBlock(QFrame):
         ):
             row = horizontal_layout(spacing=8)
             row.addWidget(_label(title, "liquidLiveSnapshotLabel"), 1)
-            row.addWidget(_label(value, "liquidLiveSnapshotValue"), 1)
+            value_label = _label(value, "liquidLiveSnapshotValue")
+            self._value_labels[title] = value_label
+            row.addWidget(value_label, 1)
             layout.addLayout(row)
+
+    def update_values(
+        self,
+        *,
+        selected_control: str,
+        source_truth_label: str,
+        raw_value: str,
+        output_intent_value: str,
+        state_role: str = "simulation",
+    ) -> None:
+        self._source_chip.set_state(source_truth_label, state_role)
+        self._value_labels["Selected control"].setText(selected_control)
+        self._value_labels["Raw/current value"].setText(raw_value)
+        self._value_labels["Final/output intent"].setText(output_intent_value)

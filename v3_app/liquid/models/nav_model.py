@@ -271,6 +271,12 @@ DEFAULT_LIQUID_NAVIGATION_MODEL = LiquidNavigationModel(
                     "Conditional Rules",
                     "Which rules can change the response stack, and when do they trigger?",
                 ),
+                _subpage(
+                    "tuning",
+                    "profiles_library",
+                    "Profiles Library",
+                    "Which workspace tuning profiles are available and what can I safely do with them?",
+                ),
             ),
         ),
         LiquidMode(

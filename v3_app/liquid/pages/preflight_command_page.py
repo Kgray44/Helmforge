@@ -21,7 +21,7 @@ from v3_app.liquid.components import (
     LiquidPage,
     LiquidStatusRail,
 )
-from v3_app.liquid.glass import action_button, glass_panel
+from v3_app.liquid.glass import action_button, glass_panel, mark_action_feedback
 from v3_app.liquid.layout import grid_layout, horizontal_layout, vertical_layout
 from v3_app.liquid.models.preflight_readiness_model import (
     PreflightChecklistItemModel,
@@ -320,6 +320,8 @@ def _preflight_command_actions(
         "Simulation mode control pending",
         object_name="liquidPreflightSimulationControlButton",
         enabled=False,
+        action_kind="disabled_deferred",
+        disabled_reason="Disabled: simulation mode control is not implemented as a safe Liquid runtime setting.",
     )
     simulation.setToolTip("Simulation mode control is pending because LCD-7R does not add runtime authority or mode toggles.")
     simulation.setAccessibleDescription(simulation.toolTip())
@@ -556,12 +558,19 @@ def _route_button(
     object_name: str,
     on_route_requested: Callable[[str], None] | None,
 ) -> QPushButton:
-    button = action_button(text, object_name=object_name, enabled=on_route_requested is not None)
-    button.setProperty("routeTarget", route_key)
-    button.setProperty("navigationOnly", True)
     reason = f"Navigate to {route_key}. This does not change runtime authority."
     if on_route_requested is None:
-        reason = f"{reason} Navigation callback is unavailable in this context."
+        reason = f"Disabled: {reason} Navigation callback is unavailable in this context."
+    button = action_button(
+        text,
+        object_name=object_name,
+        enabled=on_route_requested is not None,
+        action_kind="navigation",
+        disabled_reason=reason if on_route_requested is None else "",
+        route_target=route_key,
+    )
+    button.setProperty("routeTarget", route_key)
+    button.setProperty("navigationOnly", True)
     button.setToolTip(reason)
     button.setStatusTip(reason)
     button.setAccessibleDescription(reason)
@@ -571,19 +580,23 @@ def _route_button(
 
 
 def _copy_button(text: str, object_name: str, payload: str) -> QPushButton:
-    button = action_button(text, object_name=object_name, enabled=True)
+    button = action_button(text, object_name=object_name, enabled=True, action_kind="copy")
     button.setProperty("copyOnly", True)
     button.setToolTip("Copy this Preflight information to the clipboard. This does not change runtime state.")
     button.setStatusTip(button.toolTip())
     button.setAccessibleDescription(button.toolTip())
-    button.clicked.connect(lambda _checked=False, data=payload: _copy_to_clipboard(data))
+    button.clicked.connect(lambda _checked=False, data=payload, target=button: _copy_to_clipboard(data, target))
     return button
 
 
-def _copy_to_clipboard(text: str) -> None:
+def _copy_to_clipboard(text: str, button: QPushButton | None = None) -> None:
     clipboard = QApplication.clipboard()
     if clipboard is not None:
         clipboard.setText(text)
+        if button is not None:
+            mark_action_feedback(button, "Copied preflight information to clipboard.")
+    elif button is not None:
+        mark_action_feedback(button, "Clipboard unavailable; nothing was copied.")
 
 
 def _preflight_status_text(model: PreflightReadinessModel) -> str:

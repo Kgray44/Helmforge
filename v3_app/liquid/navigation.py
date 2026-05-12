@@ -5,7 +5,7 @@ from collections.abc import Callable
 from PySide6.QtCore import QEvent, Qt
 from PySide6.QtWidgets import QButtonGroup, QFrame, QLabel, QPushButton, QSizePolicy
 
-from v3_app.liquid.glass import refresh_style
+from v3_app.liquid.glass import configure_command_action, refresh_style
 from v3_app.liquid.layout import horizontal_layout, vertical_layout
 from v3_app.liquid.models.nav_model import (
     DEFAULT_LIQUID_NAVIGATION_MODEL,
@@ -80,6 +80,7 @@ class LiquidModeDock(QFrame):
             button.setProperty("modeId", mode.mode_id)
             button.setProperty("dockDensity", "floating_glyph")
             button.setProperty("hoverLabel", mode.display_name)
+            configure_command_action(button, action_kind="navigation", route_target=mode.default_subpage.route_key)
             button.setAccessibleName(mode.accessibility_text)
             button.setToolTip(mode.tooltip)
             button.setStatusTip(mode.short_description)
@@ -186,6 +187,7 @@ class LiquidSubpageSelector(QFrame):
             button.setProperty("subpageId", subpage.subpage_id)
             button.setProperty("routeKey", subpage.route_key)
             button.setProperty("modeId", mode.mode_id)
+            configure_command_action(button, action_kind="navigation", route_target=subpage.route_key)
             button.setAccessibleName(f"{mode.display_name} / {subpage.display_name}")
             button.setToolTip(subpage.tooltip)
             button.setStatusTip(subpage.purpose)

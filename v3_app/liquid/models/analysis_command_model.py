@@ -147,7 +147,7 @@ def build_analysis_command_model(
         truth_source_notes=(
             "Analysis pages read existing AppState, workspace, and passive Bridge telemetry snapshots.",
             "Output proof is separate from output intent.",
-            "LCD-7 does not poll hardware, write vJoy, start Bridge, or verify output.",
+            "LCD-7 does not poll hardware, write vJoy, start Bridge, or perform output verification.",
         ),
         signature=(
             route_key,

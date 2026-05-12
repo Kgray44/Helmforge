@@ -13,7 +13,7 @@ from v3_app.liquid.components import (
     LiquidPage,
 )
 from v3_app.liquid.flow_components import RouteFlowRow
-from v3_app.liquid.glass import action_button, glass_panel
+from v3_app.liquid.glass import action_button, glass_panel, mark_action_feedback
 from v3_app.liquid.layout import grid_layout, horizontal_layout, vertical_layout
 from v3_app.liquid.models.mapping_edit_model import (
     MappingEditModel,
@@ -70,6 +70,7 @@ class MappingRouteDetailsPage(LiquidPage):
         self.setProperty("routeKey", "mapping.route_details")
         self.setProperty("modeId", "mapping")
         self.setProperty("subpageId", "route_details")
+        self.setProperty("routeEditorMode", "single_route")
         self._render()
 
     def stage_edit(self, route_id: str, field_id: str, value: str) -> MappingEditResult:
@@ -140,7 +141,7 @@ class MappingRouteDetailsPage(LiquidPage):
         self.set_status_rail(_edit_status_rail(model, self._state))
         self.set_hero(_route_details_hero(model.selected_route, self._last_edit_result))
         self.set_inspector(_route_summary_panel(model.selected_route))
-        self.set_detail(_route_editor_panel(model.selected_route, self.stage_edit, object_name="liquidMappingRouteEditor"))
+        self.set_detail(_focused_route_editor_panel(model.selected_route, self.stage_edit))
         self.set_advanced(
             _route_guidance_panel(
                 model,
@@ -188,6 +189,7 @@ class MappingAdvancedRouteTablesPage(LiquidPage):
         self.setProperty("routeKey", "mapping.advanced_route_tables")
         self.setProperty("modeId", "mapping")
         self.setProperty("subpageId", "advanced_route_tables")
+        self.setProperty("routeEditorMode", "bulk_routes")
         self._render()
 
     def stage_edit(self, route_id: str, field_id: str, value: str) -> MappingEditResult:
@@ -265,7 +267,7 @@ class MappingAdvancedRouteTablesPage(LiquidPage):
         self.set_status_rail(_edit_status_rail(model, self._state))
         self.set_hero(_advanced_tables_hero(model))
         self.set_inspector(_route_editor_panel(model.selected_route, self.stage_edit, object_name="liquidMappingSelectedRouteEditor"))
-        self.set_detail(_grouped_route_tables(model, self.stage_edit, self.select_route))
+        self.set_detail(_bulk_route_table_panel(model, self.stage_edit, self.select_route))
         self.set_advanced(
             _route_guidance_panel(
                 model,
@@ -471,6 +473,39 @@ def _route_editor_panel(
     return panel
 
 
+def _focused_route_editor_panel(record: MappingRouteRecord, on_stage_edit: StageEditCallback) -> LiquidDetailPanel:
+    panel = LiquidDetailPanel(
+        "Focused Route Editor",
+        "One selected route is edited here. Use Advanced Route Tables for grouped bulk review.",
+        object_name="liquidMappingFocusedRouteEditor",
+        liquid_role="liquid_detail_action_region",
+        minimum_height=420,
+    )
+    panel.setProperty("mappingFocusedRouteEditor", True)
+    panel.setProperty("routeEditorMode", "single_route")
+    panel.setProperty("selectedRouteId", record.route_id)
+    _append_to_panel(panel, _route_editor_panel(record, on_stage_edit, object_name="liquidMappingRouteEditor"))
+    return panel
+
+
+def _bulk_route_table_panel(
+    model: MappingEditModel,
+    on_stage_edit: StageEditCallback,
+    on_select_route: RouteSelectCallback,
+) -> LiquidDetailPanel:
+    panel = LiquidDetailPanel(
+        "Bulk Route Table Manager",
+        "Grouped compact rows for selecting, validating, and staging route-table edits.",
+        object_name="liquidMappingFullRouteTable",
+        liquid_role="liquid_detail_action_region",
+        minimum_height=520,
+    )
+    panel.setProperty("mappingFullRouteTable", True)
+    panel.setProperty("routeEditorMode", "bulk_routes")
+    _append_to_panel(panel, _grouped_route_tables(model, on_stage_edit, on_select_route))
+    return panel
+
+
 def _editor_mode_banner(record: MappingRouteRecord) -> QFrame:
     banner = glass_panel("liquidMappingEditorModeBanner", role="liquid_mapping_editor_banner")
     banner.setProperty("componentRole", "MappingEditorModeBanner")
@@ -517,6 +552,7 @@ def _field_editor_row(
             "Stage change",
             object_name=f"liquidMappingStageButton_{_object_slug(record.route_id)}_{field.field_id}",
             enabled=True,
+            action_kind="stage_draft",
         )
         stage.setProperty("mappingStageButton", True)
         stage.setProperty("routeId", record.route_id)
@@ -604,7 +640,12 @@ def _compact_route_row(
         )
     ):
         layout.addWidget(_compact_cell(label, value), 0, index)
-    select = action_button("Select", object_name=f"liquidMappingSelectRoute_{_object_slug(record.route_id)}", enabled=True)
+    select = action_button(
+        "Select",
+        object_name=f"liquidMappingSelectRoute_{_object_slug(record.route_id)}",
+        enabled=True,
+        action_kind="select_state",
+    )
     select.setProperty("routeId", record.route_id)
     select.clicked.connect(lambda _checked=False, route_id=record.route_id: on_select_route(route_id))
     layout.addWidget(select, 0, 5)
@@ -621,7 +662,12 @@ def _compact_route_row(
         combo.addItems(editable_target.options)
         if editable_target.value in editable_target.options:
             combo.setCurrentText(editable_target.value)
-        stage = action_button("Stage", object_name=f"liquidMappingInlineStage_{_object_slug(record.route_id)}", enabled=True)
+        stage = action_button(
+            "Stage",
+            object_name=f"liquidMappingInlineStage_{_object_slug(record.route_id)}",
+            enabled=True,
+            action_kind="stage_draft",
+        )
         stage.setProperty("mappingStageButton", True)
         stage.clicked.connect(lambda _checked=False, route_id=record.route_id, field_id=editable_target.field_id, combo=combo: on_stage_edit(route_id, field_id, combo.currentText()))
         layout.addWidget(combo, 1, 3)
@@ -661,17 +707,35 @@ def _route_guidance_panel(
     actions_layout.addWidget(_validate_button("Validate all routes", "liquidMappingValidateAllRoutesButton", "all routes"))
     actions_layout.addWidget(_navigation_button("HOTAS Map", "mapping.hotas_map", on_route_requested))
     actions_layout.addWidget(_navigation_button("Advanced Route Tables", "mapping.advanced_route_tables", on_route_requested))
-    add_route = action_button("Add route", object_name="liquidMappingAddRouteButton", enabled=False)
+    add_route = action_button(
+        "Add route",
+        object_name="liquidMappingAddRouteButton",
+        enabled=False,
+        action_kind="disabled_deferred",
+        disabled_reason="Disabled: route creation is not represented as a safe workspace operation in this Liquid phase.",
+    )
     add_route.setToolTip("Add route is deferred because route creation is not represented as a safe workspace operation in this Liquid phase.")
     add_route.setAccessibleDescription(add_route.toolTip())
     actions_layout.addWidget(add_route)
-    revert_selected = action_button("Revert selected route edit", object_name="liquidMappingRevertSelectedRouteButton", enabled=on_revert is not None)
+    revert_selected = action_button(
+        "Revert selected route edit",
+        object_name="liquidMappingRevertSelectedRouteButton",
+        enabled=on_revert is not None,
+        action_kind="revert",
+        disabled_reason="Disabled: revert selected route is unavailable without shell draft ownership." if on_revert is None else "",
+    )
     revert_selected.setToolTip("Revert staged Mapping route edits to the original Liquid workspace draft." if on_revert is not None else "Revert selected route is unavailable without shell draft ownership.")
     revert_selected.setAccessibleDescription(revert_selected.toolTip())
     if on_revert is not None:
         revert_selected.clicked.connect(lambda _checked=False: on_revert())
     actions_layout.addWidget(revert_selected)
-    revert = action_button("Revert staged route edits", object_name="liquidMappingRevertDraftButton", enabled=on_revert is not None)
+    revert = action_button(
+        "Revert staged route edits",
+        object_name="liquidMappingRevertDraftButton",
+        enabled=on_revert is not None,
+        action_kind="revert",
+        disabled_reason="Disabled: revert is unavailable without shell draft ownership." if on_revert is None else "",
+    )
     revert.setProperty("mappingRevertDraftButton", True)
     revert.setToolTip("Revert all staged Mapping route edits to the original Liquid workspace draft." if on_revert is not None else "Revert is unavailable without shell draft ownership.")
     revert.setAccessibleDescription(revert.toolTip())
@@ -743,38 +807,53 @@ def _compact_cell(label_text: str, value_text: str) -> QFrame:
 
 
 def _navigation_button(text: str, route_key: str, on_route_requested: RouteCallback | None) -> QPushButton:
-    button = action_button(text, object_name=f"liquidMappingNavigate_{_object_slug(route_key)}", enabled=on_route_requested is not None)
+    reason = f"Navigate to {route_key}. This does not edit workspace routes by itself."
+    if on_route_requested is None:
+        reason = f"Disabled: {reason} Navigation callback unavailable in this context."
+    button = action_button(
+        text,
+        object_name=f"liquidMappingNavigate_{_object_slug(route_key)}",
+        enabled=on_route_requested is not None,
+        action_kind="navigation",
+        disabled_reason=reason if on_route_requested is None else "",
+        route_target=route_key,
+    )
     button.setProperty("routeTarget", route_key)
     button.setProperty("navigationOnly", True)
-    button.setToolTip(f"Navigate to {route_key}. This does not edit workspace routes by itself.")
+    button.setToolTip(reason)
     if on_route_requested is not None:
         button.clicked.connect(lambda _checked=False, target=route_key: on_route_requested(target))
     return button
 
 
 def _copy_button(text: str, object_name: str, payload: str) -> QPushButton:
-    button = action_button(text, object_name=object_name, enabled=True)
+    button = action_button(text, object_name=object_name, enabled=True, action_kind="copy")
     button.setProperty("copyOnly", True)
     button.setToolTip("Copy route information to the clipboard. This does not edit workspace or runtime state.")
     button.setStatusTip(button.toolTip())
     button.setAccessibleDescription(button.toolTip())
-    button.clicked.connect(lambda _checked=False, data=payload: _copy_to_clipboard(data))
+    button.clicked.connect(lambda _checked=False, data=payload, target=button: _copy_to_clipboard(data, target))
     return button
 
 
 def _validate_button(text: str, object_name: str, target: str) -> QPushButton:
-    button = action_button(text, object_name=object_name, enabled=True)
+    button = action_button(text, object_name=object_name, enabled=True, action_kind="validate")
     button.setProperty("validationOnly", True)
     button.setToolTip(f"Validate {target}. This reports draft route state only and does not write output.")
     button.setStatusTip(button.toolTip())
     button.setAccessibleDescription(button.toolTip())
+    button.clicked.connect(lambda _checked=False, target_text=target, target_button=button: mark_action_feedback(target_button, f"Validated {target_text}; output proof unchanged."))
     return button
 
 
-def _copy_to_clipboard(text: str) -> None:
+def _copy_to_clipboard(text: str, button: QPushButton | None = None) -> None:
     clipboard = QApplication.clipboard()
     if clipboard is not None:
         clipboard.setText(text)
+        if button is not None:
+            mark_action_feedback(button, "Copied route information to clipboard.")
+    elif button is not None:
+        mark_action_feedback(button, "Clipboard unavailable; nothing was copied.")
 
 
 def _selected_route_text(record: MappingRouteRecord) -> str:

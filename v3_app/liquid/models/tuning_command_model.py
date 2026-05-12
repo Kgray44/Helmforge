@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from typing import Any
 
@@ -9,6 +10,7 @@ from shared_core.models.filtering import AxisFiltering, FilteringConfig
 from shared_core.models.rules import ConditionalRule
 from shared_core.models.tuning import AxisTuning, TuningConfig
 from shared_core.models.workspace import WorkspaceConfig, create_default_workspace
+from shared_core.runtime.telemetry import BridgeTelemetrySnapshot
 from v3_app.services.app_state import AppState
 from v3_app.services.parameter_metadata import PARAMETER_HELP, ParameterValueType, validate_numeric_text
 
@@ -58,6 +60,13 @@ class TuningGraphLineModel:
 
 
 @dataclass(frozen=True)
+class TuningGraphMarkerModel:
+    label: str
+    point: tuple[float, float]
+    role: str
+
+
+@dataclass(frozen=True)
 class TuningGraphModel:
     graph_kind: str
     title: str
@@ -65,6 +74,7 @@ class TuningGraphModel:
     x_range: tuple[float, float]
     y_range: tuple[float, float]
     lines: tuple[TuningGraphLineModel, ...]
+    markers: tuple[TuningGraphMarkerModel, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -150,6 +160,7 @@ def build_tuning_command_model(
     selected_axis: str = "Roll",
     state: AppState | None = None,
     base_workspace: WorkspaceConfig | None = None,
+    telemetry: BridgeTelemetrySnapshot | None = None,
 ) -> TuningCommandModel:
     workspace = workspace or create_default_workspace()
     base_workspace = base_workspace or workspace
@@ -157,8 +168,9 @@ def build_tuning_command_model(
     axis_key = _axis_key(selected_axis)
     route_key = _validate_route(route_key)
     parameters = _parameters_for_route(route_key, workspace, base_workspace, axis_key)
-    preview = _preview_for_route(route_key, workspace, selected_axis, state)
-    preview_graph = _graph_for_route(route_key, workspace, selected_axis)
+    sample = _passive_axis_sample(telemetry, selected_axis)
+    preview = _preview_for_route(route_key, workspace, selected_axis, state, sample)
+    preview_graph = _graph_for_route(route_key, workspace, selected_axis, sample)
     rule_flows = _rule_flows(workspace) if route_key == "tuning.conditional_rules" else ()
     metrics = _metrics_for_route(route_key, workspace, parameters, rule_flows)
     warnings = _warnings_for_route(route_key, rule_flows)
@@ -362,22 +374,25 @@ def _preview_for_route(
     workspace: WorkspaceConfig,
     selected_axis: str,
     state: AppState | None,
+    sample: tuple[float | None, float | None],
 ) -> TuningPreviewModel:
     axis_key = _axis_key(selected_axis)
-    raw_value = 0.35
+    passive_raw, passive_final = sample
+    raw_value = passive_raw if passive_raw is not None else 0.35
     if route_key == "tuning.base_tuning":
         config = workspace.tuning.axes[axis_key]
-        adjusted = _base_preview(raw_value, config)
+        adjusted = passive_final if passive_final is not None else _signed_base_preview(raw_value, config)
         title = "Response preview"
         summary = f"Axis: {selected_axis}. Curve {config.curve_mode.upper()} at {config.curve_strength:.2f}; deadzone {config.deadzone:.2f}."
     elif route_key == "tuning.filtering":
         config = workspace.filtering.axes[axis_key]
-        adjusted = max(0.0, min(1.0, raw_value * config.center_alpha + raw_value * (1.0 - config.center_alpha) * 0.72))
+        adjusted = passive_final if passive_final is not None else max(-1.0, min(1.0, raw_value * config.center_alpha + raw_value * (1.0 - config.center_alpha) * 0.72))
         title = "Filtering response preview"
         summary = f"Axis: {selected_axis}. Center alpha {config.center_alpha:.2f}; reverse slew {config.reverse_slew_limit:.2f}."
     elif route_key == "tuning.combat_profile":
         config = workspace.combat.axes[axis_key]
-        adjusted = max(0.0, min(1.0, raw_value * config.combat_scale))
+        tuning = workspace.tuning.axes[axis_key]
+        adjusted = passive_final if passive_final is not None else _combat_preview(raw_value, tuning, config)
         title = "Combat response preview"
         summary = f"Axis: {selected_axis}. Combat curve {config.combat_curve:.2f}; scale {config.combat_scale:.2f}."
     else:
@@ -386,7 +401,7 @@ def _preview_for_route(
         title = "Rule system status"
         summary = "Conditional rules are visualized from workspace state; editing is deferred in LCD-6."
     state_role = _state_role(state)
-    source_truth = _source_truth_label(state, state_role)
+    source_truth = _source_truth_label(state, state_role, live=passive_raw is not None)
     return TuningPreviewModel(
         selected_axis=selected_axis,
         title=title,
@@ -398,10 +413,16 @@ def _preview_for_route(
     )
 
 
-def _graph_for_route(route_key: str, workspace: WorkspaceConfig, selected_axis: str) -> TuningGraphModel | None:
+def _graph_for_route(
+    route_key: str,
+    workspace: WorkspaceConfig,
+    selected_axis: str,
+    sample: tuple[float | None, float | None] = (None, None),
+) -> TuningGraphModel | None:
     axis_key = _axis_key(selected_axis)
     samples = tuple(round(-1.0 + index * 0.05, 4) for index in range(41))
-    reference = TuningGraphLineModel("Reference", tuple((x, x) for x in samples), "simulation")
+    reference = TuningGraphLineModel("Default", tuple((x, x) for x in samples), "simulation")
+    passive_raw, passive_final = sample
     if route_key == "tuning.base_tuning":
         tuning = workspace.tuning.axes[axis_key]
         current = TuningGraphLineModel(
@@ -416,17 +437,17 @@ def _graph_for_route(route_key: str, workspace: WorkspaceConfig, selected_axis: 
             x_range=(-1.0, 1.0),
             y_range=(-1.0, 1.0),
             lines=(reference, current),
+            markers=_base_markers(tuning, passive_raw, passive_final),
         )
     if route_key == "tuning.filtering":
         filtering = workspace.filtering.axes[axis_key]
-        steps = tuple(range(36))
         input_step = TuningGraphLineModel(
             "Input step",
-            tuple((float(step), 0.0 if step < 4 else 1.0) for step in steps),
+            _filter_input_step_points(),
             "simulation",
         )
         filtered = TuningGraphLineModel(
-            "Filtered response",
+            "Filtered output",
             _filter_step_points(filtering),
             "info",
         )
@@ -434,8 +455,8 @@ def _graph_for_route(route_key: str, workspace: WorkspaceConfig, selected_axis: 
             graph_kind="step_response",
             title=f"{selected_axis} filtering step response",
             selected_axis=selected_axis,
-            x_range=(0.0, 35.0),
-            y_range=(0.0, 1.0),
+            x_range=(0.0, 72.0),
+            y_range=(-1.0, 1.0),
             lines=(input_step, filtered),
         )
     if route_key == "tuning.combat_profile":
@@ -458,6 +479,7 @@ def _graph_for_route(route_key: str, workspace: WorkspaceConfig, selected_axis: 
             x_range=(-1.0, 1.0),
             y_range=(-1.0, 1.0),
             lines=(reference, base, combat_line),
+            markers=_combat_markers(tuning, combat, passive_raw, passive_final),
         )
     return None
 
@@ -481,24 +503,106 @@ def _signed_base_preview(raw_value: float, config: AxisTuning) -> float:
 def _combat_preview(raw_value: float, tuning: AxisTuning, combat: AxisCombatProfile) -> float:
     base = _signed_base_preview(raw_value, tuning)
     curve = abs(base) ** max(0.25, float(combat.combat_curve))
-    return (-1.0 if base < 0.0 else 1.0) * max(-1.0, min(1.0, curve * float(combat.combat_scale)))
+    scaled = max(0.0, min(1.0, curve * float(combat.combat_scale)))
+    return (-1.0 if base < 0.0 else 1.0) * scaled
+
+
+def _base_markers(
+    tuning: AxisTuning,
+    passive_raw: float | None,
+    passive_final: float | None,
+) -> tuple[TuningGraphMarkerModel, ...]:
+    raw = _sample_value(passive_raw)
+    output = _signed_base_preview(raw, tuning)
+    return (
+        TuningGraphMarkerModel("Current input", (raw, raw), "simulation"),
+        TuningGraphMarkerModel("Output intent", (raw, output), "info"),
+    )
+
+
+def _combat_markers(
+    tuning: AxisTuning,
+    combat: AxisCombatProfile,
+    passive_raw: float | None,
+    passive_final: float | None,
+) -> tuple[TuningGraphMarkerModel, ...]:
+    raw = _sample_value(passive_raw)
+    base = _signed_base_preview(raw, tuning)
+    combat_value = _combat_preview(raw, tuning, combat)
+    return (
+        TuningGraphMarkerModel("Current input", (raw, raw), "simulation"),
+        TuningGraphMarkerModel("Base tuning current", (raw, base), "info"),
+        TuningGraphMarkerModel("Combat profile current", (raw, combat_value), "warning"),
+    )
+
+
+def _filter_step_target(step: int) -> float:
+    if step < 8:
+        return 0.0
+    if step < 28:
+        return 1.0
+    if step < 48:
+        return -1.0
+    if step < 60:
+        return 0.35
+    return 0.0
+
+
+def _filter_step_target_at(sample_step: float) -> float:
+    return _filter_step_target(int(sample_step))
+
+
+def _filter_input_step_points() -> tuple[tuple[float, float], ...]:
+    return (
+        (0.0, 0.0),
+        (8.0, 0.0),
+        (8.0, 1.0),
+        (28.0, 1.0),
+        (28.0, -1.0),
+        (48.0, -1.0),
+        (48.0, 0.35),
+        (60.0, 0.35),
+        (60.0, 0.0),
+        (72.0, 0.0),
+    )
 
 
 def _filter_step_points(config: AxisFiltering) -> tuple[tuple[float, float], ...]:
     value = 0.0
     points: list[tuple[float, float]] = []
-    for step in range(36):
-        target = 0.0 if step < 4 else 1.0
+    samples_per_step = 10
+    total_steps = 72
+    for index in range(total_steps * samples_per_step + 1):
+        step = index / samples_per_step
+        target = _filter_step_target_at(step)
         alpha = config.center_alpha if abs(value) < 0.5 else config.edge_alpha
-        next_value = value + (target - value) * max(0.0, min(1.0, alpha))
-        slew = max(0.0, config.same_slew_limit)
+        next_value = value + (target - value) * max(0.0, min(1.0, alpha)) / samples_per_step
+        limit = config.same_slew_limit if target * value >= 0 or abs(value) < 0.001 else config.reverse_slew_limit
+        slew = max(0.0, limit) / samples_per_step
         if slew:
             delta = max(-slew, min(slew, next_value - value))
             value += delta
         else:
             value = next_value
-        points.append((float(step), max(0.0, min(1.0, value))))
+        points.append((float(step), max(-1.0, min(1.0, value))))
     return tuple(points)
+
+
+def _passive_axis_sample(
+    telemetry: BridgeTelemetrySnapshot | None,
+    selected_axis: str,
+) -> tuple[float | None, float | None]:
+    if telemetry is None:
+        return (None, None)
+    raw_values = getattr(getattr(telemetry, "raw_axes", None), "values", None)
+    final_values = getattr(getattr(telemetry, "final_axes", None), "values", None)
+    raw = raw_values.get(selected_axis) if isinstance(raw_values, Mapping) else None
+    final = final_values.get(selected_axis) if isinstance(final_values, Mapping) else None
+    return (raw, final)
+
+
+def _sample_value(value: float | None) -> float:
+    return max(-1.0, min(1.0, float(value if value is not None else 0.0)))
 
 
 def _rule_flows(workspace: WorkspaceConfig) -> tuple[TuningRuleFlow, ...]:
@@ -692,7 +796,9 @@ def _page_question(route_key: str) -> str:
     }[route_key]
 
 
-def _source_truth_label(state: AppState | None, state_role: str) -> str:
+def _source_truth_label(state: AppState | None, state_role: str, *, live: bool = False) -> str:
+    if live:
+        return "Passive live telemetry - Bridge telemetry sample; Output proof unchanged"
     if state is None:
         return "Preview only - Current sample unavailable"
     if state.runtime.truth.value == "simulated":

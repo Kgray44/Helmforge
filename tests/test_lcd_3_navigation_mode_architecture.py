@@ -28,6 +28,7 @@ EXPECTED_SUBPAGES = {
         ("filtering", "Filtering", "tuning.filtering"),
         ("combat_profile", "Combat Profile", "tuning.combat_profile"),
         ("conditional_rules", "Conditional Rules", "tuning.conditional_rules"),
+        ("profiles_library", "Profiles Library", "tuning.profiles_library"),
     ),
     "analysis": (
         ("effective_response_stack", "Effective Response Stack", "analysis.effective_response_stack"),
@@ -189,6 +190,11 @@ def test_lcd_3_route_registry_exposes_distinct_route_factories():
             assert "Compact editable rows" in text
             assert "Placeholder route" not in text
             assert "future page rebuild" not in text.casefold()
+        elif route.route_key == "tuning.profiles_library":
+            assert page.objectName() == "liquidTuningProfilesLibraryPage"
+            assert "Profiles Library" in text
+            assert "Placeholder route" not in text
+            assert "future page rebuild" not in text.casefold()
         elif route.route_key.startswith("tuning."):
             assert page.objectName() == "liquidTuningCommandPage"
             assert "Placeholder route" not in text
@@ -288,12 +294,14 @@ def test_lcd_3_subpage_selector_filters_selected_mode_and_switches_routes():
         "filtering",
         "combat_profile",
         "conditional_rules",
+        "profiles_library",
     ]
     assert [button.property("routeKey") for button in buttons] == [
         "tuning.base_tuning",
         "tuning.filtering",
         "tuning.combat_profile",
         "tuning.conditional_rules",
+        "tuning.profiles_library",
     ]
     assert buttons[0].property("active") is True
     assert all(button.accessibleName().startswith("Tuning / ") for button in buttons)

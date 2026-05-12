@@ -4,7 +4,7 @@ from collections.abc import Callable
 
 from PySide6.QtCore import QRectF, QSize, Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
-from PySide6.QtWidgets import QApplication, QFrame, QLabel, QPushButton, QSizePolicy, QWidget
+from PySide6.QtWidgets import QApplication, QComboBox, QFrame, QLabel, QPushButton, QScrollArea, QSizePolicy, QWidget
 
 from shared_core.models.runtime import (
     InputDeviceDetection,
@@ -22,7 +22,7 @@ from v3_app.liquid.components import (
     LiquidPage,
 )
 from v3_app.liquid.flow_components import RouteFlowRow
-from v3_app.liquid.glass import action_button, glass_panel, refresh_style
+from v3_app.liquid.glass import action_button, configure_command_action, glass_panel, mark_action_feedback, refresh_style
 from v3_app.liquid.layout import grid_layout, horizontal_layout, vertical_layout
 from v3_app.liquid.models.mapping_command_model import (
     MappingAdvancedRouteDetailModel,
@@ -30,9 +30,21 @@ from v3_app.liquid.models.mapping_command_model import (
     MappingControlModel,
     build_mapping_command_model,
 )
-from v3_app.liquid.models.mapping_edit_model import control_id_for_route_id, route_id_for_control_id
+from v3_app.liquid.models.mapping_edit_model import (
+    MappingEditResult,
+    MappingEditableField,
+    MappingRouteRecord,
+    build_mapping_edit_model,
+    control_id_for_route_id,
+    route_id_for_control_id,
+    stage_mapping_route_edit,
+)
 from v3_app.liquid.status_components import MetricTile, StatusChip, StatusLight, status_tone_for_role
 from v3_app.services.app_state import AppState
+
+
+StageEditCallback = Callable[[str, str, str], MappingEditResult]
+RevertCallback = Callable[[], None]
 
 
 class MappingCommandPage(LiquidPage):
@@ -45,6 +57,9 @@ class MappingCommandPage(LiquidPage):
         selected_route_id: str | None = None,
         on_route_requested: Callable[[str], None] | None = None,
         on_route_selected: Callable[[str], None] | None = None,
+        on_stage_edit: StageEditCallback | None = None,
+        on_revert: RevertCallback | None = None,
+        last_edit_result: MappingEditResult | None = None,
     ) -> None:
         self._state = state or _default_state()
         self._workspace = workspace or create_default_workspace()
@@ -53,6 +68,10 @@ class MappingCommandPage(LiquidPage):
         )
         self._on_route_requested = on_route_requested
         self._on_route_selected = on_route_selected
+        self._on_stage_edit = on_stage_edit
+        self._on_revert = on_revert
+        self._last_edit_result = last_edit_result
+        self._editor_open = False
         self._model: MappingCommandModel | None = None
         self._last_render_signature: tuple[object, ...] | None = None
         self._render_count = 0
@@ -76,12 +95,39 @@ class MappingCommandPage(LiquidPage):
         return self._selected_control_id or "axis_roll"
 
     def select_control(self, control_id: str) -> None:
-        if control_id == self.selected_control_id:
-            return
+        scroll_area, scroll_value = _ancestor_scroll_state(self)
         self._selected_control_id = control_id
+        self._editor_open = True
         if self._on_route_selected is not None:
             self._on_route_selected(route_id_for_control_id(control_id))
+            _restore_scroll_state(scroll_area, scroll_value)
+            return
         self._render()
+        _restore_scroll_state(scroll_area, scroll_value)
+
+    def close_inline_editor(self) -> None:
+        if not self._editor_open:
+            return
+        scroll_area, scroll_value = _ancestor_scroll_state(self)
+        self._editor_open = False
+        self._render()
+        _restore_scroll_state(scroll_area, scroll_value)
+
+    def stage_inline_edit(self, route_id: str, field_id: str, value: str) -> MappingEditResult:
+        if self._on_stage_edit is not None:
+            result = self._on_stage_edit(route_id, field_id, value)
+        else:
+            result = stage_mapping_route_edit(self._workspace, route_id, field_id, value)
+            if result.valid:
+                self._workspace = result.workspace
+                self._state.saved = False
+                self._state.status_message = result.message
+        self._last_edit_result = result
+        self._editor_open = True
+        scroll_area, scroll_value = _ancestor_scroll_state(self)
+        self._render()
+        _restore_scroll_state(scroll_area, scroll_value)
+        return result
 
     def update_state(self, state: AppState) -> None:
         next_signature = _render_signature(state, self._workspace, self._selected_control_id)
@@ -97,6 +143,7 @@ class MappingCommandPage(LiquidPage):
         state: AppState | None = None,
         workspace: WorkspaceConfig | None = None,
         selected_route_id: str | None = None,
+        last_edit_result: MappingEditResult | None = None,
         **_kwargs,
     ) -> None:
         next_state = state or self._state
@@ -111,6 +158,7 @@ class MappingCommandPage(LiquidPage):
             self._state = next_state
             self._workspace = next_workspace
             self._selected_control_id = next_selected_control_id
+            self._last_edit_result = last_edit_result
             return
         if state is not None:
             self._state = state
@@ -118,6 +166,7 @@ class MappingCommandPage(LiquidPage):
             self._workspace = workspace
         if selected_route_id is not None:
             self._selected_control_id = control_id_for_route_id(selected_route_id)
+        self._last_edit_result = last_edit_result
         self._render(next_signature)
 
     def _render(self, signature: tuple[object, ...] | None = None) -> None:
@@ -138,7 +187,19 @@ class MappingCommandPage(LiquidPage):
         self.setProperty("selectedControlId", self._selected_control_id)
         self.set_header(_mapping_header(model))
         self.set_status_rail(_mapping_status_rail(model))
-        self.set_hero(_hero_panel(model, self.select_control))
+        self.set_hero(
+            _hero_panel(
+                model,
+                self._workspace,
+                self.select_control,
+                editor_open=self._editor_open,
+                on_stage_edit=self.stage_inline_edit,
+                on_revert=self._on_revert,
+                on_route_requested=self._on_route_requested,
+                on_close=self.close_inline_editor,
+                last_edit_result=self._last_edit_result,
+            )
+        )
         self.set_inspector(_selected_control_inspector(model))
         self.set_detail(_route_flow_panel(model, self._on_route_requested))
         self.set_advanced(_advanced_route_details_panel(model, self._on_route_requested))
@@ -152,6 +213,9 @@ def create_mapping_command_page(
     selected_route_id: str | None = None,
     on_route_requested: Callable[[str], None] | None = None,
     on_route_selected: Callable[[str], None] | None = None,
+    on_stage_edit: StageEditCallback | None = None,
+    on_revert: RevertCallback | None = None,
+    last_edit_result: MappingEditResult | None = None,
 ) -> MappingCommandPage:
     return MappingCommandPage(
         state=state,
@@ -160,6 +224,9 @@ def create_mapping_command_page(
         selected_route_id=selected_route_id,
         on_route_requested=on_route_requested,
         on_route_selected=on_route_selected,
+        on_stage_edit=on_stage_edit,
+        on_revert=on_revert,
+        last_edit_result=last_edit_result,
     )
 
 
@@ -216,7 +283,15 @@ def _mapping_status_rail(model: MappingCommandModel) -> QFrame:
 
 def _hero_panel(
     model: MappingCommandModel,
+    workspace: WorkspaceConfig,
     on_select: Callable[[str], None],
+    *,
+    editor_open: bool,
+    on_stage_edit: StageEditCallback,
+    on_revert: RevertCallback | None,
+    on_route_requested: Callable[[str], None] | None,
+    on_close: Callable[[], None],
+    last_edit_result: MappingEditResult | None,
 ) -> LiquidHeroPanel:
     selected = model.selected_control
     hero = LiquidHeroPanel(
@@ -231,9 +306,179 @@ def _hero_panel(
     hero.setProperty("mappingVisualRole", "primary_hotas_map")
     hero.setProperty("primaryInstrument", True)
     _append_to_panel(hero, _selected_summary(model))
-    _append_to_panel(hero, _LiquidHotasVisualMap(model, on_select=on_select))
+    editor_card = (
+        _inline_mapping_editor_card(
+            model,
+            workspace=workspace,
+            on_stage_edit=on_stage_edit,
+            on_revert=on_revert,
+            on_route_requested=on_route_requested,
+            on_close=on_close,
+            last_edit_result=last_edit_result,
+        )
+        if editor_open
+        else None
+    )
+    _append_to_panel(hero, _LiquidHotasMapEditorSurface(model, on_select=on_select, editor_card=editor_card))
     _append_to_panel(hero, _metrics_panel(model))
     return hero
+
+
+def _inline_mapping_editor_card(
+    model: MappingCommandModel,
+    *,
+    workspace: WorkspaceConfig,
+    on_stage_edit: StageEditCallback,
+    on_revert: RevertCallback | None,
+    on_route_requested: Callable[[str], None] | None,
+    on_close: Callable[[], None],
+    last_edit_result: MappingEditResult | None,
+) -> QFrame:
+    route_id = route_id_for_control_id(model.selected_control.control_id)
+    edit_model = build_mapping_edit_model(workspace=workspace, selected_route_id=route_id)
+    record = edit_model.selected_route
+    card = glass_panel("liquidMappingInlineEditorCard", role="liquid_mapping_inline_editor")
+    card.setProperty("componentRole", "MappingInlineEditorCard")
+    card.setProperty("liquidComponent", True)
+    card.setProperty("mappingEditorOpen", True)
+    card.setProperty("selectedControlId", model.selected_control.control_id)
+    card.setProperty("selectedRouteId", record.route_id)
+    card.setProperty("pageActionCluster", True)
+    layout = vertical_layout(card, margins=(14, 12, 14, 12), spacing=9)
+
+    header = horizontal_layout(spacing=8)
+    title = QLabel(f"Route editor: {record.physical_label}")
+    title.setObjectName("liquidMappingInlineEditorTitle")
+    title.setWordWrap(True)
+    header.addWidget(StatusLight(state_role=record.status_role))
+    header.addWidget(title, 1)
+    header.addWidget(StatusChip(record.status.title(), state_role=record.status_role))
+    header.addWidget(StatusChip("Draft workspace edit", state_role="unsaved"))
+    layout.addLayout(header)
+
+    summary = grid_layout(margins=(0, 0, 0, 0), spacing=8)
+    for index, (label, value) in enumerate(
+        (
+            ("Type", record.control_type.title()),
+            ("Raw channel", record.raw_channel),
+            ("Logical function", record.logical_function),
+            ("Output Intent", record.output_intent_target),
+            ("Validation", "Ready to validate draft route"),
+            ("Truth", "Output proof unchanged"),
+        )
+    ):
+        summary.addWidget(_compact_cell(label, value), index // 3, index % 3)
+    layout.addLayout(summary)
+
+    controls: dict[str, QComboBox] = {}
+    for field in record.editable_fields:
+        layout.addWidget(_inline_editor_field(record, field, controls))
+
+    if last_edit_result is not None and last_edit_result.route_id == record.route_id:
+        layout.addWidget(StatusChip(last_edit_result.message, state_role="unsaved" if last_edit_result.valid else "warning"))
+
+    actions = horizontal_layout(spacing=8)
+    primary_field = _primary_editable_field(record)
+    stage = action_button(
+        "Stage mapping change",
+        object_name="liquidMappingInlineEditorStageButton",
+        enabled=primary_field is not None,
+        action_kind="stage_draft" if primary_field is not None else "disabled_deferred",
+        disabled_reason="Disabled: this route has no safely editable fields." if primary_field is None else "",
+    )
+    stage.setToolTip("Stage the selected workspace mapping value. This does not write vJoy or change output proof.")
+    if primary_field is not None:
+        stage.clicked.connect(
+            lambda _checked=False, field_id=primary_field.field_id: on_stage_edit(
+                record.route_id,
+                field_id,
+                controls[field_id].currentText(),
+            )
+        )
+    actions.addWidget(stage)
+
+    validate = action_button("Validate route", object_name="liquidMappingInlineEditorValidateButton", enabled=True, action_kind="validate")
+    validate.setToolTip("Validate the selected draft route shape. Runtime and output proof remain unchanged.")
+    validate.clicked.connect(lambda _checked=False, target=validate: mark_action_feedback(target, "Route validation completed locally; no runtime change."))
+    actions.addWidget(validate)
+
+    revert = action_button(
+        "Revert selected edit",
+        object_name="liquidMappingInlineEditorRevertButton",
+        enabled=on_revert is not None,
+        action_kind="revert" if on_revert is not None else "disabled_deferred",
+        disabled_reason="Disabled: shell-owned Mapping draft revert is unavailable here." if on_revert is None else "",
+    )
+    revert.setToolTip("Revert staged Mapping route edits to the original Liquid workspace draft." if on_revert is not None else "Revert unavailable without shell draft ownership.")
+    if on_revert is not None:
+        revert.clicked.connect(lambda _checked=False: on_revert())
+    actions.addWidget(revert)
+
+    actions.addWidget(_copy_button("Copy route details", "liquidMappingInlineEditorCopyButton", _record_text(record)))
+    actions.addWidget(
+        _deferred_route_button(
+            "Open full Route Details",
+            object_name="liquidMappingInlineEditorOpenDetailsButton",
+            route_target="mapping.route_details",
+            on_route_requested=on_route_requested,
+        )
+    )
+    actions.addWidget(
+        _deferred_route_button(
+            "Open Advanced Route Tables",
+            object_name="liquidMappingInlineEditorOpenTablesButton",
+            route_target="mapping.advanced_route_tables",
+            on_route_requested=on_route_requested,
+        )
+    )
+    close = action_button("Close editor", object_name="liquidMappingInlineEditorCloseButton", enabled=True, action_kind="toggle_ui")
+    close.setToolTip("Close the local route editor card. Runtime and workspace are unchanged.")
+    close.clicked.connect(lambda _checked=False: on_close())
+    actions.addWidget(close)
+    actions.addStretch(1)
+    layout.addLayout(actions)
+    return card
+
+
+def _inline_editor_field(
+    record: MappingRouteRecord,
+    field: MappingEditableField,
+    controls: dict[str, QComboBox],
+) -> QFrame:
+    row = glass_panel(f"liquidMappingInlineField_{field.field_id}", role="liquid_mapping_inline_field")
+    row.setProperty("componentRole", "MappingInlineEditableField")
+    row.setProperty("liquidComponent", True)
+    row.setProperty("fieldId", field.field_id)
+    row.setProperty("routeId", record.route_id)
+    row.setProperty("readOnly", not field.editable)
+    layout = horizontal_layout(row, margins=(10, 8, 10, 8), spacing=8)
+    label = QLabel(field.label)
+    label.setObjectName("liquidMappingInlineFieldLabel")
+    layout.addWidget(label, 1)
+    if field.editable:
+        combo = QComboBox()
+        combo.setObjectName(f"liquidMappingInlineFieldControl_{field.field_id}")
+        combo.setProperty("mappingFieldControl", True)
+        combo.setProperty("fieldId", field.field_id)
+        combo.addItems(field.options or (field.value,))
+        if field.value in field.options:
+            combo.setCurrentText(field.value)
+        controls[field.field_id] = combo
+        layout.addWidget(combo, 2)
+    else:
+        value = QLabel(f"{field.value} - {field.read_only_reason}")
+        value.setObjectName("liquidMappingInlineFieldReadOnly")
+        value.setWordWrap(True)
+        layout.addWidget(value, 2)
+    return row
+
+
+def _primary_editable_field(record: MappingRouteRecord) -> MappingEditableField | None:
+    for preferred in ("output_intent_target", "logical_function"):
+        for field in record.editable_fields:
+            if field.field_id == preferred and field.editable:
+                return field
+    return next((field for field in record.editable_fields if field.editable), None)
 
 
 def _selected_summary(model: MappingCommandModel) -> QFrame:
@@ -288,6 +533,7 @@ class _LiquidHotasVisualMap(QFrame):
             marker.setProperty("toneRole", status_tone_for_role(control.status_role))
             marker.setProperty("mappedState", control.mapped_state)
             marker.setProperty("selected", control.control_id == self._model.selected_control.control_id)
+            configure_command_action(marker, action_kind="select_state")
             marker.setCheckable(True)
             marker.setChecked(control.control_id == self._model.selected_control.control_id)
             marker.setToolTip(_marker_tooltip(control))
@@ -360,6 +606,55 @@ class _LiquidHotasVisualMap(QFrame):
         painter.setPen(QPen(QColor(118, 217, 255, 150), 1.2))
         painter.drawEllipse(source, 7, 7)
         painter.drawEllipse(target, 5, 5)
+
+
+class _LiquidHotasMapEditorSurface(QFrame):
+    def __init__(
+        self,
+        model: MappingCommandModel,
+        *,
+        on_select: Callable[[str], None],
+        editor_card: QFrame | None,
+    ) -> None:
+        super().__init__()
+        self.setObjectName("liquidMappingEditorOverlaySurface")
+        self.setProperty("componentRole", "MappingEditorOverlaySurface")
+        self.setProperty("liquidComponent", True)
+        self.setProperty("mappingEditorOverlaySurface", True)
+        self.setProperty("editorOpen", editor_card is not None)
+        self.setMinimumHeight(560)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self._map = _LiquidHotasVisualMap(model, on_select=on_select)
+        self._map.setParent(self)
+        self._scrim: QFrame | None = None
+        self._editor_card = editor_card
+        if editor_card is not None:
+            self._scrim = QFrame(self)
+            self._scrim.setObjectName("liquidMappingEditorFrostedScrim")
+            self._scrim.setProperty("componentRole", "MappingEditorFrostedScrim")
+            self._scrim.setProperty("liquidComponent", True)
+            self._scrim.setProperty("frostedEditorOverlay", True)
+            self._scrim.setProperty("visualEffect", "static_frosted_dim_scrim")
+            editor_card.setParent(self)
+            editor_card.raise_()
+            self._scrim.lower()
+
+    def sizeHint(self) -> QSize:
+        return QSize(840, 560)
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        self._map.setGeometry(self.rect())
+        if self._scrim is not None:
+            self._scrim.setGeometry(self.rect())
+            self._scrim.raise_()
+        if self._editor_card is not None:
+            width = min(max(620, self.width() - 120), 820)
+            height = min(max(360, self._editor_card.sizeHint().height()), max(360, self.height() - 70))
+            x = max(24, int((self.width() - width) / 2))
+            y = max(28, int((self.height() - height) / 2))
+            self._editor_card.setGeometry(x, y, width, height)
+            self._editor_card.raise_()
 
 
 def _selected_control_inspector(model: MappingCommandModel) -> LiquidInspectorPanel:
@@ -696,7 +991,13 @@ def _selected_route_actions(model: MappingCommandModel, on_route_requested: Call
             _mapping_summary_text(model),
         )
     )
-    reset = action_button("Reset selected route", object_name="liquidMappingResetSelectedRouteButton", enabled=False)
+    reset = action_button(
+        "Reset selected route",
+        object_name="liquidMappingResetSelectedRouteButton",
+        enabled=False,
+        action_kind="disabled_deferred",
+        disabled_reason="Disabled: selected-route defaults are not represented as a safe route-level workspace operation.",
+    )
     reset.setToolTip("Reset is pending because selected-route defaults are not represented as a safe route-level workspace operation.")
     reset.setAccessibleDescription(reset.toolTip())
     reset.setStatusTip(reset.toolTip())
@@ -711,34 +1012,46 @@ def _deferred_route_button(
     route_target: str,
     on_route_requested: Callable[[str], None] | None,
 ) -> QPushButton:
-    button = QPushButton(text)
-    button.setObjectName(object_name)
-    button.setProperty("uiRole", "liquidActionButton")
+    reason = f"{text}. Navigation only; no workspace edit is staged by this button."
+    if on_route_requested is None:
+        reason = f"Disabled: {reason} Navigation callback unavailable in this context."
+    button = action_button(
+        text,
+        object_name=object_name,
+        enabled=on_route_requested is not None,
+        action_kind="navigation",
+        disabled_reason=reason if on_route_requested is None else "",
+        route_target=route_target,
+    )
     button.setProperty("navigationOnly", True)
     button.setProperty("routeTarget", route_target)
-    button.setEnabled(on_route_requested is not None)
-    button.setToolTip(f"{text}. Navigation only; no workspace edit is staged by this button.")
+    button.setToolTip(reason)
     button.setAccessibleName(text)
-    button.setAccessibleDescription(f"Navigation affordance for {route_target}; no workspace edit is staged by this button.")
+    button.setStatusTip(reason)
+    button.setAccessibleDescription(reason)
     if on_route_requested is not None:
         button.clicked.connect(lambda _checked=False, target=route_target: on_route_requested(target))
     return button
 
 
 def _copy_button(text: str, object_name: str, payload: str) -> QPushButton:
-    button = action_button(text, object_name=object_name, enabled=True)
+    button = action_button(text, object_name=object_name, enabled=True, action_kind="copy")
     button.setProperty("copyOnly", True)
     button.setToolTip("Copy mapping information to the clipboard. This does not edit workspace or runtime state.")
     button.setStatusTip(button.toolTip())
     button.setAccessibleDescription(button.toolTip())
-    button.clicked.connect(lambda _checked=False, data=payload: _copy_to_clipboard(data))
+    button.clicked.connect(lambda _checked=False, data=payload, target=button: _copy_to_clipboard(data, target))
     return button
 
 
-def _copy_to_clipboard(text: str) -> None:
+def _copy_to_clipboard(text: str, button: QPushButton | None = None) -> None:
     clipboard = QApplication.clipboard()
     if clipboard is not None:
         clipboard.setText(text)
+        if button is not None:
+            mark_action_feedback(button, "Copied mapping information to clipboard.")
+    elif button is not None:
+        mark_action_feedback(button, "Clipboard unavailable; nothing was copied.")
 
 
 def _selected_route_text(model: MappingCommandModel) -> str:
@@ -751,6 +1064,42 @@ def _selected_route_text(model: MappingCommandModel) -> str:
             f"Output Intent: {selected.output_intent_target}",
             f"Mapped state: {selected.mapped_state}",
             "Output proof unchanged by copy action.",
+        )
+    )
+
+
+def _ancestor_scroll_state(widget: QWidget) -> tuple[QScrollArea | None, int]:
+    parent = widget.parent()
+    while parent is not None:
+        if isinstance(parent, QScrollArea):
+            return parent, parent.verticalScrollBar().value()
+        parent = parent.parent()
+    return None, 0
+
+
+def _restore_scroll_state(scroll_area: QScrollArea | None, value: int) -> None:
+    if scroll_area is None:
+        return
+
+    def restore() -> None:
+        bar = scroll_area.verticalScrollBar()
+        bar.setValue(min(max(0, value), bar.maximum()))
+
+    restore()
+
+
+def _record_text(record: MappingRouteRecord) -> str:
+    return "\n".join(
+        (
+            f"Route: {record.route_id}",
+            f"Physical control: {record.physical_label}",
+            f"Control type: {record.control_type}",
+            f"Raw channel: {record.raw_channel}",
+            f"Logical function: {record.logical_function}",
+            f"Output Intent: {record.output_intent_target}",
+            f"Status: {record.status}",
+            f"Notes: {record.notes}",
+            "Workspace draft copy only; output proof unchanged.",
         )
     )
 
@@ -819,6 +1168,9 @@ def _render_signature(
         len(workspace.mappings.axis_routes),
         len(workspace.mappings.button_routes),
         len(workspace.mappings.hat_routes),
+        tuple((route.function_name, route.raw_axis_channel, route.logical_output, route.runtime_vjoy_output) for route in workspace.mappings.axis_routes),
+        tuple((route.hotas_button, route.output_button) for route in workspace.mappings.button_routes),
+        tuple((route.hotas_hat, route.vjoy_pov, route.up_button, route.right_button, route.down_button, route.left_button) for route in workspace.mappings.hat_routes),
     )
 
 

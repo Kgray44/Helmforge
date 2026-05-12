@@ -1,0 +1,86 @@
+[
+  {
+    "route": "preflight.command_readiness",
+    "title": "Preflight / Command Readiness",
+    "file": "01-preflight-command-readiness.png",
+    "status": "captured",
+    "note": "Top-of-route Liquid command surface screenshot."
+  },
+  {
+    "route": "mapping.hotas_map",
+    "title": "Mapping / HOTAS Map",
+    "file": "02-mapping-hotas-map.png",
+    "status": "captured",
+    "note": "Top-of-route Liquid command surface screenshot."
+  },
+  {
+    "route": "mapping.route_details",
+    "title": "Mapping / Route Details",
+    "file": "03-mapping-route-details.png",
+    "status": "captured",
+    "note": "Top-of-route Liquid command surface screenshot."
+  },
+  {
+    "route": "mapping.advanced_route_tables",
+    "title": "Mapping / Advanced Route Tables",
+    "file": "04-mapping-advanced-route-tables.png",
+    "status": "captured",
+    "note": "Top-of-route Liquid command surface screenshot."
+  },
+  {
+    "route": "tuning.base_tuning",
+    "title": "Tuning / Base Tuning",
+    "file": "05-tuning-base-tuning.png",
+    "status": "captured",
+    "note": "Top-of-route Liquid command surface screenshot."
+  },
+  {
+    "route": "tuning.filtering",
+    "title": "Tuning / Filtering",
+    "file": "06-tuning-filtering.png",
+    "status": "captured",
+    "note": "Top-of-route Liquid command surface screenshot."
+  },
+  {
+    "route": "tuning.combat_profile",
+    "title": "Tuning / Combat Profile",
+    "file": "07-tuning-combat-profile.png",
+    "status": "captured",
+    "note": "Top-of-route Liquid command surface screenshot."
+  },
+  {
+    "route": "tuning.conditional_rules",
+    "title": "Tuning / Conditional Rules",
+    "file": "08-tuning-conditional-rules.png",
+    "status": "captured",
+    "note": "Top-of-route Liquid command surface screenshot."
+  },
+  {
+    "route": "tuning.profiles_library",
+    "title": "Tuning / Profiles Library",
+    "file": "09-tuning-profiles-library.png",
+    "status": "captured",
+    "note": "Top-of-route Liquid command surface screenshot."
+  },
+  {
+    "route": "analysis.effective_response_stack",
+    "title": "Analysis / Effective Response Stack",
+    "file": "10-analysis-effective-response-stack.png",
+    "status": "captured",
+    "note": "Top-of-route Liquid command surface screenshot."
+  },
+  {
+    "route": "analysis.live_monitor",
+    "title": "Analysis / Live Monitor",
+    "file": "11-analysis-live-monitor.png",
+    "status": "captured",
+    "note": "Top-of-route Liquid command surface screenshot."
+  },
+  {
+    "route": "mapping.hotas_map",
+    "title": "Mapping / Editor Overlay Open",
+    "file": "mapping-editor-overlay-open.png",
+    "status": "captured",
+    "note": "LCD-7V required HOTAS route editor overlay screenshot."
+  }
+]

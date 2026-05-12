@@ -18,7 +18,7 @@ from v3_app.liquid.components import (
     LiquidStatusRail,
 )
 from v3_app.liquid.flow_components import SignalPipelineStage
-from v3_app.liquid.glass import action_button, glass_panel
+from v3_app.liquid.glass import action_button, glass_panel, mark_action_feedback
 from v3_app.liquid.instruments import AxisBarPair, ButtonIlluminationGrid, HatDirectionIndicator, LiveAxisTimeSeriesGraph
 from v3_app.liquid.layout import grid_layout, horizontal_layout, vertical_layout
 from v3_app.liquid.models.analysis_command_model import (
@@ -58,6 +58,10 @@ class AnalysisCommandPage(LiquidPage):
         self._axis_history: dict[str, list[tuple[float | None, float | None]]] = {axis: [] for axis in AXIS_NAMES}
         self._overlay_final_values = False
         self._monitor_paused = False
+        self._live_monitor_active = False
+        self._live_display_timer_id = 0
+        self._last_live_sample_signature: tuple[object, ...] | None = None
+        self._selected_stage_id = "raw"
         self._last_signature: tuple[object, ...] | None = None
         self.render_count = 0
         self.model = build_analysis_command_model(
@@ -79,7 +83,48 @@ class AnalysisCommandPage(LiquidPage):
         self.setProperty("selectedAxis", self._selected_axis)
         if self.route_key == "analysis.live_monitor" and self._telemetry is not None:
             self._append_live_history(self.model)
+            self._last_live_sample_signature = _live_sample_signature(self.model)
         self._render(force=True)
+
+    def set_live_monitor_active(self, active: bool) -> None:
+        if self.route_key != "analysis.live_monitor":
+            return
+        self._live_monitor_active = bool(active)
+        self.setProperty("liveMonitorDisplayActive", self._live_monitor_active)
+        if self._live_monitor_active and not self._monitor_paused:
+            self._start_live_display_timer()
+        else:
+            self._stop_live_display_timer()
+
+    def timerEvent(self, event) -> None:  # noqa: N802 - Qt override
+        if event.timerId() == self._live_display_timer_id:
+            self.advance_live_monitor_display_sample()
+            event.accept()
+            return
+        super().timerEvent(event)
+
+    def hideEvent(self, event) -> None:  # noqa: N802 - Qt override
+        self._stop_live_display_timer()
+        super().hideEvent(event)
+
+    def showEvent(self, event) -> None:  # noqa: N802 - Qt override
+        super().showEvent(event)
+        if self._live_monitor_active and not self._monitor_paused:
+            self._start_live_display_timer()
+
+    def advance_live_monitor_display_sample(self) -> bool:
+        if self.route_key != "analysis.live_monitor" or not self._live_monitor_active or self._monitor_paused:
+            return False
+        if not _model_has_axis_sample(self.model):
+            self._update_live_history_property()
+            return False
+        self._append_live_history(self.model)
+        self._update_live_monitor_graph()
+        self.setProperty("liveMonitorDisplaySampleCount", int(self.property("liveMonitorDisplaySampleCount") or 0) + 1)
+        return True
+
+    def axis_history_for_test(self, axis_name: str) -> tuple[tuple[float | None, float | None], ...]:
+        return tuple(self._axis_history.get(axis_name, ()))
 
     def select_axis(self, axis_name: str) -> None:
         if axis_name not in AXIS_NAMES or axis_name == self._selected_axis:
@@ -108,9 +153,25 @@ class AnalysisCommandPage(LiquidPage):
             self.setProperty("selectedAxis", self._selected_axis)
         previous_signature = self.model.signature
         self._refresh_model()
+        if self.route_key == "analysis.effective_response_stack" and telemetry is not None:
+            if self._update_pipeline_in_place():
+                return
         if self.route_key == "analysis.live_monitor" and telemetry is not None and not self._monitor_paused:
+            sample_signature = _live_sample_signature(self.model)
+            if sample_signature == self._last_live_sample_signature:
+                self._last_signature = self.model.signature
+                self._update_live_history_property()
+                return
+            self._last_live_sample_signature = sample_signature
             self._append_live_history(self.model)
             self._update_live_monitor_graph()
+            self._update_live_numeric_values()
+            if previous_signature != self.model.signature and self._history_length() <= 1:
+                self.set_status_rail(_status_rail(self, self.model))
+                self.set_inspector(_live_axis_instruments(self.model))
+                self.set_detail(_live_controls_detail(self, self.model))
+                self.set_advanced(_advanced_details(self.model))
+            self._last_signature = self.model.signature
             return
         if self.model.signature == previous_signature:
             self._update_live_history_property()
@@ -123,17 +184,50 @@ class AnalysisCommandPage(LiquidPage):
         if toggle is not None:
             toggle.setChecked(self._overlay_final_values)
             toggle.setProperty("overlayFinalValues", self._overlay_final_values)
+            mark_action_feedback(toggle, "Raw/final overlay toggled for local display only.")
         self._update_live_monitor_graph()
+
+    def select_stage(self, stage_id: str) -> None:
+        stage_ids = {stage.stage_id for stage in self.model.pipeline_stages}
+        if stage_id not in stage_ids or stage_id == self._selected_stage_id:
+            return
+        self._selected_stage_id = stage_id
+        self.setProperty("selectedStageId", stage_id)
+        self.set_detail(_pipeline_detail(self.model, self._selected_stage_id))
 
     def clear_live_history(self) -> None:
         for samples in self._axis_history.values():
             samples.clear()
         self.setProperty("liveMonitorHistoryLength", 0)
         self._update_live_monitor_graph()
+        clear = self.findChild(QPushButton, "liquidLiveMonitorClearHistoryButton")
+        if clear is not None:
+            mark_action_feedback(clear, "Cleared local monitor history; runtime unchanged.")
 
     def toggle_monitor_pause(self) -> None:
         self._monitor_paused = not self._monitor_paused
-        self._render(force=True)
+        if self._monitor_paused:
+            self._stop_live_display_timer()
+        elif self._live_monitor_active:
+            self._start_live_display_timer()
+        pause = self.findChild(QPushButton, "liquidLiveMonitorPauseButton")
+        if pause is not None:
+            pause.setText("Resume visual monitor" if self._monitor_paused else "Pause visual monitor")
+            mark_action_feedback(pause, "Toggled visual monitor pause; runtime unchanged.")
+
+    def _start_live_display_timer(self) -> None:
+        if self._live_display_timer_id or self.route_key != "analysis.live_monitor":
+            return
+        self._live_display_timer_id = self.startTimer(100)
+        self.setProperty("liveMonitorDisplayTimerActive", True)
+
+    def _stop_live_display_timer(self) -> None:
+        if not self._live_display_timer_id:
+            self.setProperty("liveMonitorDisplayTimerActive", False)
+            return
+        self.killTimer(self._live_display_timer_id)
+        self._live_display_timer_id = 0
+        self.setProperty("liveMonitorDisplayTimerActive", False)
 
     def _refresh_model(self) -> None:
         self.model = build_analysis_command_model(
@@ -159,7 +253,7 @@ class AnalysisCommandPage(LiquidPage):
                 object_name="liquidAnalysisPageHeader",
             )
         )
-        self.set_status_rail(_status_rail(self.model))
+        self.set_status_rail(_status_rail(self, self.model))
         if self.route_key == "analysis.effective_response_stack":
             self._render_effective_response_stack()
         else:
@@ -169,7 +263,7 @@ class AnalysisCommandPage(LiquidPage):
     def _render_effective_response_stack(self) -> None:
         self.set_hero(_pipeline_hero(self, self.model))
         self.set_inspector(_axis_inspector(self.model, on_axis_selected=self.select_axis))
-        self.set_detail(_pipeline_detail(self.model))
+        self.set_detail(_pipeline_detail(self.model, self._selected_stage_id))
 
     def _render_live_monitor(self) -> None:
         self.set_hero(_live_monitor_hero(self, self.model))
@@ -199,6 +293,52 @@ class AnalysisCommandPage(LiquidPage):
             graph.update_history(self._axis_history, overlay_final_values=self._overlay_final_values)
         self._update_live_history_property()
 
+    def _update_live_numeric_values(self) -> None:
+        panel = self.findChild(QWidget, "liquidAnalysisCurrentNumericValues")
+        if panel is not None:
+            panel.setParent(None)
+        hero = self.findChild(QWidget, "liquidAnalysisLiveMonitorHero")
+        layout = hero.layout() if hero is not None else None
+        if layout is not None:
+            insert_at = max(0, layout.count() - 2)
+            layout.insertWidget(insert_at, _live_numeric_values(self.model))
+
+    def _update_pipeline_in_place(self) -> bool:
+        chain = self.findChild(QWidget, "liquidAnalysisResponseStackChain")
+        if chain is None:
+            return False
+        self.setProperty("selectedAxis", self.model.selected_axis)
+        for selector in self.findChildren(AxisSelectorPills):
+            previous = selector.blockSignals(True)
+            selector.set_selected_axis(self.model.selected_axis)
+            selector.blockSignals(previous)
+        snapshot_axis = _axis_by_name(self.model, self.model.selected_axis)
+        snapshot = self.findChild(LiveSnapshotBlock, "liquidAnalysisLiveSnapshot")
+        if snapshot is not None:
+            snapshot.update_values(
+                selected_control=self.model.selected_axis,
+                source_truth_label=self.model.sample_truth_label,
+                raw_value=snapshot_axis.raw_text,
+                output_intent_value=snapshot_axis.final_text,
+                state_role=snapshot_axis.state_role,
+            )
+        for stage in self.model.pipeline_stages:
+            widget = self.findChild(SignalPipelineStage, f"liquidAnalysisStage_{_stage_short_id(stage.stage_id)}")
+            if widget is None or not hasattr(widget, "update_stage"):
+                return False
+            widget.update_stage(
+                stage_summary=stage.stage_summary,
+                selected_value=stage.value_text,
+                status_role=stage.state_role,
+                warning_text=stage.warning_text,
+            )
+            widget.setProperty("stageName", stage.stage_name)
+            widget.setToolTip(f"{stage.source_label}. {stage.stage_summary}")
+        self.set_detail(_pipeline_detail(self.model, self._selected_stage_id))
+        self.set_advanced(_advanced_details(self.model))
+        self._last_signature = self.model.signature
+        return True
+
 
 def create_effective_response_stack_page(**kwargs) -> AnalysisCommandPage:
     return AnalysisCommandPage(route_key="analysis.effective_response_stack", **kwargs)
@@ -208,7 +348,7 @@ def create_live_monitor_page(**kwargs) -> AnalysisCommandPage:
     return AnalysisCommandPage(route_key="analysis.live_monitor", **kwargs)
 
 
-def _status_rail(model: AnalysisCommandModel) -> LiquidStatusRail:
+def _status_rail(page: AnalysisCommandPage, model: AnalysisCommandModel) -> LiquidStatusRail:
     rail = LiquidStatusRail(
         items=(
             (model.runtime_truth_label, "ready" if model.runtime_truth_label == "Live Verified" else model.telemetry_role),
@@ -217,6 +357,10 @@ def _status_rail(model: AnalysisCommandModel) -> LiquidStatusRail:
         ),
         object_name="liquidAnalysisStatusRail",
     )
+    selector = AxisSelectorPills(selected_axis=model.selected_axis, options=model.axis_options, object_name="liquidAnalysisTopAxisSelector")
+    selector.setProperty("topLevelAxisSelector", True)
+    selector.selectionChanged.connect(page.select_axis)
+    rail.layout().insertWidget(0, selector)
     rail.layout().addWidget(
         TelemetryFreshnessRail(
             model.telemetry_label,
@@ -234,7 +378,7 @@ def _pipeline_hero(page: AnalysisCommandPage, model: AnalysisCommandModel) -> QW
         "Raw input is traced through workspace response stages into Final Output Intent. Output proof is shown separately.",
         object_name="liquidAnalysisPipelineHero",
         state_role=model.telemetry_role,
-        minimum_height=260,
+        minimum_height=640,
     )
     hero.setProperty("analysisHeroRole", "pipeline")
     layout = hero.layout()
@@ -248,14 +392,19 @@ def _pipeline_hero(page: AnalysisCommandPage, model: AnalysisCommandModel) -> QW
     stage_chain.setProperty("componentRole", "AnalysisResponseStackChain")
     stage_chain.setProperty("liquidComponent", True)
     stage_chain.setProperty("chainOrder", tuple(stage.stage_name for stage in model.pipeline_stages))
-    stage_row = horizontal_layout(stage_chain, margins=(0, 4, 0, 4), spacing=8)
+    stage_chain.setProperty("chainOrientation", "vertical")
+    stage_chain.setProperty("dominantVisual", True)
+    stage_chain.setProperty("chainImplementation", "cached_lightweight_stage_widgets")
+    stage_chain.setMinimumHeight(520)
+    stage_row = vertical_layout(stage_chain, margins=(0, 4, 0, 4), spacing=8)
     for stage in model.pipeline_stages:
-        widget = _pipeline_stage_widget(stage)
+        widget = _pipeline_stage_widget(stage, on_select=page.select_stage)
         stage_row.addWidget(widget, 1)
         if stage is not model.pipeline_stages[-1]:
-            connector = QLabel(">")
+            connector = QLabel("v")
             connector.setObjectName(f"liquidAnalysisChainConnector_{stage.stage_id}")
             connector.setProperty("analysisChainConnector", True)
+            connector.setProperty("connectorDirection", "down")
             connector.setAlignment(Qt.AlignmentFlag.AlignCenter)
             stage_row.addWidget(connector)
     layout.addWidget(stage_chain)
@@ -263,20 +412,35 @@ def _pipeline_hero(page: AnalysisCommandPage, model: AnalysisCommandModel) -> QW
     return hero
 
 
-def _pipeline_stage_widget(stage: AnalysisPipelineStageModel) -> SignalPipelineStage:
+def _pipeline_stage_widget(
+    stage: AnalysisPipelineStageModel,
+    *,
+    on_select: Callable[[str], None],
+) -> SignalPipelineStage:
     widget = SignalPipelineStage(
         stage.stage_name,
         stage.stage_summary,
         selected_value=stage.value_text,
         status_role=stage.state_role,
         warning_text=stage.warning_text,
-        object_name=f"liquidAnalysisStage_{stage.stage_id}",
+        object_name=f"liquidAnalysisStage_{_stage_short_id(stage.stage_id)}",
     )
     widget.setProperty("analysisPipelineStage", True)
     widget.setProperty("stageId", stage.stage_id)
     widget.setProperty("stageName", stage.stage_name)
     widget.setProperty("selectableStage", True)
     widget.setToolTip(f"{stage.source_label}. {stage.stage_summary}")
+    button = action_button(
+        f"Select {stage.stage_name}",
+        object_name=f"liquidAnalysisSelectStageButton_{_stage_short_id(stage.stage_id)}",
+        enabled=True,
+        action_kind="select_state",
+    )
+    button.setToolTip("Select this response-stack stage for details. This does not mutate runtime state.")
+    button.clicked.connect(lambda _checked=False, selected=stage.stage_id: on_select(selected))
+    layout = widget.layout()
+    if layout is not None:
+        layout.addWidget(button)
     return widget
 
 
@@ -286,7 +450,8 @@ def _analysis_stack_actions(page: AnalysisCommandPage, model: AnalysisCommandMod
     actions.setProperty("liquidComponent", True)
     actions.setProperty("pageActionCluster", True)
     layout = horizontal_layout(actions, margins=(0, 6, 0, 4), spacing=8)
-    layout.addWidget(_copy_button("Copy selected stage", "liquidAnalysisCopyStageButton", _stage_summary_text(model.pipeline_stages[0])))
+    selected_stage = _stage_by_id(model, page._selected_stage_id)
+    layout.addWidget(_copy_button("Copy selected stage", "liquidAnalysisCopyStageButton", _stage_summary_text(selected_stage)))
     layout.addWidget(_copy_button("Copy response stack", "liquidAnalysisCopyStackButton", _stack_summary_text(model)))
     layout.addWidget(_analysis_nav_button("Open Base Tuning", "tuning.base_tuning", "liquidAnalysisOpenBaseTuningButton", page._on_route_requested))
     layout.addWidget(_analysis_nav_button("Open Filtering", "tuning.filtering", "liquidAnalysisOpenFilteringButton", page._on_route_requested))
@@ -335,7 +500,7 @@ def _axis_inspector(
     return panel
 
 
-def _pipeline_detail(model: AnalysisCommandModel) -> QWidget:
+def _pipeline_detail(model: AnalysisCommandModel, selected_stage_id: str) -> QWidget:
     panel = LiquidDetailPanel(
         "Stage Details",
         "Each stage reports the selected-axis value only when the passive snapshot or workspace preview can support it.",
@@ -345,12 +510,26 @@ def _pipeline_detail(model: AnalysisCommandModel) -> QWidget:
     layout = panel.layout()
     if layout is None:
         return panel
+    selected_stage = _stage_by_id(model, selected_stage_id)
+    selected = QFrame()
+    selected.setObjectName("liquidAnalysisSelectedStageDetailPanel")
+    selected.setProperty("analysisSelectedStageDetail", True)
+    selected.setProperty("selectedStageId", _stage_short_id(selected_stage.stage_id))
+    selected_layout = vertical_layout(selected, margins=(10, 8, 10, 8), spacing=5)
+    selected_layout.addWidget(StatusChip(f"Selected stage: {selected_stage.stage_name}", state_role=selected_stage.state_role))
+    selected_layout.addWidget(_label(f"Selected axis: {model.selected_axis}", "liquidAnalysisSelectedStageAxis", wrap=True))
+    selected_layout.addWidget(_label(f"Value: {selected_stage.value_text}", "liquidAnalysisSelectedStageValue", wrap=True))
+    selected_layout.addWidget(_label(f"Source: {selected_stage.source_label}", "liquidAnalysisSelectedStageSource", wrap=True))
+    selected_layout.addWidget(_label(selected_stage.stage_summary, "liquidAnalysisSelectedStageSummary", wrap=True))
+    layout.addWidget(selected)
     for stage in model.pipeline_stages:
         row = QFrame()
         row.setObjectName(f"liquidAnalysisStageDetail_{stage.stage_id}")
         row.setProperty("analysisPipelineStage", True)
+        row.setProperty("selected", stage.stage_id == selected_stage.stage_id)
         row_layout = vertical_layout(row, margins=(10, 8, 10, 8), spacing=4)
         row_layout.addWidget(StatusChip(f"{stage.stage_name}: {stage.value_text}", state_role=stage.state_role))
+        row_layout.addWidget(_label(f"Selected axis: {model.selected_axis}", "liquidAnalysisStageAxis"))
         row_layout.addWidget(_label(stage.source_label, "liquidAnalysisStageSource"))
         row_layout.addWidget(_label(stage.stage_summary, "liquidAnalysisStageDetailText", wrap=True))
         layout.addWidget(row)
@@ -363,7 +542,7 @@ def _live_monitor_hero(page: AnalysisCommandPage, model: AnalysisCommandModel) -
         "Instrument view of passive axis, button, and hat state. Stale or missing telemetry stays labeled.",
         object_name="liquidAnalysisLiveMonitorHero",
         state_role=model.telemetry_role,
-        minimum_height=250,
+        minimum_height=560,
     )
     hero.setProperty("analysisHeroRole", "live_monitor")
     layout = hero.layout()
@@ -387,8 +566,25 @@ def _live_monitor_hero(page: AnalysisCommandPage, model: AnalysisCommandModel) -
             object_name="liquidAnalysisLiveTimeSeriesGraph",
         )
     )
+    layout.addWidget(_live_numeric_values(model))
     layout.addWidget(_live_monitor_actions(page, model))
     return hero
+
+
+def _live_numeric_values(model: AnalysisCommandModel) -> QFrame:
+    panel = glass_panel("liquidAnalysisCurrentNumericValues", role="liquid_analysis_current_values")
+    panel.setProperty("componentRole", "AnalysisCurrentNumericValues")
+    panel.setProperty("liquidComponent", True)
+    panel.setProperty("currentNumericValues", True)
+    layout = grid_layout(panel, margins=(10, 8, 10, 8), spacing=8)
+    for index, axis in enumerate(model.axis_monitors):
+        cell = glass_panel(f"liquidAnalysisCurrentValue_{_key(axis.axis_name)}", role="liquid_analysis_axis_value")
+        cell_layout = vertical_layout(cell, margins=(8, 6, 8, 6), spacing=3)
+        cell_layout.addWidget(StatusChip(axis.axis_name, state_role=axis.state_role))
+        cell_layout.addWidget(_label(f"Raw {axis.raw_text}", "liquidAnalysisCurrentRaw"))
+        cell_layout.addWidget(_label(f"Final intent {axis.final_text}", "liquidAnalysisCurrentFinal"))
+        layout.addWidget(cell, index // 3, index % 3)
+    return panel
 
 
 def _live_axis_instruments(model: AnalysisCommandModel) -> QWidget:
@@ -455,18 +651,23 @@ def _live_monitor_actions(page: AnalysisCommandPage, model: AnalysisCommandModel
     actions.setProperty("liquidComponent", True)
     actions.setProperty("pageActionCluster", True)
     layout = horizontal_layout(actions, margins=(0, 6, 0, 4), spacing=8)
-    overlay = action_button("Overlay raw/final", object_name="liquidLiveMonitorOverlayToggle", enabled=True)
+    overlay = action_button("Overlay raw/final", object_name="liquidLiveMonitorOverlayToggle", enabled=True, action_kind="toggle_ui")
     overlay.setCheckable(True)
     overlay.setChecked(page._overlay_final_values)
     overlay.setProperty("overlayFinalValues", page._overlay_final_values)
     overlay.setToolTip("Toggle final Output Intent values over raw input history. This is UI-only and does not change output.")
     overlay.clicked.connect(lambda _checked=False: page.toggle_overlay())
     layout.addWidget(overlay)
-    pause = action_button("Pause visual monitor" if not page._monitor_paused else "Resume visual monitor", object_name="liquidLiveMonitorPauseButton", enabled=True)
+    pause = action_button(
+        "Pause visual monitor" if not page._monitor_paused else "Resume visual monitor",
+        object_name="liquidLiveMonitorPauseButton",
+        enabled=True,
+        action_kind="toggle_ui",
+    )
     pause.setToolTip("Pause or resume local graph drawing only. This does not pause hardware, runtime, or Bridge.")
     pause.clicked.connect(lambda _checked=False: page.toggle_monitor_pause())
     layout.addWidget(pause)
-    clear = action_button("Clear local graph history", object_name="liquidLiveMonitorClearHistoryButton", enabled=True)
+    clear = action_button("Clear local graph history", object_name="liquidLiveMonitorClearHistoryButton", enabled=True, action_kind="toggle_ui")
     clear.setToolTip("Clear only the local Liquid graph history buffer.")
     clear.clicked.connect(lambda _checked=False: page.clear_live_history())
     layout.addWidget(clear)
@@ -475,6 +676,19 @@ def _live_monitor_actions(page: AnalysisCommandPage, model: AnalysisCommandModel
     layout.addWidget(_analysis_nav_button("Open Effective Response Stack", "analysis.effective_response_stack", "liquidLiveMonitorOpenStackButton", page._on_route_requested))
     layout.addStretch(1)
     return actions
+
+
+def _live_sample_signature(model: AnalysisCommandModel) -> tuple[object, ...]:
+    return (
+        tuple((axis.axis_name, axis.raw_value, axis.final_value) for axis in model.axis_monitors),
+        tuple((button.label, button.active) for button in model.buttons),
+        model.hat_direction,
+        model.telemetry_label,
+    )
+
+
+def _model_has_axis_sample(model: AnalysisCommandModel) -> bool:
+    return any(axis.raw_value is not None or axis.final_value is not None for axis in model.axis_monitors)
 
 
 def _advanced_details(model: AnalysisCommandModel) -> QWidget:
@@ -500,12 +714,12 @@ def _advanced_details(model: AnalysisCommandModel) -> QWidget:
 
 
 def _copy_button(text: str, object_name: str, payload: str) -> QPushButton:
-    button = action_button(text, object_name=object_name, enabled=True)
+    button = action_button(text, object_name=object_name, enabled=True, action_kind="copy")
     button.setProperty("copyOnly", True)
     button.setToolTip("Copy Analysis information to the clipboard. This does not change runtime state.")
     button.setStatusTip(button.toolTip())
     button.setAccessibleDescription(button.toolTip())
-    button.clicked.connect(lambda _checked=False, data=payload: _copy_to_clipboard(data))
+    button.clicked.connect(lambda _checked=False, data=payload, target=button: _copy_to_clipboard(data, target))
     return button
 
 
@@ -515,7 +729,14 @@ def _analysis_nav_button(
     object_name: str,
     on_route_requested: RouteCallback | None = None,
 ) -> QPushButton:
-    button = action_button(text, object_name=object_name, enabled=on_route_requested is not None)
+    button = action_button(
+        text,
+        object_name=object_name,
+        enabled=on_route_requested is not None,
+        action_kind="navigation",
+        disabled_reason=f"Disabled: navigation callback unavailable for {route_key}." if on_route_requested is None else "",
+        route_target=route_key,
+    )
     button.setProperty("navigationOnly", True)
     button.setProperty("routeTarget", route_key)
     reason = f"Navigate to {route_key}. This does not change runtime state."
@@ -529,10 +750,14 @@ def _analysis_nav_button(
     return button
 
 
-def _copy_to_clipboard(text: str) -> None:
+def _copy_to_clipboard(text: str, button: QPushButton | None = None) -> None:
     clipboard = QApplication.clipboard()
     if clipboard is not None:
         clipboard.setText(text)
+        if button is not None:
+            mark_action_feedback(button, "Copied Analysis information to clipboard.")
+    elif button is not None:
+        mark_action_feedback(button, "Clipboard unavailable; nothing was copied.")
 
 
 def _stage_summary_text(stage: AnalysisPipelineStageModel) -> str:
@@ -573,6 +798,24 @@ def _axis_by_name(model: AnalysisCommandModel, axis_name: str) -> AnalysisAxisMo
         if axis.axis_name == axis_name:
             return axis
     return model.axis_monitors[0]
+
+
+def _stage_by_id(model: AnalysisCommandModel, stage_id: str) -> AnalysisPipelineStageModel:
+    for stage in model.pipeline_stages:
+        if stage.stage_id == stage_id or _stage_short_id(stage.stage_id) == stage_id:
+            return stage
+    return model.pipeline_stages[0]
+
+
+def _stage_short_id(stage_id: str) -> str:
+    return {
+        "raw_input": "raw",
+        "final_output_intent": "final_output",
+        "modes_combat_profile": "combat_profile",
+        "conditional_rules": "conditional_rules",
+        "base_tuning": "base_tuning",
+        "filtering": "filtering",
+    }.get(stage_id, stage_id)
 
 
 def _label(text: str, object_name: str, *, wrap: bool = False) -> QLabel:

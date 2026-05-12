@@ -56,6 +56,7 @@ _PAGE_ID_TO_ROUTE_KEY = {
     "filtering": "tuning.filtering",
     "combat_profile": "tuning.combat_profile",
     "conditional_rules": "tuning.conditional_rules",
+    "profiles_library": "tuning.profiles_library",
     "effective_response_stack": "analysis.effective_response_stack",
     "live_monitor": "analysis.live_monitor",
     "perf_diagnostics": "support.perf_diagnostics",
@@ -67,6 +68,24 @@ _PAGE_ID_TO_ROUTE_KEY = {
 def _lcd4f_trace(message: str) -> None:
     if os.environ.get("HELMFORGE_LCD4F_TRACE") == "1":
         print(f"LCD4F_TRACE: {message}", flush=True)
+
+
+def _route_error_fallback(route_key: str, exc: Exception) -> QFrame:
+    panel = glass_panel("liquidRouteErrorFallback", role="liquid_route_error_fallback")
+    panel.setProperty("componentRole", "RouteErrorFallback")
+    panel.setProperty("routeKey", route_key)
+    panel.setProperty("routeErrorFallback", True)
+    panel.setMinimumHeight(360)
+    layout = vertical_layout(panel, margins=(18, 16, 18, 16), spacing=10)
+    title = QLabel("Route failed to construct")
+    title.setObjectName("liquidRouteErrorTitle")
+    detail = QLabel(f"{route_key}: {type(exc).__name__}: {exc}")
+    detail.setObjectName("liquidRouteErrorDetail")
+    detail.setWordWrap(True)
+    layout.addWidget(title)
+    layout.addWidget(detail)
+    layout.addStretch(1)
+    return panel
 
 
 class LiquidCommandShell(QWidget):
@@ -96,6 +115,7 @@ class LiquidCommandShell(QWidget):
             "tuning.filtering": "Roll",
             "tuning.combat_profile": "Roll",
             "tuning.conditional_rules": "Roll",
+            "tuning.profiles_library": "Roll",
         }
         self._tuning_last_edit_result: TuningEditResult | None = None
         self._selected_analysis_axis_by_route = {
@@ -190,25 +210,28 @@ class LiquidCommandShell(QWidget):
     def _build_placeholder_pages(self) -> None:
         _lcd4f_trace("creating route registry pages")
         for route in self.navigation_model.routes:
-            if route.route_key == "preflight.command_readiness":
-                _lcd4f_trace("constructing preflight page")
-                page = LIQUID_ROUTE_PAGE_FACTORIES[route.route_key](
-                    state=self.state,
-                    runtime_status=_runtime_status_from_state(self.state),
-                    on_route_requested=self.switch_route,
-                )
-            elif route.route_key == "mapping.hotas_map":
-                page = self._create_mapping_route_page(route.route_key)
-            elif route.route_key in {"mapping.route_details", "mapping.advanced_route_tables"}:
-                page = self._create_mapping_route_page(route.route_key)
-            elif route.route_key.startswith("tuning."):
-                page = self._create_tuning_route_page(route.route_key)
-            elif route.route_key.startswith("analysis."):
-                page = self._create_analysis_route_page(route.route_key)
-            elif route.route_key.startswith("recorder."):
-                page = self._create_recorder_route_page(route.route_key)
-            else:
-                page = LIQUID_ROUTE_PAGE_FACTORIES[route.route_key]()
+            try:
+                if route.route_key == "preflight.command_readiness":
+                    _lcd4f_trace("constructing preflight page")
+                    page = LIQUID_ROUTE_PAGE_FACTORIES[route.route_key](
+                        state=self.state,
+                        runtime_status=_runtime_status_from_state(self.state),
+                        on_route_requested=self.switch_route,
+                    )
+                elif route.route_key == "mapping.hotas_map":
+                    page = self._create_mapping_route_page(route.route_key)
+                elif route.route_key in {"mapping.route_details", "mapping.advanced_route_tables"}:
+                    page = self._create_mapping_route_page(route.route_key)
+                elif route.route_key.startswith("tuning."):
+                    page = self._create_tuning_route_page(route.route_key)
+                elif route.route_key.startswith("analysis."):
+                    page = self._create_analysis_route_page(route.route_key)
+                elif route.route_key.startswith("recorder."):
+                    page = self._create_recorder_route_page(route.route_key)
+                else:
+                    page = LIQUID_ROUTE_PAGE_FACTORIES[route.route_key]()
+            except Exception as exc:  # pragma: no cover - defensive route-host fallback
+                page = _route_error_fallback(route.route_key, exc)
             scroll = QScrollArea()
             scroll.setObjectName("liquid_page_scroll_area")
             scroll.setProperty("liquidRole", "liquid_page_scroll_area")
@@ -248,6 +271,7 @@ class LiquidCommandShell(QWidget):
             _lcd4f_trace(f"route host set page: {route.route_key}")
         else:
             _lcd4f_trace(f"route host already current: {route.route_key}")
+        self._set_live_monitor_display_active(route.route_key == "analysis.live_monitor")
         self.mode_dock.update_active(route.mode_id)
         self.subpage_selector.update_for_route(route.mode_id, route.subpage_id)
         if route.route_key == "preflight.command_readiness":
@@ -443,45 +467,72 @@ class LiquidCommandShell(QWidget):
     def _sync_mapping_page_state(self, state: AppState) -> None:
         mapping_scroll = self.page_widgets.get(self.current_route_key)
         mapping_page = mapping_scroll.widget() if mapping_scroll is not None else None
+        scroll_value = mapping_scroll.verticalScrollBar().value() if mapping_scroll is not None else 0
         if hasattr(mapping_page, "update_mapping_workspace"):
-            mapping_page.update_mapping_workspace(
-                state=state,
-                workspace=self.workspace,
-                base_workspace=self._mapping_base_workspace,
-                selected_route_id=self._selected_mapping_route_id,
-                last_edit_result=self._mapping_last_edit_result,
-            )
-        elif hasattr(mapping_page, "update_state"):
-            mapping_page.update_state(state)
-
-    def _sync_mapping_pages_after_edit(self) -> None:
-        for route_key in ("mapping.hotas_map", "mapping.route_details", "mapping.advanced_route_tables"):
-            mapping_scroll = self.page_widgets.get(route_key)
-            mapping_page = mapping_scroll.widget() if mapping_scroll is not None else None
-            if hasattr(mapping_page, "update_mapping_workspace"):
+            try:
                 mapping_page.update_mapping_workspace(
-                    state=self.state,
+                    state=state,
                     workspace=self.workspace,
                     base_workspace=self._mapping_base_workspace,
                     selected_route_id=self._selected_mapping_route_id,
                     last_edit_result=self._mapping_last_edit_result,
                 )
+            except Exception as exc:  # pragma: no cover - live update guard
+                self.setProperty("lastMappingSyncError", str(exc))
+        elif hasattr(mapping_page, "update_state"):
+            try:
+                mapping_page.update_state(state)
+            except Exception as exc:  # pragma: no cover - live update guard
+                self.setProperty("lastMappingSyncError", str(exc))
+        if mapping_scroll is not None:
+            bar = mapping_scroll.verticalScrollBar()
+            bar.setValue(min(scroll_value, bar.maximum()))
+
+    def _sync_mapping_pages_after_edit(self) -> None:
+        for route_key in ("mapping.hotas_map", "mapping.route_details", "mapping.advanced_route_tables"):
+            mapping_scroll = self.page_widgets.get(route_key)
+            mapping_page = mapping_scroll.widget() if mapping_scroll is not None else None
+            scroll_value = mapping_scroll.verticalScrollBar().value() if mapping_scroll is not None else 0
+            if hasattr(mapping_page, "update_mapping_workspace"):
+                try:
+                    mapping_page.update_mapping_workspace(
+                        state=self.state,
+                        workspace=self.workspace,
+                        base_workspace=self._mapping_base_workspace,
+                        selected_route_id=self._selected_mapping_route_id,
+                        last_edit_result=self._mapping_last_edit_result,
+                    )
+                except Exception as exc:  # pragma: no cover - live update guard
+                    self.setProperty("lastMappingSyncError", str(exc))
             elif hasattr(mapping_page, "update_state"):
-                mapping_page.update_state(self.state)
+                try:
+                    mapping_page.update_state(self.state)
+                except Exception as exc:  # pragma: no cover - live update guard
+                    self.setProperty("lastMappingSyncError", str(exc))
+            if mapping_scroll is not None:
+                bar = mapping_scroll.verticalScrollBar()
+                bar.setValue(min(scroll_value, bar.maximum()))
 
     def _sync_tuning_page_state(self, state: AppState) -> None:
         tuning_scroll = self.page_widgets.get(self.current_route_key)
         tuning_page = tuning_scroll.widget() if tuning_scroll is not None else None
         if hasattr(tuning_page, "update_tuning_workspace"):
-            tuning_page.update_tuning_workspace(
-                state=state,
-                workspace=self.workspace,
-                base_workspace=self._tuning_base_workspace,
-                selected_axis=self._selected_tuning_axis_by_route.get(self.current_route_key, "Roll"),
-                last_edit_result=self._tuning_last_edit_result,
-            )
+            try:
+                tuning_page.update_tuning_workspace(
+                    state=state,
+                    workspace=self.workspace,
+                    base_workspace=self._tuning_base_workspace,
+                    selected_axis=self._selected_tuning_axis_by_route.get(self.current_route_key, "Roll"),
+                    last_edit_result=self._tuning_last_edit_result,
+                    telemetry=self._latest_bridge_telemetry,
+                )
+            except Exception as exc:  # pragma: no cover - live update guard
+                self.setProperty("lastTuningSyncError", str(exc))
         elif hasattr(tuning_page, "update_state"):
-            tuning_page.update_state(state)
+            try:
+                tuning_page.update_state(state)
+            except Exception as exc:  # pragma: no cover - live update guard
+                self.setProperty("lastTuningSyncError", str(exc))
 
     def _sync_tuning_pages_after_edit(self) -> None:
         for route_key in (
@@ -489,32 +540,52 @@ class LiquidCommandShell(QWidget):
             "tuning.filtering",
             "tuning.combat_profile",
             "tuning.conditional_rules",
+            "tuning.profiles_library",
         ):
             tuning_scroll = self.page_widgets.get(route_key)
             tuning_page = tuning_scroll.widget() if tuning_scroll is not None else None
             if hasattr(tuning_page, "update_tuning_workspace"):
-                tuning_page.update_tuning_workspace(
-                    state=self.state,
-                    workspace=self.workspace,
-                    base_workspace=self._tuning_base_workspace,
-                    selected_axis=self._selected_tuning_axis_by_route.get(route_key, "Roll"),
-                    last_edit_result=self._tuning_last_edit_result,
-                )
+                try:
+                    tuning_page.update_tuning_workspace(
+                        state=self.state,
+                        workspace=self.workspace,
+                        base_workspace=self._tuning_base_workspace,
+                        selected_axis=self._selected_tuning_axis_by_route.get(route_key, "Roll"),
+                        last_edit_result=self._tuning_last_edit_result,
+                        telemetry=self._latest_bridge_telemetry,
+                    )
+                except Exception as exc:  # pragma: no cover - live update guard
+                    self.setProperty("lastTuningSyncError", str(exc))
             elif hasattr(tuning_page, "update_state"):
-                tuning_page.update_state(self.state)
+                try:
+                    tuning_page.update_state(self.state)
+                except Exception as exc:  # pragma: no cover - live update guard
+                    self.setProperty("lastTuningSyncError", str(exc))
 
     def _sync_analysis_page_state(self, state: AppState) -> None:
         analysis_scroll = self.page_widgets.get(self.current_route_key)
         analysis_page = analysis_scroll.widget() if analysis_scroll is not None else None
         if hasattr(analysis_page, "update_analysis_snapshot"):
-            analysis_page.update_analysis_snapshot(
-                state=state,
-                workspace=self.workspace,
-                telemetry=self._latest_bridge_telemetry,
-                selected_axis=self._selected_analysis_axis_by_route.get(self.current_route_key, "Roll"),
-            )
+            try:
+                analysis_page.update_analysis_snapshot(
+                    state=state,
+                    workspace=self.workspace,
+                    telemetry=self._latest_bridge_telemetry,
+                    selected_axis=self._selected_analysis_axis_by_route.get(self.current_route_key, "Roll"),
+                )
+            except Exception as exc:  # pragma: no cover - live update guard
+                self.setProperty("lastAnalysisSyncError", str(exc))
         elif hasattr(analysis_page, "update_state"):
-            analysis_page.update_state(state)
+            try:
+                analysis_page.update_state(state)
+            except Exception as exc:  # pragma: no cover - live update guard
+                self.setProperty("lastAnalysisSyncError", str(exc))
+
+    def _set_live_monitor_display_active(self, active: bool) -> None:
+        monitor_scroll = self.page_widgets.get("analysis.live_monitor")
+        monitor_page = monitor_scroll.widget() if monitor_scroll is not None else None
+        if hasattr(monitor_page, "set_live_monitor_active"):
+            monitor_page.set_live_monitor_active(active)
 
     def _sync_recorder_page_state(self, state: AppState) -> None:
         recorder_scroll = self.page_widgets.get(self.current_route_key)
@@ -549,6 +620,9 @@ class LiquidCommandShell(QWidget):
                 selected_control_id=control_id_for_route_id(self._selected_mapping_route_id),
                 on_route_requested=self.switch_route,
                 on_route_selected=self.select_mapping_route,
+                on_stage_edit=self.stage_mapping_route_edit,
+                on_revert=self.revert_mapping_route_edits,
+                last_edit_result=self._mapping_last_edit_result,
             )
         return LIQUID_ROUTE_PAGE_FACTORIES[route_key](
             **kwargs,
@@ -563,6 +637,7 @@ class LiquidCommandShell(QWidget):
             workspace=self.workspace,
             base_workspace=self._tuning_base_workspace,
             selected_axis=self._selected_tuning_axis_by_route.get(route_key, "Roll"),
+            telemetry=self._latest_bridge_telemetry,
             on_axis_selected=self.select_tuning_axis,
             on_stage_edit=self.stage_tuning_parameter_edit,
             on_route_requested=self.switch_route,
@@ -583,6 +658,7 @@ class LiquidCommandShell(QWidget):
     def _create_recorder_route_page(self, route_key: str):
         return LIQUID_ROUTE_PAGE_FACTORIES[route_key](
             state=self.state,
+            on_route_requested=self.switch_route,
         )
 
     def _load_initial_workspace(self, *, load_from_disk: bool) -> WorkspaceConfig:
@@ -662,7 +738,7 @@ class _LiquidTopCommandBar(QFrame):
         command_layout = horizontal_layout(command_cluster, margins=(8, 8, 8, 8), spacing=7)
         status_rail = glass_panel("liquidTopStatusRail", role="liquid_status_rail")
         status_rail.setFixedSize(6, 28)
-        self.helm_button = action_button("Helm", object_name="liquidHelmButton", enabled=True)
+        self.helm_button = action_button("Helm", object_name="liquidHelmButton", enabled=True, action_kind="open_panel")
         self.helm_button.setMaximumWidth(64)
         self.helm_button.setToolTip("Helm")
         self.helm_button.setStatusTip("Open Liquid Helm Assistant; recommendations stage workspace draft changes only.")
@@ -714,9 +790,34 @@ class _LiquidFooterActionStrip(QFrame):
 
         layout = horizontal_layout(self, margins=(18, 10, 18, 10), spacing=12)
         layout.addWidget(self._message, 1)
-        layout.addWidget(action_button("Apply", object_name="liquidFooterApplyButton", enabled=False))
-        layout.addWidget(action_button("Save", object_name="liquidFooterSaveButton", enabled=False))
-        layout.addWidget(action_button("Revert", object_name="liquidFooterRevertButton", enabled=False))
+        footer_reason = "Disabled: global Liquid footer workspace commands are preserved for a later safe wiring pass."
+        layout.addWidget(
+            action_button(
+                "Apply",
+                object_name="liquidFooterApplyButton",
+                enabled=False,
+                action_kind="disabled_deferred",
+                disabled_reason=footer_reason,
+            )
+        )
+        layout.addWidget(
+            action_button(
+                "Save",
+                object_name="liquidFooterSaveButton",
+                enabled=False,
+                action_kind="disabled_deferred",
+                disabled_reason=footer_reason,
+            )
+        )
+        layout.addWidget(
+            action_button(
+                "Revert",
+                object_name="liquidFooterRevertButton",
+                enabled=False,
+                action_kind="disabled_deferred",
+                disabled_reason=footer_reason,
+            )
+        )
         self.update_state(state)
 
     def update_state(self, state: AppState) -> None:

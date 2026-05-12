@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QSizePolicy, QWidget
+from collections.abc import Callable
+
+from PySide6.QtWidgets import QApplication, QFrame, QLabel, QPushButton, QSizePolicy, QWidget
 
 from v3_app.liquid.components import (
     LiquidAdvancedSection,
@@ -12,7 +14,7 @@ from v3_app.liquid.components import (
     LiquidStatusRail,
 )
 from v3_app.liquid.flow_components import ChecklistPanel
-from v3_app.liquid.glass import action_button, glass_panel
+from v3_app.liquid.glass import action_button, glass_panel, mark_action_feedback
 from v3_app.liquid.instruments import CapabilityRail
 from v3_app.liquid.layout import grid_layout, horizontal_layout, vertical_layout
 from v3_app.liquid.models.recorder_command_model import (
@@ -28,6 +30,8 @@ from v3_app.recorder.recorder_settings import FlightRecorderSettings
 from v3_app.recorder.recorder_state import RecorderState
 from v3_app.services.app_state import AppState
 
+RouteCallback = Callable[[str], None]
+
 
 class RecorderCommandPage(LiquidPage):
     def __init__(
@@ -39,6 +43,7 @@ class RecorderCommandPage(LiquidPage):
         recorder_state: RecorderState | None = None,
         capture_backend: CaptureBackend | None = None,
         artifacts: tuple[ClipMetadata, ...] | None = None,
+        on_route_requested: RouteCallback | None = None,
     ) -> None:
         self.route_key = route_key
         self._state = state
@@ -46,6 +51,7 @@ class RecorderCommandPage(LiquidPage):
         self._recorder_state = recorder_state
         self._capture_backend = capture_backend
         self._artifacts = artifacts
+        self._on_route_requested = on_route_requested
         self._last_signature: tuple[object, ...] | None = None
         self.render_count = 0
         self.model = self._build_model()
@@ -112,17 +118,29 @@ class RecorderCommandPage(LiquidPage):
         self.set_advanced(_advanced_details(self.model))
 
     def _render_flight_recorder(self) -> None:
-        self.set_hero(_status_hero(self.model))
+        self.set_hero(_status_hero(self.model, on_route_requested=self._on_route_requested))
         self.set_inspector(_capability_panel(self.model))
-        self.set_detail(_action_panel(self.model))
+        self.set_detail(_action_panel(self.model, self._on_route_requested))
 
     def _render_clip_library(self) -> None:
-        self.set_hero(_status_hero(self.model, body="Artifact review is metadata-first. Playback and export stay unavailable unless existing proof supports them."))
+        self.set_hero(
+            _status_hero(
+                self.model,
+                body="Artifact review is metadata-first. Playback and export stay unavailable unless existing proof supports them.",
+                on_route_requested=self._on_route_requested,
+            )
+        )
         self.set_inspector(_clip_library_panel(self.model))
         self.set_detail(_artifact_inspector(self.model))
 
     def _render_backend_truth(self) -> None:
-        self.set_hero(_status_hero(self.model, body="Backend capability fields are read-only and do not start capture, buffering, or encoding."))
+        self.set_hero(
+            _status_hero(
+                self.model,
+                body="Backend capability fields are read-only and do not start capture, buffering, or encoding.",
+                on_route_requested=self._on_route_requested,
+            )
+        )
         self.set_inspector(_backend_truth_panel(self.model))
         self.set_detail(_backend_checklist(self.model))
 
@@ -162,7 +180,12 @@ def _status_rail(model: RecorderCommandModel) -> LiquidStatusRail:
     return rail
 
 
-def _status_hero(model: RecorderCommandModel, *, body: str | None = None) -> LiquidHeroPanel:
+def _status_hero(
+    model: RecorderCommandModel,
+    *,
+    body: str | None = None,
+    on_route_requested: RouteCallback | None = None,
+) -> LiquidHeroPanel:
     hero = LiquidHeroPanel(
         model.overall_label,
         body or model.short_explanation,
@@ -184,7 +207,25 @@ def _status_hero(model: RecorderCommandModel, *, body: str | None = None) -> Liq
         object_name="liquidRecorderCapabilityRail",
     )
     layout.addWidget(metrics)
+    layout.addWidget(_recorder_command_actions(model, on_route_requested))
     return hero
+
+
+def _recorder_command_actions(model: RecorderCommandModel, on_route_requested: RouteCallback | None) -> QFrame:
+    actions = glass_panel("liquidRecorderCommandActions", role="liquid_recorder_command_actions")
+    actions.setProperty("componentRole", "RecorderCommandActions")
+    actions.setProperty("pageActionCluster", True)
+    layout = horizontal_layout(actions, margins=(0, 6, 0, 2), spacing=8)
+    layout.addWidget(_copy_button("Copy recorder status", "liquidRecorderCopyStatusButton", _recorder_status_text(model)))
+    for label, route_key, object_name in (
+        ("Open Capture Backend Truth", "recorder.capture_backend_truth", "liquidRecorderOpenBackendTruthButton"),
+        ("Open Clip Library", "recorder.clip_library", "liquidRecorderOpenClipLibraryButton"),
+        ("Open Flight Recorder", "recorder.flight_recorder", "liquidRecorderOpenFlightRecorderButton"),
+    ):
+        if route_key != model.route_key:
+            layout.addWidget(_navigation_button(label, route_key, object_name, on_route_requested))
+    layout.addStretch(1)
+    return actions
 
 
 def _capability_panel(model: RecorderCommandModel) -> LiquidInspectorPanel:
@@ -202,7 +243,7 @@ def _capability_panel(model: RecorderCommandModel) -> LiquidInspectorPanel:
     return panel
 
 
-def _action_panel(model: RecorderCommandModel) -> LiquidDetailPanel:
+def _action_panel(model: RecorderCommandModel, on_route_requested: RouteCallback | None) -> LiquidDetailPanel:
     panel = LiquidDetailPanel(
         "Recorder Actions",
         "Unavailable controls stay disabled. This page does not start capture or write video.",
@@ -213,7 +254,7 @@ def _action_panel(model: RecorderCommandModel) -> LiquidDetailPanel:
     if layout is None:
         return panel
     for action in model.actions:
-        layout.addWidget(_action_row(action))
+        layout.addWidget(_action_row(action, on_route_requested))
     layout.addWidget(
         ChecklistPanel(
             "Recorder truth checklist",
@@ -229,24 +270,103 @@ def _action_panel(model: RecorderCommandModel) -> LiquidDetailPanel:
     return panel
 
 
-def _action_row(action: RecorderActionItem) -> QFrame:
+def _action_row(action: RecorderActionItem, on_route_requested: RouteCallback | None) -> QFrame:
     row = glass_panel(f"liquidRecorderAction_{action.action_id}", role="liquid_recorder_action_row")
     row.setProperty("recorderAction", True)
     layout = horizontal_layout(row, margins=(12, 9, 12, 9), spacing=8)
+    route_target = "recorder.clip_library" if action.action_id == "review_artifacts" else ""
+    is_navigation = bool(route_target and action.enabled and on_route_requested is not None)
+    disabled_reason = action.reason
+    if action.action_id in {"record_now", "save_last_clip"} and action.enabled:
+        disabled_reason = "Disabled: Liquid recorder buttons do not start capture or save video without an existing safe controller callback."
+    elif action.action_id == "review_artifacts" and action.enabled and on_route_requested is None:
+        disabled_reason = "Disabled: artifact review navigation callback unavailable in this context."
     button = action_button(
         action.label,
         object_name=_action_object_name(action.action_id),
-        enabled=action.enabled,
+        enabled=is_navigation,
+        action_kind="navigation" if is_navigation else "disabled_deferred",
+        disabled_reason=disabled_reason if not is_navigation else "",
+        route_target=route_target or None,
     )
     button.setProperty("recorderActionId", action.action_id)
-    button.setToolTip(action.reason)
+    button.setToolTip(
+        f"Navigate to {route_target}. This does not start capture or encode video."
+        if is_navigation
+        else disabled_reason
+    )
+    button.setStatusTip(button.toolTip())
+    button.setAccessibleDescription(button.toolTip())
+    if is_navigation and on_route_requested is not None:
+        button.clicked.connect(lambda _checked=False, target=route_target: on_route_requested(target))
     layout.addWidget(button)
-    layout.addWidget(StatusChip("Available" if action.enabled else "Unavailable", state_role=action.state_role))
-    reason = QLabel(action.reason)
+    layout.addWidget(StatusChip("Available" if is_navigation else "Unavailable", state_role=action.state_role))
+    reason = QLabel(button.toolTip())
     reason.setWordWrap(True)
     reason.setObjectName("liquidRecorderActionReason")
     layout.addWidget(reason, 1)
     return row
+
+
+def _navigation_button(
+    text: str,
+    route_key: str,
+    object_name: str,
+    on_route_requested: RouteCallback | None,
+) -> QPushButton:
+    reason = f"Navigate to {route_key}. This does not start capture, encode video, or change runtime state."
+    if on_route_requested is None:
+        reason = f"Disabled: {reason} Navigation callback unavailable in this context."
+    button = action_button(
+        text,
+        object_name=object_name,
+        enabled=on_route_requested is not None,
+        action_kind="navigation",
+        disabled_reason=reason if on_route_requested is None else "",
+        route_target=route_key,
+    )
+    button.setProperty("navigationOnly", True)
+    button.setToolTip(reason)
+    button.setStatusTip(reason)
+    button.setAccessibleDescription(reason)
+    if on_route_requested is not None:
+        button.clicked.connect(lambda _checked=False, target=route_key: on_route_requested(target))
+    return button
+
+
+def _copy_button(text: str, object_name: str, payload: str) -> QPushButton:
+    button = action_button(text, object_name=object_name, enabled=True, action_kind="copy")
+    button.setProperty("copyOnly", True)
+    button.setToolTip("Copy Recorder information to the clipboard. This does not start capture or change runtime state.")
+    button.setStatusTip(button.toolTip())
+    button.setAccessibleDescription(button.toolTip())
+    button.clicked.connect(lambda _checked=False, data=payload, target=button: _copy_to_clipboard(data, target))
+    return button
+
+
+def _copy_to_clipboard(text: str, button: QPushButton | None = None) -> None:
+    clipboard = QApplication.clipboard()
+    if clipboard is not None:
+        clipboard.setText(text)
+        if button is not None:
+            mark_action_feedback(button, "Copied recorder information to clipboard.")
+    elif button is not None:
+        mark_action_feedback(button, "Clipboard unavailable; nothing was copied.")
+
+
+def _recorder_status_text(model: RecorderCommandModel) -> str:
+    lines = [
+        f"Route: {model.route_key}",
+        f"Overall: {model.overall_label}",
+        f"Backend: {model.backend_name} ({model.backend_kind})",
+        f"Real capture supported: {model.real_capture_supported}",
+        f"Frame capture available: {model.frame_capture_available}",
+        f"Encoding available: {model.encoding_available}",
+        f"Hindsight video available: {model.hindsight_video_available}",
+        "Recorder copy action does not start capture, encode video, or verify output.",
+    ]
+    lines.extend(f"{label}: {value} - {caption}" for label, value, caption, _role in model.metrics)
+    return "\n".join(lines)
 
 
 def _clip_library_panel(model: RecorderCommandModel) -> LiquidInspectorPanel:

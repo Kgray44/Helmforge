@@ -88,12 +88,37 @@ class SignalPipelineStage(QFrame):
         header = horizontal_layout(spacing=8)
         header.addWidget(StatusLight(state_role=status_role))
         header.addWidget(_label(stage_name, "liquidSignalPipelineStageName"), 1)
+        self._value_chip: StatusChip | None = None
         if selected_value:
-            header.addWidget(StatusChip(selected_value, state_role=status_role))
+            self._value_chip = StatusChip(selected_value, state_role=status_role)
+            header.addWidget(self._value_chip)
         layout.addLayout(header)
-        layout.addWidget(_label(stage_summary, "liquidSignalPipelineStageSummary", wrap=True))
+        self._summary_label = _label(stage_summary, "liquidSignalPipelineStageSummary", wrap=True)
+        layout.addWidget(self._summary_label)
+        self._warning_chip: StatusChip | None = None
         if warning_text:
-            layout.addWidget(StatusChip(warning_text, state_role="warning"))
+            self._warning_chip = StatusChip(warning_text, state_role="warning")
+            layout.addWidget(self._warning_chip)
+
+    def update_stage(
+        self,
+        *,
+        stage_summary: str,
+        selected_value: str,
+        status_role: str,
+        warning_text: str = "",
+    ) -> None:
+        _set_flow_props(
+            self,
+            component_role="SignalPipelineStage",
+            state_role=status_role,
+            liquid_role="signal_pipeline_stage",
+        )
+        self._summary_label.setText(stage_summary)
+        if self._value_chip is not None:
+            self._value_chip.set_state(selected_value, status_role)
+        if self._warning_chip is not None:
+            self._warning_chip.setText(warning_text)
 
 
 class ChecklistPanel(QFrame):

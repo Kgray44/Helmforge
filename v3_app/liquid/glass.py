@@ -28,12 +28,57 @@ def status_chip(text: str, *, tone: str = "neutral", object_name: str | None = N
     return chip
 
 
-def action_button(text: str, *, object_name: str, enabled: bool = True) -> QPushButton:
+def configure_command_action(
+    button: QPushButton,
+    *,
+    action_kind: str,
+    disabled_reason: str = "",
+    route_target: str | None = None,
+) -> QPushButton:
+    button.setProperty("liquidCommandAction", True)
+    button.setProperty("actionKind", action_kind)
+    if route_target is not None:
+        button.setProperty("routeTarget", route_target)
+    if disabled_reason:
+        button.setProperty("disabledReason", disabled_reason)
+    if not button.isEnabled() and disabled_reason:
+        if not button.toolTip():
+            button.setToolTip(disabled_reason)
+        if not button.statusTip():
+            button.setStatusTip(disabled_reason)
+        if not button.accessibleDescription():
+            button.setAccessibleDescription(disabled_reason)
+    return button
+
+
+def mark_action_feedback(button: QPushButton, message: str) -> None:
+    button.setProperty("lastActionStatus", message)
+    button.setStatusTip(message)
+    if message:
+        button.setAccessibleDescription(message)
+    refresh_style(button)
+
+
+def action_button(
+    text: str,
+    *,
+    object_name: str,
+    enabled: bool = True,
+    action_kind: str = "unclassified",
+    disabled_reason: str = "",
+    route_target: str | None = None,
+) -> QPushButton:
     button = QPushButton(text)
     button.setObjectName(object_name)
     button.setProperty("uiRole", "liquidActionButton")
     button.setCursor(Qt.CursorShape.PointingHandCursor if enabled else Qt.CursorShape.ArrowCursor)
     button.setEnabled(enabled)
+    configure_command_action(
+        button,
+        action_kind=action_kind,
+        disabled_reason=disabled_reason,
+        route_target=route_target,
+    )
     return button
 
 

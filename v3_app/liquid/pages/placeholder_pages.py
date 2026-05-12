@@ -38,6 +38,7 @@ from v3_app.liquid.pages.tuning_command_pages import (
     create_combat_profile_command_page,
     create_conditional_rules_command_page,
     create_filtering_command_page,
+    create_profiles_library_command_page,
 )
 from v3_app.liquid.pages.analysis_command_pages import (
     create_effective_response_stack_page,
@@ -246,6 +247,7 @@ def _hero_title(route: LiquidRoute) -> str:
         "tuning.filtering": "Filtering Response Instrument",
         "tuning.combat_profile": "Combat Response Instrument",
         "tuning.conditional_rules": "Conditional Rule Flow",
+        "tuning.profiles_library": "Profiles Library",
         "analysis.effective_response_stack": "Signal / Live Monitor Instrument",
         "analysis.live_monitor": "Live Monitor Instrument",
         "recorder.flight_recorder": "Capture Capability Deck",
@@ -324,6 +326,8 @@ def _hero_demo(definition: LiquidPlaceholderPageDefinition):
             selected_value="Rule seam",
             status_role="simulation",
         )
+    if route_key == "tuning.profiles_library":
+        return MetricTile("Profiles", "Workspace", "Profile library route restored for Liquid tuning.", state_role="info")
     if route_key == "analysis.effective_response_stack":
         return SignalPipelineStage(
             "Raw Input",
@@ -480,6 +484,7 @@ LIQUID_ROUTE_PAGE_FACTORIES["tuning.base_tuning"] = create_base_tuning_command_p
 LIQUID_ROUTE_PAGE_FACTORIES["tuning.filtering"] = create_filtering_command_page
 LIQUID_ROUTE_PAGE_FACTORIES["tuning.combat_profile"] = create_combat_profile_command_page
 LIQUID_ROUTE_PAGE_FACTORIES["tuning.conditional_rules"] = create_conditional_rules_command_page
+LIQUID_ROUTE_PAGE_FACTORIES["tuning.profiles_library"] = create_profiles_library_command_page
 LIQUID_ROUTE_PAGE_FACTORIES["analysis.effective_response_stack"] = create_effective_response_stack_page
 LIQUID_ROUTE_PAGE_FACTORIES["analysis.live_monitor"] = create_live_monitor_page
 LIQUID_ROUTE_PAGE_FACTORIES["recorder.flight_recorder"] = create_flight_recorder_page

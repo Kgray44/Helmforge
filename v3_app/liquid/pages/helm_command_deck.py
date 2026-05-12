@@ -177,12 +177,16 @@ class HelmAssistantDeck(LiquidFloatingPanel):
             "Apply selected changes to workspace draft",
             object_name="liquidHelmApplySelectedButton",
             enabled=self.model.apply_available,
+            action_kind="stage_draft",
+            disabled_reason="Disabled: no deterministic Helm recommendation is available to stage." if not self.model.apply_available else "",
         )
         self.apply_button.clicked.connect(lambda _checked=False: self.apply_selected())
         self.revert_button = action_button(
             "Revert last Helm changes",
             object_name="liquidHelmRevertLastButton",
             enabled=self._last_apply_result is not None and bool(self._last_apply_result.applied_diffs),
+            action_kind="revert",
+            disabled_reason="Disabled: no Helm draft change batch has been applied in this session." if not (self._last_apply_result is not None and bool(self._last_apply_result.applied_diffs)) else "",
         )
         self.revert_button.clicked.connect(lambda _checked=False: self.revert_last())
         row.addWidget(self.apply_button)

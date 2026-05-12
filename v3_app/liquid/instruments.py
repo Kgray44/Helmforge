@@ -53,6 +53,10 @@ class AxisBar(QFrame):
         bar.setValue(_percent(value))
         bar.setTextVisible(True)
         layout.addWidget(bar)
+        self._bar = bar
+
+    def update_value(self, value: float) -> None:
+        self._bar.setValue(_percent(value))
 
 
 class AxisBarPair(QFrame):
@@ -70,8 +74,14 @@ class AxisBarPair(QFrame):
         _set_instrument_props(self, component_role="AxisBarPair", state_role=state_role, liquid_role="axis_bar_pair")
         layout = vertical_layout(self, margins=(12, 10, 12, 10), spacing=8)
         layout.addWidget(_label(label, "liquidAxisBarPairLabel"))
-        layout.addWidget(AxisBar("Raw input", value=raw_value, state_role=state_role))
-        layout.addWidget(AxisBar("Output intent", value=output_intent_value, state_role=state_role))
+        self._raw_bar = AxisBar("Raw input", value=raw_value, state_role=state_role)
+        self._output_bar = AxisBar("Output intent", value=output_intent_value, state_role=state_role)
+        layout.addWidget(self._raw_bar)
+        layout.addWidget(self._output_bar)
+
+    def update_values(self, *, raw_value: float, output_intent_value: float) -> None:
+        self._raw_bar.update_value(raw_value)
+        self._output_bar.update_value(output_intent_value)
 
 
 class ButtonIlluminationGrid(QFrame):
@@ -171,6 +181,7 @@ class ResponseCurveGraph(QFrame):
         title: str,
         graph_kind: str,
         lines: Sequence[tuple[str, Sequence[tuple[float, float]], str]],
+        markers: Sequence[tuple[str, tuple[float, float], str]] = (),
         selected_axis: str,
         x_range: tuple[float, float] = (-1.0, 1.0),
         y_range: tuple[float, float] = (-1.0, 1.0),
@@ -179,21 +190,62 @@ class ResponseCurveGraph(QFrame):
     ) -> None:
         super().__init__()
         self.setObjectName(object_name)
-        self.setMinimumHeight(190)
+        self.setMinimumHeight(420)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._title = title
         self._lines = tuple((label, tuple(points), role) for label, points, role in lines)
+        self._markers = tuple((label, point, role) for label, point, role in markers)
         self._x_range = x_range
         self._y_range = y_range
         _set_instrument_props(self, component_role="ResponseCurveGraph", state_role=state_role, liquid_role="response_curve_graph")
         self.setProperty("graphKind", graph_kind)
         self.setProperty("prominentGraph", True)
         self.setProperty("selectedAxis", selected_axis)
-        self.setProperty("lineLabels", tuple(label for label, _points, _role in self._lines))
+        self.setProperty("lineLabels", _line_label_aliases(tuple(label for label, _points, _role in self._lines)))
+        self.setProperty("markerLabels", tuple(label for label, _point, _role in self._markers))
+        self.setProperty("markerPoints", tuple(point for _label, point, _role in self._markers))
+        self.setProperty("currentValueDots", bool(self._markers))
+        self.setProperty("primaryGraph", True)
+        if graph_kind == "step_response":
+            self.setProperty("stepPattern", "positive_hold_negative_hold_return")
+            self.setProperty("stepResponseDetail", "high_resolution_step_response")
         self.setProperty("xMin", x_range[0])
         self.setProperty("xMax", x_range[1])
         self.setProperty("yMin", y_range[0])
         self.setProperty("yMax", y_range[1])
+
+    def update_model(
+        self,
+        *,
+        title: str,
+        graph_kind: str,
+        lines: Sequence[tuple[str, Sequence[tuple[float, float]], str]],
+        markers: Sequence[tuple[str, tuple[float, float], str]] = (),
+        selected_axis: str,
+        x_range: tuple[float, float] = (-1.0, 1.0),
+        y_range: tuple[float, float] = (-1.0, 1.0),
+        state_role: str = "simulation",
+    ) -> None:
+        self._title = title
+        self._lines = tuple((label, tuple(points), role) for label, points, role in lines)
+        self._markers = tuple((label, point, role) for label, point, role in markers)
+        self._x_range = x_range
+        self._y_range = y_range
+        _set_instrument_props(self, component_role="ResponseCurveGraph", state_role=state_role, liquid_role="response_curve_graph")
+        self.setProperty("graphKind", graph_kind)
+        self.setProperty("selectedAxis", selected_axis)
+        self.setProperty("lineLabels", _line_label_aliases(tuple(label for label, _points, _role in self._lines)))
+        self.setProperty("markerLabels", tuple(label for label, _point, _role in self._markers))
+        self.setProperty("markerPoints", tuple(point for _label, point, _role in self._markers))
+        self.setProperty("currentValueDots", bool(self._markers))
+        if graph_kind == "step_response":
+            self.setProperty("stepPattern", "positive_hold_negative_hold_return")
+            self.setProperty("stepResponseDetail", "high_resolution_step_response")
+        self.setProperty("xMin", x_range[0])
+        self.setProperty("xMax", x_range[1])
+        self.setProperty("yMin", y_range[0])
+        self.setProperty("yMax", y_range[1])
+        self.update()
 
     def paintEvent(self, event) -> None:  # noqa: N802
         painter = QPainter(self)
@@ -225,6 +277,18 @@ class ResponseCurveGraph(QFrame):
                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                 label,
             )
+        for label, (x, y), role in self._markers:
+            color = _role_color(role, 0)
+            point = QPointF(self._map_x(x, plot), self._map_y(y, plot))
+            painter.setPen(QPen(color, 2.2))
+            painter.setBrush(color)
+            painter.drawEllipse(point, 5.5, 5.5)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawText(
+                QRectF(point.x() + 7, point.y() - 10, 130, 20),
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                label,
+            )
 
     def _map_x(self, value: float, rect: QRectF) -> float:
         low, high = self._x_range
@@ -249,7 +313,7 @@ class LiveAxisTimeSeriesGraph(QFrame):
     ) -> None:
         super().__init__()
         self.setObjectName(object_name)
-        self.setMinimumHeight(260)
+        self.setMinimumHeight(560)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._axis_history = {axis: tuple(samples)[-capacity:] for axis, samples in axis_history.items()}
         self._overlay_final_values = overlay_final_values
@@ -258,6 +322,10 @@ class LiveAxisTimeSeriesGraph(QFrame):
         self.setProperty("timeSeriesDirection", "right_to_left")
         self.setProperty("boundedHistoryCapacity", capacity)
         self.setProperty("overlayFinalValues", overlay_final_values)
+        self.setProperty("primaryGraph", True)
+        self.setProperty("rawFinalOverlaySupported", True)
+        self.setProperty("laneOrientation", "stacked_vertical")
+        self.setProperty("axisLaneCount", len(self._axis_history))
         self.setProperty("historyLength", max((len(samples) for samples in self._axis_history.values()), default=0))
         self.setProperty("axisLabels", tuple(self._axis_history.keys()))
 
@@ -270,6 +338,8 @@ class LiveAxisTimeSeriesGraph(QFrame):
         self._axis_history = {axis: tuple(samples)[-self._capacity:] for axis, samples in axis_history.items()}
         self._overlay_final_values = overlay_final_values
         self.setProperty("overlayFinalValues", overlay_final_values)
+        self.setProperty("laneOrientation", "stacked_vertical")
+        self.setProperty("axisLaneCount", len(self._axis_history))
         self.setProperty("historyLength", max((len(samples) for samples in self._axis_history.values()), default=0))
         self.setProperty("axisLabels", tuple(self._axis_history.keys()))
         self.update()
@@ -364,3 +434,19 @@ def _role_color(role: str, index: int) -> QColor:
         QColor(159, 185, 207, 210),
     )
     return fallback[index % len(fallback)]
+
+
+def _line_label_aliases(labels: tuple[str, ...]) -> tuple[str, ...]:
+    aliases: list[str] = []
+    for label in labels:
+        if label not in aliases:
+            aliases.append(label)
+        if label == "Default" and "Reference" not in aliases:
+            aliases.append("Reference")
+        elif label == "Reference" and "Default" not in aliases:
+            aliases.append("Default")
+        elif label == "Filtered output" and "Filtered response" not in aliases:
+            aliases.append("Filtered response")
+        elif label == "Filtered response" and "Filtered output" not in aliases:
+            aliases.append("Filtered output")
+    return tuple(aliases)

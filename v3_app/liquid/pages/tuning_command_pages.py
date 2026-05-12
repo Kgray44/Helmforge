@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QComboBox, QFrame, QLabel, QPushButton, QSizePolicy, QWidget
+from PySide6.QtWidgets import QApplication, QComboBox, QFrame, QLabel, QPushButton, QSizePolicy, QTreeWidget, QTreeWidgetItem, QWidget
 
 from shared_core.models.runtime import RuntimeMode, RuntimePreflightStatus, RuntimeTruth
 from shared_core.models.workspace import WorkspaceConfig, create_default_workspace
+from shared_core.runtime.telemetry import BridgeTelemetrySnapshot
 from v3_app.liquid.components import (
     LiquidAdvancedSection,
     LiquidDetailPanel,
@@ -16,7 +18,7 @@ from v3_app.liquid.components import (
     LiquidPageHeader,
 )
 from v3_app.liquid.flow_components import RouteFlowRow, SignalPipelineStage
-from v3_app.liquid.glass import action_button, glass_panel, refresh_style
+from v3_app.liquid.glass import action_button, glass_panel, mark_action_feedback, refresh_style
 from v3_app.liquid.instruments import AxisBarPair, CapabilityRail, ResponseCurveGraph
 from v3_app.liquid.layout import horizontal_layout, vertical_layout
 from v3_app.liquid.models.tuning_command_model import (
@@ -44,6 +46,62 @@ RouteCallback = Callable[[str], None]
 RevertCallback = Callable[[], None]
 
 
+@dataclass(frozen=True)
+class TuningPreset:
+    preset_id: str
+    name: str
+    category: str
+    purpose: str
+    base_tuning: str
+    filtering: str
+    combat_profile: str
+    rules: str
+
+
+BUILT_IN_TUNING_PRESETS: tuple[TuningPreset, ...] = (
+    TuningPreset(
+        preset_id="balanced_default",
+        name="Balanced Default",
+        category="Built-in Presets",
+        purpose="Conservative general-purpose tuning for everyday flying and vehicle control.",
+        base_tuning="Linear response with a modest center deadzone and no aggressive scaling.",
+        filtering="Light smoothing with no heavy lag.",
+        combat_profile="Neutral combat response; faster modes are reviewed before staging.",
+        rules="No automatic rule injection.",
+    ),
+    TuningPreset(
+        preset_id="precision_aim",
+        name="Precision Aim",
+        category="Built-in Presets",
+        purpose="Softer center and finer small movement control for careful aiming.",
+        base_tuning="Gentle center response with reduced near-zero sensitivity.",
+        filtering="Light-to-moderate smoothing for micro-corrections.",
+        combat_profile="Precision-biased curve preview; no live combat mutation.",
+        rules="Rules remain workspace-owned.",
+    ),
+    TuningPreset(
+        preset_id="smooth_flight",
+        name="Smooth Flight",
+        category="Built-in Presets",
+        purpose="Stronger smoothing and gentle response for stable flight.",
+        base_tuning="Soft response ramp with conservative output intent.",
+        filtering="Higher smoothing and slew damping preview.",
+        combat_profile="Gentle profile, not a combat boost.",
+        rules="No automatic rule injection.",
+    ),
+    TuningPreset(
+        preset_id="combat_response",
+        name="Combat Response",
+        category="Built-in Presets",
+        purpose="Faster response / combat-oriented profile while preserving output proof boundaries.",
+        base_tuning="Quicker magnitude growth outside the center.",
+        filtering="Lower smoothing to preserve rapid reversals.",
+        combat_profile="Combat curve preview keeps sign and center crossing sane.",
+        rules="Mode and rule changes remain draft-only if supported later.",
+    ),
+)
+
+
 class TuningCommandPage(LiquidPage):
     def __init__(
         self,
@@ -53,6 +111,7 @@ class TuningCommandPage(LiquidPage):
         workspace: WorkspaceConfig | None = None,
         base_workspace: WorkspaceConfig | None = None,
         selected_axis: str = "Roll",
+        telemetry: BridgeTelemetrySnapshot | None = None,
         on_axis_selected: AxisSelectedCallback | None = None,
         on_stage_edit: StageEditCallback | None = None,
         on_route_requested: RouteCallback | None = None,
@@ -64,14 +123,17 @@ class TuningCommandPage(LiquidPage):
         self.workspace = workspace or create_default_workspace()
         self.base_workspace = base_workspace or self.workspace
         self.selected_axis = selected_axis
+        self.telemetry = telemetry
         self._on_axis_selected = on_axis_selected
         self._on_stage_edit = on_stage_edit
         self._on_route_requested = on_route_requested
         self._on_revert = on_revert
         self._last_edit_result = last_edit_result
         self._render_signature: tuple[object, ...] | None = None
+        self._render_structure_signature: tuple[object, ...] | None = None
         self._current_model: TuningCommandModel | None = None
         self._parameter_controls: dict[str, QWidget] = {}
+        self.render_count = 0
         super().__init__(
             title=_title_for_route(route_key),
             subtitle=_question_for_route(route_key),
@@ -81,6 +143,7 @@ class TuningCommandPage(LiquidPage):
         self.setProperty("modeId", "tuning")
         self.setProperty("selectedAxis", selected_axis)
         self.setProperty("lcdPhase", "LCD-6")
+        self.setProperty("tuningRenderCount", self.render_count)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._render(force=True)
 
@@ -123,13 +186,26 @@ class TuningCommandPage(LiquidPage):
         base_workspace: WorkspaceConfig,
         selected_axis: str,
         last_edit_result: TuningEditResult | None,
+        telemetry: BridgeTelemetrySnapshot | None = None,
     ) -> None:
         self.state = state
         self.workspace = workspace
         self.base_workspace = base_workspace
         self.selected_axis = selected_axis
+        self.telemetry = telemetry
         self._last_edit_result = last_edit_result
         self.setProperty("selectedAxis", selected_axis)
+        next_model = build_tuning_command_model(
+            route_key=self.route_key,
+            workspace=self.workspace,
+            base_workspace=self.base_workspace,
+            selected_axis=self.selected_axis,
+            state=self.state,
+            telemetry=self.telemetry,
+        )
+        if self._can_update_live_preview_in_place(next_model):
+            self._update_live_preview_in_place(next_model)
+            return
         self._render(force=False)
 
     def _render(self, *, force: bool = False) -> None:
@@ -139,16 +215,20 @@ class TuningCommandPage(LiquidPage):
             base_workspace=self.base_workspace,
             selected_axis=self.selected_axis,
             state=self.state,
+            telemetry=self.telemetry,
         )
         signature = _model_signature(model, self._last_edit_result)
         if not force and signature == self._render_signature:
             return
         self._render_signature = signature
+        self._render_structure_signature = _model_structure_signature(model, self._last_edit_result)
         self._current_model = model
         self._parameter_controls = {}
+        self.render_count += 1
+        self.setProperty("tuningRenderCount", self.render_count)
 
         self.set_header(_build_header(model))
-        self.set_status_rail(_build_status_rail(model, self._last_edit_result))
+        self.set_status_rail(_build_status_rail(self, model, self._last_edit_result))
         self.set_hero(_build_hero(self, model))
         if self.route_key == "tuning.conditional_rules":
             self.set_inspector(_build_rule_inspector(self, model))
@@ -163,6 +243,47 @@ class TuningCommandPage(LiquidPage):
         if control is not None:
             control.setProperty("validationState", "valid" if valid else "invalid")
             refresh_style(control)
+
+    def _can_update_live_preview_in_place(self, model: TuningCommandModel) -> bool:
+        if self._current_model is None or model.preview_graph is None:
+            return False
+        if self.route_key not in {"tuning.base_tuning", "tuning.filtering", "tuning.combat_profile"}:
+            return False
+        if _model_structure_signature(model, self._last_edit_result) != self._render_structure_signature:
+            return False
+        return self.findChild(QWidget, "liquidTuningResponseGraph") is not None
+
+    def _update_live_preview_in_place(self, model: TuningCommandModel) -> None:
+        self._current_model = model
+        self._render_signature = _model_signature(model, self._last_edit_result)
+        graph = self.findChild(ResponseCurveGraph, "liquidTuningResponseGraph")
+        if graph is not None and model.preview_graph is not None:
+            graph.update_model(
+                title=model.preview_graph.title,
+                graph_kind=model.preview_graph.graph_kind,
+                lines=tuple((line.label, line.points, line.role) for line in model.preview_graph.lines),
+                markers=tuple((marker.label, marker.point, marker.role) for marker in model.preview_graph.markers),
+                selected_axis=model.preview_graph.selected_axis,
+                x_range=model.preview_graph.x_range,
+                y_range=model.preview_graph.y_range,
+                state_role=model.preview.state_role,
+            )
+        instrument = self.findChild(AxisBarPair, "liquidTuningResponseInstrument")
+        if instrument is not None:
+            instrument.update_values(
+                raw_value=model.preview.raw_value,
+                output_intent_value=model.preview.output_intent_value,
+            )
+        snapshot = self.findChild(LiveSnapshotBlock, "liquidTuningLiveSnapshot")
+        if snapshot is not None:
+            snapshot.update_values(
+                selected_control=model.selected_axis,
+                source_truth_label=model.preview.source_truth_label,
+                raw_value=f"{model.preview.raw_value:.2f}"
+                + ("" if "Passive live telemetry" in model.preview.source_truth_label else " (Current sample unavailable)"),
+                output_intent_value=f"Output Intent preview {model.preview.output_intent_value:.2f}",
+                state_role=model.preview.state_role,
+            )
 
 
 def create_base_tuning_command_page(**kwargs) -> TuningCommandPage:
@@ -185,6 +306,329 @@ def create_conditional_rules_command_page(**kwargs) -> TuningCommandPage:
     return TuningCommandPage(route_key="tuning.conditional_rules", **kwargs)
 
 
+def create_profiles_library_command_page(**kwargs) -> LiquidPage:
+    _ensure_defaults(kwargs)
+    return TuningProfilesLibraryPage(**kwargs)
+
+
+class TuningProfilesLibraryPage(LiquidPage):
+    def __init__(
+        self,
+        *,
+        state: AppState,
+        workspace: WorkspaceConfig | None = None,
+        base_workspace: WorkspaceConfig | None = None,
+        on_route_requested: RouteCallback | None = None,
+        **_kwargs,
+    ) -> None:
+        self.state = state
+        self.workspace = workspace or create_default_workspace()
+        self.base_workspace = base_workspace or self.workspace
+        self._on_route_requested = on_route_requested
+        self.render_count = 0
+        self._render_signature: tuple[object, ...] | None = None
+        self._selected_preset_id = "current_workspace"
+        super().__init__(
+            title="Profiles Library",
+            subtitle="Workspace tuning profile review and safe profile utilities.",
+            object_name="liquidTuningProfilesLibraryPage",
+        )
+        self.setProperty("routeKey", "tuning.profiles_library")
+        self.setProperty("modeId", "tuning")
+        self.setProperty("profilesLibraryPage", True)
+        self.setProperty("profilesLibraryRenderCount", self.render_count)
+        self._render()
+
+    def select_profile_preset(self, preset_id: str) -> None:
+        if preset_id == self._selected_preset_id:
+            return
+        if preset_id not in _profile_preset_ids():
+            return
+        self._selected_preset_id = preset_id
+        self.setProperty("selectedPresetId", preset_id)
+        self._render()
+
+    def update_tuning_workspace(
+        self,
+        *,
+        state: AppState,
+        workspace: WorkspaceConfig,
+        base_workspace: WorkspaceConfig,
+        **_kwargs,
+    ) -> None:
+        self.state = state
+        self.workspace = workspace
+        self.base_workspace = base_workspace
+        self._render()
+
+    def _render(self) -> None:
+        signature = _profiles_render_signature(self.state, self.workspace, self._selected_preset_id)
+        if signature == self._render_signature:
+            return
+        self._render_signature = signature
+        self.render_count += 1
+        self.setProperty("profilesLibraryRenderCount", self.render_count)
+        active_profile = self.workspace.active_profile
+        self.set_header(
+            LiquidPageHeader(
+                "Profiles Library",
+                "Which workspace tuning profiles are available and what can I safely do with them?",
+                kicker="TUNING COMMAND",
+                object_name="liquidTuningProfilesHeader",
+            )
+        )
+        self.set_status_rail(_profiles_status_rail(active_profile, self.workspace))
+        selected_preset = _preset_by_id(self._selected_preset_id, self.workspace)
+        self.set_hero(_profiles_hero(active_profile, self.workspace, selected_preset))
+        self.set_inspector(_profiles_preset_browser(self, self.workspace, selected_preset))
+        self.set_detail(_profiles_actions_panel(self.workspace, self._on_route_requested, selected_preset))
+        self.set_advanced(_profiles_advanced(self.workspace))
+
+
+def _profiles_status_rail(active_profile: str, workspace: WorkspaceConfig) -> QFrame:
+    rail = glass_panel("liquidTuningProfilesStatusRail", role="liquid_tuning_profiles_status")
+    rail.setProperty("profilesLibraryStatusRail", True)
+    layout = horizontal_layout(rail, margins=(12, 8, 12, 8), spacing=8)
+    layout.addWidget(StatusChip(f"Active profile: {active_profile}", state_role="info"))
+    layout.addWidget(StatusChip("Workspace draft only", state_role="simulation"))
+    layout.addWidget(StatusChip(f"Rules: {len(workspace.rules.rules)}", state_role="info"))
+    layout.addStretch(1)
+    return rail
+
+
+def _profiles_render_signature(state: AppState, workspace: WorkspaceConfig, selected_preset_id: str = "current_workspace") -> tuple[object, ...]:
+    return (
+        selected_preset_id,
+        workspace.active_profile,
+        state.saved,
+        len(workspace.tuning.axes),
+        len(workspace.filtering.axes),
+        len(workspace.combat.axes),
+        len(workspace.rules.rules),
+        len(workspace.mappings.axis_routes),
+        len(workspace.mappings.button_routes),
+        len(workspace.mappings.hat_routes),
+    )
+
+
+def _profile_preset_ids() -> set[str]:
+    return {"current_workspace", "import_pending", *(preset.preset_id for preset in BUILT_IN_TUNING_PRESETS)}
+
+
+def _preset_by_id(preset_id: str, workspace: WorkspaceConfig) -> TuningPreset:
+    if preset_id == "current_workspace":
+        return TuningPreset(
+            preset_id="current_workspace",
+            name="Current Workspace",
+            category="Active Workspace",
+            purpose=f"Current active workspace profile: {workspace.active_profile}.",
+            base_tuning=f"{len(workspace.tuning.axes)} base tuning axis records.",
+            filtering=f"{len(workspace.filtering.axes)} filtering axis records.",
+            combat_profile=f"{len(workspace.combat.axes)} combat profile axis records.",
+            rules=f"{len(workspace.rules.rules)} conditional rules.",
+        )
+    if preset_id == "import_pending":
+        return TuningPreset(
+            preset_id="import_pending",
+            name="Empty / import pending",
+            category="Imported Profiles",
+            purpose="No imported profile is available from the current safe workspace surfaces.",
+            base_tuning="Import support is deferred.",
+            filtering="Import support is deferred.",
+            combat_profile="Import support is deferred.",
+            rules="Imported rule preview unavailable.",
+        )
+    for preset in BUILT_IN_TUNING_PRESETS:
+        if preset.preset_id == preset_id:
+            return preset
+    return _preset_by_id("current_workspace", workspace)
+
+
+def _profiles_preset_tree(page: TuningProfilesLibraryPage, selected_preset_id: str) -> QTreeWidget:
+    tree = QTreeWidget()
+    tree.setObjectName("liquidTuningProfilesPresetTree")
+    tree.setProperty("profilesPresetTree", True)
+    tree.setHeaderHidden(True)
+    tree.setMinimumHeight(260)
+    tree.setColumnCount(1)
+    selected_item: QTreeWidgetItem | None = None
+
+    def add_child(parent: QTreeWidgetItem, preset_id: str, label: str) -> QTreeWidgetItem:
+        nonlocal selected_item
+        item = QTreeWidgetItem(parent, [label])
+        item.setData(0, Qt.ItemDataRole.UserRole, preset_id)
+        if preset_id == selected_preset_id:
+            selected_item = item
+        return item
+
+    active = QTreeWidgetItem(tree, ["Active Workspace"])
+    active.setExpanded(True)
+    add_child(active, "current_workspace", "Current Workspace")
+
+    built_in = QTreeWidgetItem(tree, ["Built-in Presets"])
+    built_in.setExpanded(True)
+    for preset in BUILT_IN_TUNING_PRESETS:
+        add_child(built_in, preset.preset_id, preset.name)
+
+    imported = QTreeWidgetItem(tree, ["Imported Profiles"])
+    imported.setExpanded(True)
+    add_child(imported, "import_pending", "Empty / import pending")
+
+    if selected_item is not None:
+        tree.setCurrentItem(selected_item)
+
+    def on_selection_changed() -> None:
+        current = tree.currentItem()
+        if current is None:
+            return
+        preset_id = current.data(0, Qt.ItemDataRole.UserRole)
+        if preset_id:
+            page.select_profile_preset(str(preset_id))
+
+    tree.itemSelectionChanged.connect(on_selection_changed)
+    return tree
+
+
+def _profiles_preset_preview(preset: TuningPreset, workspace: WorkspaceConfig) -> QFrame:
+    preview = glass_panel("liquidTuningProfilesPresetPreview", role="liquid_tuning_profiles_preset_preview")
+    preview.setProperty("componentRole", "TuningPresetPreview")
+    preview.setProperty("selectedPresetId", preset.preset_id)
+    preview.setProperty("selectedPresetName", preset.name)
+    layout = vertical_layout(preview, margins=(12, 10, 12, 10), spacing=7)
+    layout.addWidget(StatusChip(f"{preset.category}: {preset.name}", state_role="simulation" if preset.preset_id != "current_workspace" else "info"))
+    for label, value in (
+        ("Purpose", preset.purpose),
+        ("Base tuning", preset.base_tuning),
+        ("Filtering", preset.filtering),
+        ("Combat profile", preset.combat_profile),
+        ("Rules", preset.rules),
+        ("Workspace", f"Active profile {workspace.active_profile}; output proof unchanged."),
+    ):
+        row = horizontal_layout(spacing=8)
+        row.addWidget(QLabel(label), 1)
+        value_label = QLabel(value)
+        value_label.setWordWrap(True)
+        row.addWidget(value_label, 2)
+        layout.addLayout(row)
+    return preview
+
+
+def _profiles_hero(active_profile: str, workspace: WorkspaceConfig, selected_preset: TuningPreset) -> LiquidHeroPanel:
+    hero = LiquidHeroPanel(
+        "Profiles Library",
+        "Tree-style preset selector and tuning/profile utilities. Selecting a preset previews it only.",
+        object_name="liquidTuningProfilesHero",
+        state_role="info",
+        minimum_height=260,
+    )
+    hero.setProperty("profilesLibraryHero", True)
+    _add_to_panel(hero, MetricTile("Active profile", active_profile, "Current workspace profile name", state_role="info"))
+    _add_to_panel(hero, MetricTile("Axes tuned", str(len(workspace.tuning.axes)), "Base tuning axis records", state_role="info"))
+    _add_to_panel(hero, MetricTile("Rules", str(len(workspace.rules.rules)), "Conditional rules in workspace", state_role="info"))
+    _add_to_panel(hero, MetricTile("Selected preset", selected_preset.name, selected_preset.purpose, state_role="simulation"))
+    return hero
+
+
+def _profiles_preset_browser(page: TuningProfilesLibraryPage, workspace: WorkspaceConfig, selected_preset: TuningPreset) -> LiquidInspectorPanel:
+    panel = LiquidInspectorPanel(
+        "Preset Browser",
+        "Folder-style profile selection. Choosing a preset updates the preview; it does not auto-apply.",
+        object_name="liquidTuningProfilesSummary",
+    )
+    panel.setProperty("profilesSummaryPanel", True)
+    _add_to_panel(panel, _profiles_preset_tree(page, selected_preset.preset_id))
+    _add_to_panel(panel, _profiles_preset_preview(selected_preset, workspace))
+    return panel
+
+
+def _profiles_actions_panel(workspace: WorkspaceConfig, on_route_requested: RouteCallback | None, selected_preset: TuningPreset) -> LiquidDetailPanel:
+    panel = LiquidDetailPanel(
+        "Profile Commands",
+        "Only safe copy/navigation actions are enabled until profile mutation semantics are represented.",
+        object_name="liquidTuningProfilesActions",
+    )
+    panel.setProperty("pageActionCluster", True)
+    actions = glass_panel("liquidTuningProfilesActionCluster", role="liquid_tuning_profiles_actions")
+    layout = horizontal_layout(actions, margins=(12, 9, 12, 9), spacing=8)
+    layout.addWidget(_copy_button("Copy profile summary", "liquidTuningProfilesCopySummaryButton", _profiles_summary_text(workspace)))
+    layout.addWidget(_copy_button("Copy preset summary", "liquidTuningProfilesCopyPresetButton", _preset_summary_text(selected_preset, workspace)))
+    apply_reason = "Disabled: applying presets to the workspace draft is not represented by the current safe profile semantics."
+    apply_button = action_button(
+        "Apply preset to draft",
+        object_name="liquidTuningProfilesApplyPresetButton",
+        enabled=False,
+        action_kind="disabled_deferred",
+        disabled_reason=apply_reason,
+    )
+    apply_button.setProperty("draftOnly", False)
+    apply_button.setToolTip(apply_reason)
+    apply_button.setStatusTip(apply_reason)
+    apply_button.setAccessibleDescription(apply_reason)
+    layout.addWidget(apply_button)
+    for label, route_key in (
+        ("Open Base Tuning", "tuning.base_tuning"),
+        ("Open Filtering", "tuning.filtering"),
+        ("Open Combat Profile", "tuning.combat_profile"),
+        ("Open Conditional Rules", "tuning.conditional_rules"),
+    ):
+        layout.addWidget(_route_button(label, route_key, on_route_requested))
+    for text, reason, name in (
+        ("Import profile", "Disabled: profile import is not represented as a safe Liquid workspace operation.", "liquidTuningProfilesImportButton"),
+        ("Export profile", "Disabled: dedicated profile export is not represented by the current workspace services.", "liquidTuningProfilesExportButton"),
+        ("Duplicate / rename / delete", "Disabled: profile library mutation is deferred until workspace profile semantics are explicit.", "liquidTuningProfilesMutateButton"),
+        ("Save profile", "Disabled: profile persistence stays with the global Save Workspace action.", "liquidTuningProfilesSaveButton"),
+    ):
+        disabled = action_button(text, object_name=name, enabled=False, action_kind="disabled_deferred", disabled_reason=reason)
+        disabled.setToolTip(reason)
+        disabled.setAccessibleDescription(reason)
+        layout.addWidget(disabled)
+    layout.addStretch(1)
+    _add_to_panel(panel, actions)
+    return panel
+
+
+def _profiles_advanced(workspace: WorkspaceConfig) -> LiquidAdvancedSection:
+    advanced = LiquidAdvancedSection(
+        "Profile Details",
+        "Secondary workspace profile facts.",
+        object_name="liquidTuningProfilesAdvanced",
+    )
+    advanced.setProperty("advancedSecondary", True)
+    details = QLabel(_profiles_summary_text(workspace))
+    details.setWordWrap(True)
+    _add_to_panel(advanced, details)
+    return advanced
+
+
+def _profiles_summary_text(workspace: WorkspaceConfig) -> str:
+    return "\n".join(
+        (
+            f"Active profile: {workspace.active_profile}",
+            f"Base tuning axes: {len(workspace.tuning.axes)}",
+            f"Filtering axes: {len(workspace.filtering.axes)}",
+            f"Combat profile axes: {len(workspace.combat.axes)}",
+            f"Conditional rules: {len(workspace.rules.rules)}",
+            "Profile copy/navigation action only; runtime truth unchanged.",
+        )
+    )
+
+
+def _preset_summary_text(preset: TuningPreset, workspace: WorkspaceConfig) -> str:
+    return "\n".join(
+        (
+            f"Preset: {preset.name}",
+            f"Category: {preset.category}",
+            f"Purpose: {preset.purpose}",
+            f"Base tuning: {preset.base_tuning}",
+            f"Filtering: {preset.filtering}",
+            f"Combat profile: {preset.combat_profile}",
+            f"Rules: {preset.rules}",
+            f"Workspace active profile: {workspace.active_profile}",
+            "Selecting or copying a preset does not apply it, save it, write vJoy, or prove output.",
+        )
+    )
+
+
 def _build_header(model: TuningCommandModel) -> LiquidPageHeader:
     header = LiquidPageHeader(
         model.page_title,
@@ -197,10 +641,18 @@ def _build_header(model: TuningCommandModel) -> LiquidPageHeader:
     return header
 
 
-def _build_status_rail(model: TuningCommandModel, last_edit_result: TuningEditResult | None) -> QFrame:
+def _build_status_rail(page: TuningCommandPage, model: TuningCommandModel, last_edit_result: TuningEditResult | None) -> QFrame:
     rail = glass_panel("liquidTuningStatusRail", role="liquid_tuning_status_rail")
     rail.setProperty("tuningStatusRail", True)
     layout = horizontal_layout(rail, margins=(12, 8, 12, 8), spacing=8)
+    selector = AxisSelectorPills(
+        selected_axis=model.selected_axis,
+        options=model.axis_options,
+        object_name="liquidTuningTopAxisSelector",
+    )
+    selector.setProperty("topLevelAxisSelector", True)
+    selector.selectionChanged.connect(page.select_axis)
+    layout.addWidget(selector)
     layout.addWidget(StatusChip(f"Axis: {model.selected_axis}", state_role="info"))
     nav_purpose = _navigation_purpose(model.route_key)
     if nav_purpose != model.page_question:
@@ -221,10 +673,11 @@ def _build_hero(page: TuningCommandPage, model: TuningCommandModel) -> LiquidHer
         object_name="liquidTuningHero",
         liquid_role="liquid_tuning_response_hero",
         state_role=model.preview.state_role,
-        minimum_height=248,
+        minimum_height=520,
     )
     hero.setProperty("tuningResponseHero", True)
     hero.setProperty("primaryVisualRole", "response-preview")
+    hero.setProperty("dominantInstrument", True)
     if model.route_key == "tuning.conditional_rules":
         _add_to_panel(hero, _rule_status_summary(model))
     if model.preview_graph is not None:
@@ -234,6 +687,7 @@ def _build_hero(page: TuningCommandPage, model: TuningCommandModel) -> LiquidHer
                 title=model.preview_graph.title,
                 graph_kind=model.preview_graph.graph_kind,
                 lines=tuple((line.label, line.points, line.role) for line in model.preview_graph.lines),
+                markers=tuple((marker.label, marker.point, marker.role) for marker in model.preview_graph.markers),
                 selected_axis=model.preview_graph.selected_axis,
                 x_range=model.preview_graph.x_range,
                 y_range=model.preview_graph.y_range,
@@ -297,7 +751,13 @@ def _build_tuning_action_cluster(page: TuningCommandPage, model: TuningCommandMo
             ("Edit selected rule", "liquidTuningEditRuleButton"),
             ("Enable / disable rule", "liquidTuningEnableRuleButton"),
         ):
-            disabled = action_button(text, object_name=name, enabled=False)
+            disabled = action_button(
+                text,
+                object_name=name,
+                enabled=False,
+                action_kind="disabled_deferred",
+                disabled_reason="Disabled: conditional rule mutation is deferred because no safe Liquid rule-edit workspace seam exists.",
+            )
             disabled.setToolTip("Conditional rule mutation is deferred because no safe Liquid rule-edit workspace seam exists in LCD-7R.")
             disabled.setAccessibleDescription(disabled.toolTip())
             layout.addWidget(disabled)
@@ -306,11 +766,23 @@ def _build_tuning_action_cluster(page: TuningCommandPage, model: TuningCommandMo
     else:
         layout.addWidget(_copy_button("Copy tuning parameters", "liquidTuningCopyParametersButton", _tuning_summary_text(model)))
         layout.addWidget(_copy_button("Copy curve preview values", "liquidTuningCopyPreviewButton", _graph_summary_text(model)))
-        reset = action_button("Reset selected axis", object_name="liquidTuningResetAxisButton", enabled=False)
+        reset = action_button(
+            "Reset selected axis",
+            object_name="liquidTuningResetAxisButton",
+            enabled=False,
+            action_kind="disabled_deferred",
+            disabled_reason="Disabled: axis reset is deferred because this phase does not add a route-level default restore operation.",
+        )
         reset.setToolTip("Axis reset is deferred because this phase does not add a route-level default restore operation.")
         reset.setAccessibleDescription(reset.toolTip())
         layout.addWidget(reset)
-        revert = action_button("Revert selected axis tuning", object_name="liquidTuningRevertAxisButton", enabled=page._on_revert is not None)
+        revert = action_button(
+            "Revert selected axis tuning",
+            object_name="liquidTuningRevertAxisButton",
+            enabled=page._on_revert is not None,
+            action_kind="revert",
+            disabled_reason="Disabled: revert is unavailable without shell draft ownership." if page._on_revert is None else "",
+        )
         revert.setToolTip("Revert staged tuning edits to the original Liquid workspace draft." if page._on_revert else "Revert is unavailable without shell draft ownership.")
         revert.setAccessibleDescription(revert.toolTip())
         if page._on_revert is not None:
@@ -342,7 +814,7 @@ def _build_axis_context(page: TuningCommandPage, model: TuningCommandModel) -> L
         LiveSnapshotBlock(
             selected_control=model.selected_axis,
             source_truth_label=model.preview.source_truth_label,
-            raw_value=f"{model.preview.raw_value:.2f} (Current sample unavailable)",
+            raw_value=f"{model.preview.raw_value:.2f}" + ("" if "Passive live telemetry" in model.preview.source_truth_label else " (Current sample unavailable)"),
             output_intent_value=f"Output Intent preview {model.preview.output_intent_value:.2f}",
             state_role=model.preview.state_role,
             object_name="liquidTuningLiveSnapshot",
@@ -439,6 +911,8 @@ def _parameter_row(page: TuningCommandPage, parameter: TuningParameterModel) -> 
         "Stage tuning change",
         object_name=f"liquidTuningStage_{_safe_id(parameter.parameter_id)}",
         enabled=parameter.control_kind != "readonly",
+        action_kind="stage_draft" if parameter.control_kind != "readonly" else "disabled_deferred",
+        disabled_reason=(parameter.read_only_reason or "Disabled: this tuning field is read-only.") if parameter.control_kind == "readonly" else "",
     )
     stage.setProperty("tuningStageButton", True)
     stage.setProperty("parameterId", parameter.parameter_id)
@@ -470,7 +944,7 @@ def _build_rule_inspector(page: TuningCommandPage, model: TuningCommandModel) ->
         LiveSnapshotBlock(
             selected_control=model.selected_axis,
             source_truth_label=model.preview.source_truth_label,
-            raw_value="Current sample unavailable",
+            raw_value=f"{model.preview.raw_value:.2f}" if "Passive live telemetry" in model.preview.source_truth_label else "Current sample unavailable",
             output_intent_value="Rule preview only",
             state_role=model.preview.state_role,
             object_name="liquidTuningLiveSnapshot",
@@ -621,6 +1095,20 @@ def _model_signature(model: TuningCommandModel, last_edit_result: TuningEditResu
         model.route_key,
         model.selected_axis,
         model.preview.source_truth_label,
+        model.preview.raw_value,
+        model.preview.output_intent_value,
+        model.draft_state_label,
+        tuple((marker.label, marker.point) for marker in model.preview_graph.markers) if model.preview_graph else (),
+        tuple((parameter.parameter_id, parameter.value_text, parameter.changed) for parameter in model.parameters),
+        tuple((flow.rule_id, flow.enabled, flow.action_label, flow.condition_label) for flow in model.rule_flows),
+        last_edit_result.message if last_edit_result else "",
+    )
+
+
+def _model_structure_signature(model: TuningCommandModel, last_edit_result: TuningEditResult | None) -> tuple[object, ...]:
+    return (
+        model.route_key,
+        model.selected_axis,
         model.draft_state_label,
         tuple((parameter.parameter_id, parameter.value_text, parameter.changed) for parameter in model.parameters),
         tuple((flow.rule_id, flow.enabled, flow.action_label, flow.condition_label) for flow in model.rule_flows),
@@ -689,22 +1177,29 @@ def _navigation_purpose(route_key: str) -> str:
 
 
 def _copy_button(text: str, object_name: str, payload: str) -> QPushButton:
-    button = action_button(text, object_name=object_name, enabled=True)
+    button = action_button(text, object_name=object_name, enabled=True, action_kind="copy")
     button.setProperty("copyOnly", True)
     button.setToolTip("Copy Tuning information to the clipboard. This does not change runtime state.")
     button.setStatusTip(button.toolTip())
     button.setAccessibleDescription(button.toolTip())
-    button.clicked.connect(lambda _checked=False, data=payload: _copy_to_clipboard(data))
+    button.clicked.connect(lambda _checked=False, data=payload, target=button: _copy_to_clipboard(data, target))
     return button
 
 
 def _route_button(text: str, route_key: str, on_route_requested: RouteCallback | None) -> QPushButton:
-    button = action_button(text, object_name=f"liquidTuningOpen_{_safe_id(route_key)}", enabled=on_route_requested is not None)
-    button.setProperty("routeTarget", route_key)
-    button.setProperty("navigationOnly", True)
     reason = f"Navigate to {route_key}. This does not stage or apply tuning changes."
     if on_route_requested is None:
-        reason = f"{reason} Navigation callback unavailable in this context."
+        reason = f"Disabled: {reason} Navigation callback unavailable in this context."
+    button = action_button(
+        text,
+        object_name=f"liquidTuningOpen_{_safe_id(route_key)}",
+        enabled=on_route_requested is not None,
+        action_kind="navigation",
+        disabled_reason=reason if on_route_requested is None else "",
+        route_target=route_key,
+    )
+    button.setProperty("routeTarget", route_key)
+    button.setProperty("navigationOnly", True)
     button.setToolTip(reason)
     button.setStatusTip(reason)
     button.setAccessibleDescription(reason)
@@ -714,18 +1209,23 @@ def _route_button(text: str, route_key: str, on_route_requested: RouteCallback |
 
 
 def _validate_button(text: str, object_name: str) -> QPushButton:
-    button = action_button(text, object_name=object_name, enabled=True)
+    button = action_button(text, object_name=object_name, enabled=True, action_kind="validate")
     button.setProperty("validationOnly", True)
     button.setToolTip("Validate displayed workspace rule state only. This does not mutate runtime state.")
     button.setStatusTip(button.toolTip())
     button.setAccessibleDescription(button.toolTip())
+    button.clicked.connect(lambda _checked=False, target_button=button: mark_action_feedback(target_button, "Validated displayed rule state; runtime unchanged."))
     return button
 
 
-def _copy_to_clipboard(text: str) -> None:
+def _copy_to_clipboard(text: str, button: QPushButton | None = None) -> None:
     clipboard = QApplication.clipboard()
     if clipboard is not None:
         clipboard.setText(text)
+        if button is not None:
+            mark_action_feedback(button, "Copied tuning information to clipboard.")
+    elif button is not None:
+        mark_action_feedback(button, "Clipboard unavailable; nothing was copied.")
 
 
 def _tuning_summary_text(model: TuningCommandModel) -> str:
@@ -749,11 +1249,11 @@ def _graph_summary_text(model: TuningCommandModel) -> str:
 
 def _tuning_navigation_targets(route_key: str) -> tuple[tuple[str, str], ...]:
     if route_key == "tuning.base_tuning":
-        return (("Open Filtering", "tuning.filtering"), ("Open Combat Profile", "tuning.combat_profile"))
+        return (("Open Filtering", "tuning.filtering"), ("Open Combat Profile", "tuning.combat_profile"), ("Open Profiles Library", "tuning.profiles_library"))
     if route_key == "tuning.filtering":
-        return (("Open Base Tuning", "tuning.base_tuning"), ("Open Combat Profile", "tuning.combat_profile"))
+        return (("Open Base Tuning", "tuning.base_tuning"), ("Open Combat Profile", "tuning.combat_profile"), ("Open Profiles Library", "tuning.profiles_library"))
     if route_key == "tuning.combat_profile":
-        return (("Open Base Tuning", "tuning.base_tuning"), ("Open Filtering", "tuning.filtering"))
+        return (("Open Base Tuning", "tuning.base_tuning"), ("Open Filtering", "tuning.filtering"), ("Open Profiles Library", "tuning.profiles_library"))
     return ()
 
 
