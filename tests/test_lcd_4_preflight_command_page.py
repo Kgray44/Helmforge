@@ -215,7 +215,7 @@ def test_lcd_4_preflight_page_constructs_real_liquid_composition_offscreen():
     assert page.findChild(QWidget, "runtimeSetupGuideButton") is None
 
 
-def test_lcd_4_route_registry_replaces_only_preflight_command_readiness():
+def test_lcd_4_route_registry_replaces_preflight_and_preserves_lcd5_mapping():
     _app()
 
     from v3_app.liquid.pages.placeholder_pages import LIQUID_ROUTE_PAGE_FACTORIES
@@ -227,8 +227,9 @@ def test_lcd_4_route_registry_replaces_only_preflight_command_readiness():
     assert "Can I safely use live output right now?" in _text_blob(preflight_page)
     assert "Liquid Command Deck placeholder route" not in _text_blob(preflight_page)
 
-    assert mapping_page.objectName() == "liquidPlaceholderPage_mapping_hotas_map"
-    assert "Liquid Command Deck placeholder route" in _text_blob(mapping_page)
+    assert mapping_page.objectName() == "liquidMappingCommandPage"
+    assert "What is each physical control doing?" in _text_blob(mapping_page)
+    assert "Liquid Command Deck placeholder route" not in _text_blob(mapping_page)
 
 
 def test_lcd_4_shell_top_bar_and_preflight_page_do_not_contradict_live_verified_truth():

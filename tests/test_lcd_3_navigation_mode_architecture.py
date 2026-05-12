@@ -154,7 +154,7 @@ def test_lcd_3_navigation_model_contains_required_modes_subpages_and_unique_rout
     assert set(route_keys) == set(LIQUID_ROUTE_PAGE_FACTORIES)
 
 
-def test_lcd_3_route_registry_exposes_distinct_placeholder_factories():
+def test_lcd_3_route_registry_exposes_distinct_route_factories():
     _app()
 
     from v3_app.liquid.models.nav_model import build_liquid_navigation_model
@@ -172,6 +172,35 @@ def test_lcd_3_route_registry_exposes_distinct_placeholder_factories():
         if route.route_key == "preflight.command_readiness":
             assert page.objectName() == "liquidPreflightCommandPage"
             assert route.route_key not in text
+            assert "Placeholder route" not in text
+            assert "future page rebuild" not in text.casefold()
+        elif route.route_key == "mapping.hotas_map":
+            assert page.objectName() == "liquidMappingCommandPage"
+            assert "What is each physical control doing?" in text
+            assert "Placeholder route" not in text
+            assert "future page rebuild" not in text.casefold()
+        elif route.route_key == "mapping.route_details":
+            assert page.objectName() == "liquidMappingRouteDetailsPage"
+            assert "Draft mapping change" in text
+            assert "Placeholder route" not in text
+            assert "future page rebuild" not in text.casefold()
+        elif route.route_key == "mapping.advanced_route_tables":
+            assert page.objectName() == "liquidMappingAdvancedRouteTablesPage"
+            assert "Compact editable rows" in text
+            assert "Placeholder route" not in text
+            assert "future page rebuild" not in text.casefold()
+        elif route.route_key.startswith("tuning."):
+            assert page.objectName() == "liquidTuningCommandPage"
+            assert "Placeholder route" not in text
+            assert "future page rebuild" not in text.casefold()
+        elif route.route_key.startswith("analysis."):
+            assert page.objectName() == "liquidAnalysisCommandPage"
+            assert route.purpose in text
+            assert "Placeholder route" not in text
+            assert "future page rebuild" not in text.casefold()
+        elif route.route_key.startswith("recorder."):
+            assert page.objectName() == "liquidRecorderCommandPage"
+            assert route.purpose in text
             assert "Placeholder route" not in text
             assert "future page rebuild" not in text.casefold()
         else:

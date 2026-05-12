@@ -121,28 +121,25 @@ def test_lcd_2f_liquid_build_window_applies_liquid_size_contract_and_preserves_l
     assert window.findChild(type(window.shell), "liquidCommandShell") is not None
 
 
-def test_lcd_2f_placeholder_header_uses_separate_title_subtitle_and_chip_regions():
+def test_lcd_2f_mapping_edit_header_uses_real_route_header_regions():
     _app()
 
-    from PySide6.QtWidgets import QWidget
+    from PySide6.QtWidgets import QLabel, QWidget
     from v3_app.liquid.app_shell import LiquidCommandShell
 
     shell = LiquidCommandShell(state=_state(_blocked_runtime_status()))
-    shell.switch_mode("mapping")
+    shell.switch_route("mapping.route_details")
     page = shell.page_host.currentWidget()
 
-    for object_name in (
-        "liquidPlaceholderHeaderTitleRegion_mapping",
-        "liquidPlaceholderHeaderSubtitleRegion_mapping",
-        "liquidPlaceholderHeaderChipRegion_mapping",
-    ):
-        widget = page.findChild(QWidget, object_name)
-        assert widget is not None, object_name
-        assert widget.property("liquidRole") in {
-            "liquid_placeholder_header_title_region",
-            "liquid_placeholder_header_subtitle_region",
-            "liquid_placeholder_header_chip_region",
-        }
+    header = page.findChild(QWidget, "liquidMappingEditHeader_mapping_route_details")
+    labels = [label.text() for label in header.findChildren(QLabel)] if header is not None else []
+
+    assert header is not None
+    assert header.property("componentRole") == "MappingEditPageHeader"
+    assert "Route Details" in labels
+    assert "Mapping / Route Details" in labels
+    assert "Draft mapping change" in labels
+    assert "Output proof unchanged" in labels
 
 
 def test_lcd_2f_geometry_smoke_has_footer_clearance_and_nonempty_major_regions():
@@ -179,6 +176,34 @@ def test_lcd_2f_geometry_smoke_has_footer_clearance_and_nonempty_major_regions()
                 "liquidPreflightSystemDetails",
                 "liquidPreflightActionPanel",
                 "liquidPreflightAdvancedDiagnostics",
+            )
+        elif mode_id == "mapping":
+            object_names = (
+                "liquidMappingHotasHero",
+                "liquidMappingInspector",
+                "liquidMappingRouteFlowPanel",
+                "liquidMappingAdvancedRouteDetails",
+            )
+        elif mode_id == "tuning":
+            object_names = (
+                "liquidTuningHero",
+                "liquidTuningAxisSelectorPanel",
+                "liquidTuningParameterInspector",
+                "liquidTuningAdvancedDetails",
+            )
+        elif mode_id == "analysis":
+            object_names = (
+                "liquidAnalysisPipelineHero",
+                "liquidAnalysisAxisInspector",
+                "liquidAnalysisStageDetails",
+                "liquidAnalysisAdvancedDetails",
+            )
+        elif mode_id == "recorder":
+            object_names = (
+                "liquidRecorderStatusHero",
+                "liquidRecorderCapabilityPanel",
+                "liquidRecorderActionPanel",
+                "liquidRecorderAdvancedDetails",
             )
         else:
             object_names = (

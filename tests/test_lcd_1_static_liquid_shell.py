@@ -91,6 +91,22 @@ def test_lcd_1_mode_dock_contains_required_modes_and_switches_placeholders():
             assert "Command Readiness" in labels
             assert "Can I safely use live output right now?" in labels
             assert "Placeholder / static shell foundation" not in labels
+        elif mode_id == "mapping":
+            assert "HOTAS Map" in labels
+            assert "What is each physical control doing?" in labels
+            assert "Placeholder / static shell foundation" not in labels
+        elif mode_id == "tuning":
+            assert "Base Tuning" in labels
+            assert "How does this axis respond and feel?" in labels
+            assert "Placeholder / static shell foundation" not in labels
+        elif mode_id == "analysis":
+            assert "Effective Response Stack" in labels
+            assert "How does raw input become final output?" in labels
+            assert "Placeholder / static shell foundation" not in labels
+        elif mode_id == "recorder":
+            assert "Flight Recorder" in labels
+            assert "What can I capture, buffer, and review?" in labels
+            assert "Placeholder / static shell foundation" not in labels
         else:
             assert "Placeholder / static shell foundation" in labels
         assert button.property("active") is True

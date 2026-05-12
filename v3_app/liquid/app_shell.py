@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFrame, QLabel, QScrollArea, QSizePolicy, QStackedWidget, QWidget
 
+from shared_core.models.workspace import CONFIG_FILENAME, WorkspaceConfig, create_default_workspace
+from shared_core.persistence.workspace_store import WorkspaceJsonError, load_workspace
 from shared_core.models.runtime import (
     InputDeviceDetection,
     OutputBackendDetection,
@@ -20,10 +23,26 @@ from v3_app.liquid.models.nav_model import (
     LiquidNavigationState,
     build_liquid_navigation_model,
 )
+from v3_app.liquid.models.mapping_edit_model import (
+    MappingEditResult,
+    control_id_for_route_id,
+    route_id_for_control_id,
+    stage_mapping_route_edit,
+)
+from v3_app.liquid.models.helm_command_model import (
+    HelmApplyResult,
+    revert_helm_changes,
+    stage_selected_helm_changes,
+)
+from v3_app.liquid.models.tuning_command_model import (
+    TuningEditResult,
+    stage_tuning_parameter_edit,
+)
 from v3_app.liquid.navigation import LIQUID_MODE_IDS, LiquidModeDock, LiquidSubpageSelector
 from v3_app.liquid.pages.placeholder_pages import (
     LIQUID_ROUTE_PAGE_FACTORIES,
 )
+from v3_app.liquid.pages.helm_command_deck import HelmAssistantDeck
 from v3_app.liquid.theme_tokens import LiquidLayout, liquid_qss
 from v3_app.services.app_state import AppState, build_initial_app_state
 
@@ -51,12 +70,46 @@ def _lcd4f_trace(message: str) -> None:
 
 
 class LiquidCommandShell(QWidget):
-    def __init__(self, state: AppState | None = None) -> None:
+    def __init__(
+        self,
+        state: AppState | None = None,
+        *,
+        workspace: WorkspaceConfig | None = None,
+        workspace_path: str | Path | None = None,
+    ) -> None:
         super().__init__()
         _lcd4f_trace("constructing liquid shell")
         self.setObjectName("liquidCommandShell")
         self.setStyleSheet(liquid_qss())
+        state_was_supplied = state is not None
         self.state = state or build_initial_app_state()
+        self.workspace_path = Path(workspace_path or CONFIG_FILENAME)
+        self.workspace = workspace or self._load_initial_workspace(load_from_disk=not state_was_supplied)
+        self._mapping_base_workspace = self.workspace
+        self._mapping_base_saved_state = bool(self.workspace.state.saved)
+        self._selected_mapping_route_id = "axis:axis_roll"
+        self._mapping_last_edit_result: MappingEditResult | None = None
+        self._tuning_base_workspace = self.workspace
+        self._tuning_base_saved_state = bool(self.workspace.state.saved)
+        self._selected_tuning_axis_by_route = {
+            "tuning.base_tuning": "Roll",
+            "tuning.filtering": "Roll",
+            "tuning.combat_profile": "Roll",
+            "tuning.conditional_rules": "Roll",
+        }
+        self._tuning_last_edit_result: TuningEditResult | None = None
+        self._selected_analysis_axis_by_route = {
+            "analysis.effective_response_stack": "Roll",
+            "analysis.live_monitor": "Roll",
+        }
+        self._helm_base_workspace = self.workspace
+        self._helm_base_saved_state = bool(self.workspace.state.saved)
+        self._helm_last_apply_result: HelmApplyResult | None = None
+        self._helm_deck_open = False
+        if not state_was_supplied:
+            self.state.source_config = str(self.workspace_path)
+            self.state.active_profile = self.workspace.active_profile
+            self.state.saved = self.workspace.state.saved
         _lcd4f_trace("creating navigation model")
         self.navigation_model = build_liquid_navigation_model()
         self.navigation_state = _navigation_state_from_state(self.state, self.navigation_model)
@@ -77,7 +130,7 @@ class LiquidCommandShell(QWidget):
             spacing=LiquidLayout.shell_spacing,
         )
 
-        self.top_bar = _LiquidTopCommandBar(self.state)
+        self.top_bar = _LiquidTopCommandBar(self.state, on_helm_toggled=self.toggle_helm_deck)
         self.workspace_frame = glass_panel("liquidCommandWorkspace", role="liquid_command_workspace")
         workspace_layout = vertical_layout(
             self.workspace_frame,
@@ -115,9 +168,17 @@ class LiquidCommandShell(QWidget):
         self.footer_clearance.setFixedHeight(LiquidLayout.footer_clearance_height)
         field_layout.addWidget(self.footer_clearance)
         self.footer = _LiquidFooterActionStrip(self.state)
+        self.helm_deck = HelmAssistantDeck(
+            state=self.state,
+            workspace=self.workspace,
+            on_apply_selected=self.apply_selected_helm_changes,
+            on_revert=self.revert_helm_changes,
+        )
+        self.helm_deck.setVisible(False)
         surface_layout.addWidget(self.surface_glass_field, 0, 0)
         surface_layout.addWidget(self.mode_dock, 0, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         surface_layout.addWidget(self.footer, 0, 0, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom)
+        surface_layout.addWidget(self.helm_deck, 0, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
         workspace_layout.addWidget(self.command_surface)
 
         root.addWidget(self.top_bar)
@@ -131,14 +192,23 @@ class LiquidCommandShell(QWidget):
         for route in self.navigation_model.routes:
             if route.route_key == "preflight.command_readiness":
                 _lcd4f_trace("constructing preflight page")
-            page = (
-                LIQUID_ROUTE_PAGE_FACTORIES[route.route_key](
+                page = LIQUID_ROUTE_PAGE_FACTORIES[route.route_key](
                     state=self.state,
                     runtime_status=_runtime_status_from_state(self.state),
+                    on_route_requested=self.switch_route,
                 )
-                if route.route_key == "preflight.command_readiness"
-                else LIQUID_ROUTE_PAGE_FACTORIES[route.route_key]()
-            )
+            elif route.route_key == "mapping.hotas_map":
+                page = self._create_mapping_route_page(route.route_key)
+            elif route.route_key in {"mapping.route_details", "mapping.advanced_route_tables"}:
+                page = self._create_mapping_route_page(route.route_key)
+            elif route.route_key.startswith("tuning."):
+                page = self._create_tuning_route_page(route.route_key)
+            elif route.route_key.startswith("analysis."):
+                page = self._create_analysis_route_page(route.route_key)
+            elif route.route_key.startswith("recorder."):
+                page = self._create_recorder_route_page(route.route_key)
+            else:
+                page = LIQUID_ROUTE_PAGE_FACTORIES[route.route_key]()
             scroll = QScrollArea()
             scroll.setObjectName("liquid_page_scroll_area")
             scroll.setProperty("liquidRole", "liquid_page_scroll_area")
@@ -186,6 +256,14 @@ class LiquidCommandShell(QWidget):
                 telemetry=self._latest_bridge_telemetry,
                 state=self.state,
             )
+        elif route.route_key.startswith("mapping."):
+            self._sync_mapping_page_state(self.state)
+        elif route.route_key.startswith("tuning."):
+            self._sync_tuning_page_state(self.state)
+        elif route.route_key.startswith("analysis."):
+            self._sync_analysis_page_state(self.state)
+        elif route.route_key.startswith("recorder."):
+            self._sync_recorder_page_state(self.state)
 
     def apply_bridge_telemetry(self, telemetry: BridgeTelemetrySnapshot) -> None:
         self._latest_bridge_telemetry = telemetry
@@ -199,8 +277,155 @@ class LiquidCommandShell(QWidget):
         self.footer.update_state(self.state)
         if self.current_route_key == "preflight.command_readiness":
             self._sync_preflight_page(runtime_status, telemetry=telemetry, state=self.state)
+        elif self.current_route_key.startswith("mapping."):
+            self._sync_mapping_page_state(self.state)
+        elif self.current_route_key.startswith("tuning."):
+            self._sync_tuning_page_state(self.state)
+        elif self.current_route_key.startswith("analysis."):
+            self._sync_analysis_page_state(self.state)
+        elif self.current_route_key.startswith("recorder."):
+            self._sync_recorder_page_state(self.state)
         else:
             _lcd4f_trace(f"skipping hidden preflight telemetry sync on route: {self.current_route_key}")
+        if self._helm_deck_open:
+            self._sync_helm_deck_state()
+
+    def select_mapping_route(self, route_id: str) -> None:
+        if route_id == self._selected_mapping_route_id:
+            return
+        self._selected_mapping_route_id = route_id
+        self._sync_mapping_page_state(self.state)
+
+    def select_mapping_control(self, control_id: str) -> None:
+        self.select_mapping_route(route_id_for_control_id(control_id))
+
+    def stage_mapping_route_edit(self, route_id: str, field_id: str, value: str) -> MappingEditResult:
+        result = stage_mapping_route_edit(self.workspace, route_id, field_id, value)
+        self._mapping_last_edit_result = result
+        self._selected_mapping_route_id = result.route_id
+        if result.valid:
+            self.workspace = result.workspace
+            self.state.saved = False
+            self.state.active_profile = self.workspace.active_profile
+            self.state.status_message = result.message
+        else:
+            self.state.status_message = result.message
+        self.top_bar.update_state(self.state)
+        self.footer.update_state(self.state)
+        self._sync_mapping_pages_after_edit()
+        return result
+
+    def revert_mapping_route_edits(self) -> None:
+        self.workspace = self._mapping_base_workspace
+        self.state.saved = self._mapping_base_saved_state
+        self.state.active_profile = self.workspace.active_profile
+        self.state.status_message = "Reverted staged Mapping route edits to the original Liquid workspace draft."
+        self._mapping_last_edit_result = None
+        self.top_bar.update_state(self.state)
+        self.footer.update_state(self.state)
+        self._sync_mapping_pages_after_edit()
+
+    def select_tuning_axis(self, route_key: str, axis_name: str) -> None:
+        if self._selected_tuning_axis_by_route.get(route_key) == axis_name:
+            return
+        self._selected_tuning_axis_by_route[route_key] = axis_name
+        self._sync_tuning_page_state(self.state)
+
+    def select_analysis_axis(self, route_key: str, axis_name: str) -> None:
+        if self._selected_analysis_axis_by_route.get(route_key) == axis_name:
+            return
+        self._selected_analysis_axis_by_route[route_key] = axis_name
+        self._sync_analysis_page_state(self.state)
+
+    def stage_tuning_parameter_edit(
+        self,
+        route_key: str,
+        axis_name: str,
+        parameter_id: str,
+        value: str,
+    ) -> TuningEditResult:
+        result = stage_tuning_parameter_edit(self.workspace, route_key, axis_name, parameter_id, value)
+        self._tuning_last_edit_result = result
+        self._selected_tuning_axis_by_route[route_key] = axis_name
+        if result.valid:
+            self.workspace = result.workspace
+            self.state.saved = False
+            self.state.active_profile = self.workspace.active_profile
+            self.state.status_message = result.message
+        else:
+            self.state.status_message = result.message
+        self.top_bar.update_state(self.state)
+        self.footer.update_state(self.state)
+        self._sync_tuning_pages_after_edit()
+        return result
+
+    def revert_tuning_edits(self) -> None:
+        self.workspace = self._tuning_base_workspace
+        self.state.saved = self._tuning_base_saved_state
+        self.state.active_profile = self.workspace.active_profile
+        self.state.status_message = "Reverted staged Tuning edits to the original Liquid workspace draft."
+        self._tuning_last_edit_result = None
+        self.top_bar.update_state(self.state)
+        self.footer.update_state(self.state)
+        self._sync_tuning_pages_after_edit()
+
+    def toggle_helm_deck(self) -> None:
+        self._helm_deck_open = not self._helm_deck_open
+        if self._helm_deck_open:
+            self._sync_helm_deck_state()
+            if not self.isVisible():
+                self.show()
+        self.helm_deck.setVisible(self._helm_deck_open)
+        self.helm_deck.raise_()
+
+    def apply_selected_helm_changes(self, selected_change_ids: tuple[str, ...]) -> HelmApplyResult:
+        if self._helm_last_apply_result is None or not self._helm_last_apply_result.applied_diffs:
+            self._helm_base_workspace = self.workspace
+            self._helm_base_saved_state = bool(self.state.saved)
+        result = stage_selected_helm_changes(
+            self.workspace,
+            self.helm_deck.model.result,
+            selected_change_ids=selected_change_ids,
+        )
+        self._helm_last_apply_result = result
+        if result.valid:
+            self.workspace = result.workspace
+            self.state.saved = False
+            self.state.active_profile = self.workspace.active_profile
+            self.state.status_message = f"Helm staged {len(result.applied_diffs)} draft workspace change(s). Output proof unchanged."
+            self._sync_tuning_pages_after_edit()
+            if self.current_route_key.startswith("analysis."):
+                self._sync_analysis_page_state(self.state)
+        else:
+            self.state.status_message = result.message
+        self.top_bar.update_state(self.state)
+        self.footer.update_state(self.state)
+        self._sync_helm_deck_state()
+        return result
+
+    def revert_helm_changes(self) -> HelmApplyResult:
+        applied = self._helm_last_apply_result.applied_diffs if self._helm_last_apply_result else ()
+        result = revert_helm_changes(
+            self.workspace,
+            applied,
+            base_workspace=self._helm_base_workspace,
+        )
+        if result.valid:
+            self.workspace = result.workspace
+            self.state.saved = self._helm_base_saved_state
+            self.state.active_profile = self.workspace.active_profile
+            self.state.status_message = "Helm reverted the last draft change batch. Output proof unchanged."
+            self._helm_last_apply_result = result
+            self._sync_tuning_pages_after_edit()
+            if self.current_route_key.startswith("analysis."):
+                self._sync_analysis_page_state(self.state)
+        else:
+            self.state.status_message = result.message
+            self._helm_last_apply_result = result
+        self.top_bar.update_state(self.state)
+        self.footer.update_state(self.state)
+        self._sync_helm_deck_state()
+        return result
 
     def _sync_preflight_page(
         self,
@@ -215,9 +440,163 @@ class LiquidCommandShell(QWidget):
             _lcd4f_trace("syncing preflight readiness page")
             preflight_page.update_runtime_status(runtime_status, telemetry=telemetry, state=state or self.state)
 
+    def _sync_mapping_page_state(self, state: AppState) -> None:
+        mapping_scroll = self.page_widgets.get(self.current_route_key)
+        mapping_page = mapping_scroll.widget() if mapping_scroll is not None else None
+        if hasattr(mapping_page, "update_mapping_workspace"):
+            mapping_page.update_mapping_workspace(
+                state=state,
+                workspace=self.workspace,
+                base_workspace=self._mapping_base_workspace,
+                selected_route_id=self._selected_mapping_route_id,
+                last_edit_result=self._mapping_last_edit_result,
+            )
+        elif hasattr(mapping_page, "update_state"):
+            mapping_page.update_state(state)
+
+    def _sync_mapping_pages_after_edit(self) -> None:
+        for route_key in ("mapping.hotas_map", "mapping.route_details", "mapping.advanced_route_tables"):
+            mapping_scroll = self.page_widgets.get(route_key)
+            mapping_page = mapping_scroll.widget() if mapping_scroll is not None else None
+            if hasattr(mapping_page, "update_mapping_workspace"):
+                mapping_page.update_mapping_workspace(
+                    state=self.state,
+                    workspace=self.workspace,
+                    base_workspace=self._mapping_base_workspace,
+                    selected_route_id=self._selected_mapping_route_id,
+                    last_edit_result=self._mapping_last_edit_result,
+                )
+            elif hasattr(mapping_page, "update_state"):
+                mapping_page.update_state(self.state)
+
+    def _sync_tuning_page_state(self, state: AppState) -> None:
+        tuning_scroll = self.page_widgets.get(self.current_route_key)
+        tuning_page = tuning_scroll.widget() if tuning_scroll is not None else None
+        if hasattr(tuning_page, "update_tuning_workspace"):
+            tuning_page.update_tuning_workspace(
+                state=state,
+                workspace=self.workspace,
+                base_workspace=self._tuning_base_workspace,
+                selected_axis=self._selected_tuning_axis_by_route.get(self.current_route_key, "Roll"),
+                last_edit_result=self._tuning_last_edit_result,
+            )
+        elif hasattr(tuning_page, "update_state"):
+            tuning_page.update_state(state)
+
+    def _sync_tuning_pages_after_edit(self) -> None:
+        for route_key in (
+            "tuning.base_tuning",
+            "tuning.filtering",
+            "tuning.combat_profile",
+            "tuning.conditional_rules",
+        ):
+            tuning_scroll = self.page_widgets.get(route_key)
+            tuning_page = tuning_scroll.widget() if tuning_scroll is not None else None
+            if hasattr(tuning_page, "update_tuning_workspace"):
+                tuning_page.update_tuning_workspace(
+                    state=self.state,
+                    workspace=self.workspace,
+                    base_workspace=self._tuning_base_workspace,
+                    selected_axis=self._selected_tuning_axis_by_route.get(route_key, "Roll"),
+                    last_edit_result=self._tuning_last_edit_result,
+                )
+            elif hasattr(tuning_page, "update_state"):
+                tuning_page.update_state(self.state)
+
+    def _sync_analysis_page_state(self, state: AppState) -> None:
+        analysis_scroll = self.page_widgets.get(self.current_route_key)
+        analysis_page = analysis_scroll.widget() if analysis_scroll is not None else None
+        if hasattr(analysis_page, "update_analysis_snapshot"):
+            analysis_page.update_analysis_snapshot(
+                state=state,
+                workspace=self.workspace,
+                telemetry=self._latest_bridge_telemetry,
+                selected_axis=self._selected_analysis_axis_by_route.get(self.current_route_key, "Roll"),
+            )
+        elif hasattr(analysis_page, "update_state"):
+            analysis_page.update_state(state)
+
+    def _sync_recorder_page_state(self, state: AppState) -> None:
+        recorder_scroll = self.page_widgets.get(self.current_route_key)
+        recorder_page = recorder_scroll.widget() if recorder_scroll is not None else None
+        if hasattr(recorder_page, "update_recorder_model"):
+            recorder_page.update_recorder_model(state=state)
+        elif hasattr(recorder_page, "update_state"):
+            recorder_page.update_state(state)
+
+    def _sync_helm_deck_state(self) -> None:
+        self.helm_deck.update_helm_state(
+            state=self.state,
+            workspace=self.workspace,
+            selected_axis=self.state.selected_axis or "Yaw",
+            last_apply_result=self._helm_last_apply_result,
+        )
+
+    def _create_mapping_route_page(self, route_key: str):
+        kwargs = {
+            "state": self.state,
+            "workspace": self.workspace,
+            "base_workspace": self._mapping_base_workspace,
+            "selected_route_id": self._selected_mapping_route_id,
+            "on_route_requested": self.switch_route,
+            "on_route_selected": self.select_mapping_route,
+        }
+        if route_key == "mapping.hotas_map":
+            return LIQUID_ROUTE_PAGE_FACTORIES[route_key](
+                state=self.state,
+                workspace=self.workspace,
+                selected_route_id=self._selected_mapping_route_id,
+                selected_control_id=control_id_for_route_id(self._selected_mapping_route_id),
+                on_route_requested=self.switch_route,
+                on_route_selected=self.select_mapping_route,
+            )
+        return LIQUID_ROUTE_PAGE_FACTORIES[route_key](
+            **kwargs,
+            on_stage_edit=self.stage_mapping_route_edit,
+            on_revert=self.revert_mapping_route_edits,
+            last_edit_result=self._mapping_last_edit_result,
+        )
+
+    def _create_tuning_route_page(self, route_key: str):
+        return LIQUID_ROUTE_PAGE_FACTORIES[route_key](
+            state=self.state,
+            workspace=self.workspace,
+            base_workspace=self._tuning_base_workspace,
+            selected_axis=self._selected_tuning_axis_by_route.get(route_key, "Roll"),
+            on_axis_selected=self.select_tuning_axis,
+            on_stage_edit=self.stage_tuning_parameter_edit,
+            on_route_requested=self.switch_route,
+            on_revert=self.revert_tuning_edits,
+            last_edit_result=self._tuning_last_edit_result,
+        )
+
+    def _create_analysis_route_page(self, route_key: str):
+        return LIQUID_ROUTE_PAGE_FACTORIES[route_key](
+            state=self.state,
+            workspace=self.workspace,
+            telemetry=self._latest_bridge_telemetry,
+            selected_axis=self._selected_analysis_axis_by_route.get(route_key, "Roll"),
+            on_axis_selected=self.select_analysis_axis,
+            on_route_requested=self.switch_route,
+        )
+
+    def _create_recorder_route_page(self, route_key: str):
+        return LIQUID_ROUTE_PAGE_FACTORIES[route_key](
+            state=self.state,
+        )
+
+    def _load_initial_workspace(self, *, load_from_disk: bool) -> WorkspaceConfig:
+        if load_from_disk and self.workspace_path.exists():
+            try:
+                return load_workspace(self.workspace_path).workspace
+            except WorkspaceJsonError as exc:
+                self.state.status_message = f"Workspace load failed; using default draft. {exc}"
+                self.state.saved = False
+        return create_default_workspace()
+
 
 class _LiquidTopCommandBar(QFrame):
-    def __init__(self, state: AppState) -> None:
+    def __init__(self, state: AppState, *, on_helm_toggled=None) -> None:
         super().__init__()
         self.setObjectName("liquidTopCommandBar")
         self.setFixedHeight(LiquidLayout.top_bar_height)
@@ -283,13 +662,16 @@ class _LiquidTopCommandBar(QFrame):
         command_layout = horizontal_layout(command_cluster, margins=(8, 8, 8, 8), spacing=7)
         status_rail = glass_panel("liquidTopStatusRail", role="liquid_status_rail")
         status_rail.setFixedSize(6, 28)
-        helm_button = action_button("Helm", object_name="liquidHelmButton", enabled=False)
-        helm_button.setMaximumWidth(64)
-        helm_button.setToolTip("Helm")
-        helm_button.setStatusTip("Future Helm action location; not wired in LCD-3F.")
-        helm_button.setAccessibleName("Helm action")
+        self.helm_button = action_button("Helm", object_name="liquidHelmButton", enabled=True)
+        self.helm_button.setMaximumWidth(64)
+        self.helm_button.setToolTip("Helm")
+        self.helm_button.setStatusTip("Open Liquid Helm Assistant; recommendations stage workspace draft changes only.")
+        self.helm_button.setAccessibleName("Helm assistant")
+        self.helm_button.setAccessibleDescription("Open the Liquid Helm Assistant deck.")
+        if on_helm_toggled is not None:
+            self.helm_button.clicked.connect(on_helm_toggled)
         command_layout.addWidget(status_rail)
-        command_layout.addWidget(helm_button)
+        command_layout.addWidget(self.helm_button)
 
         layout.addWidget(orb)
         layout.addLayout(title_area, 1)

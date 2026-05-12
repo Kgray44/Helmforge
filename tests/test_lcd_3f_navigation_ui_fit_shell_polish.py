@@ -179,7 +179,8 @@ def test_lcd_3f_top_status_source_and_helm_area_are_compact():
     assert 0 < helm_cluster.maximumWidth() <= 180
     assert helm_button is not None
     assert helm_button.toolTip() == "Helm"
-    assert "future" in helm_button.statusTip().casefold()
+    assert "liquid helm assistant" in helm_button.statusTip().casefold()
+    assert "workspace draft" in helm_button.statusTip().casefold()
 
 
 def test_lcd_3f_page_header_selector_and_route_chips_are_product_facing():
@@ -196,7 +197,7 @@ def test_lcd_3f_page_header_selector_and_route_chips_are_product_facing():
     selector_label = shell.findChild(QLabel, "liquidSubpageSelectorModeLabel")
     buttons = _subpage_buttons(shell)
     page = shell.page_host.currentWidget()
-    chip_region = page.findChild(QWidget, "liquidPlaceholderHeaderChipRegion_mapping")
+    edit_header = page.findChild(QWidget, "liquidMappingEditHeader_mapping_route_details")
 
     assert selector is not None
     assert selector.property("selectorStyle") == "segmented_route_strip"
@@ -210,28 +211,16 @@ def test_lcd_3f_page_header_selector_and_route_chips_are_product_facing():
     ]
     assert any(button.property("active") is True and button.text() == "Route Details" for button in buttons)
 
-    for object_name in (
-        "liquidPlaceholderHeaderTitleRegion_mapping",
-        "liquidPlaceholderHeaderSubtitleRegion_mapping",
-        "liquidPlaceholderHeaderChipRegion_mapping",
-    ):
-        widget = page.findChild(QWidget, object_name)
-        assert widget is not None, object_name
-
-    assert chip_region is not None
-    chip_text = _text_blob(chip_region)
-    assert "Command readiness route" not in chip_text
-    assert "Route details route" in chip_text
-    assert "Page rebuild pending" in chip_text
-    assert "Read-only preview" in chip_text
-    assert "mapping.route_details" not in chip_text
-    assert "Placeholder route:" not in chip_text
-    assert "Future page rebuild placeholder" not in chip_text
-    assert "Static route" not in chip_text
-
     page_text = _text_blob(page)
-    assert "mapping.route_details" in page_text
-    assert "Placeholder route key" in page_text
+    assert edit_header is not None
+    assert edit_header.property("componentRole") == "MappingEditPageHeader"
+    assert "Mapping / Route Details" in page_text
+    assert "Draft mapping change" in page_text
+    assert "Output proof unchanged" in page_text
+    assert "How does this physical control route through workspace intent?" in page_text
+    assert "Placeholder route:" not in page_text
+    assert "Future page rebuild placeholder" not in page_text
+    assert "Static route" not in page_text
 
 
 def test_lcd_3f_footer_strip_is_preserved_without_opaque_bottom_slab():

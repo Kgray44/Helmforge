@@ -337,9 +337,9 @@ def test_lcd_2_placeholder_pages_demonstrate_representative_components_truthfull
     shell = LiquidCommandShell(state=_state())
     expected_roles = {
         "preflight": {"ReadinessGate", "StatusChip", "ChecklistPanel"},
-        "mapping": {"RouteFlowRow", "ControlMarker", "MetricTile"},
+        "mapping": {"RouteFlowRow", "MappingHotasVisualMap", "MetricTile"},
         "tuning": {"AxisSelectorPills", "ParameterRow", "GuidanceBlock"},
-        "analysis": {"SignalPipelineStage", "AxisBarPair", "TelemetryFreshnessRail"},
+        "analysis": {"SignalPipelineStage", "LiveSnapshotBlock", "TelemetryFreshnessRail"},
         "recorder": {"TruthBadge", "CapabilityRail", "MetricTile"},
         "support": {"LiquidAdvancedSection", "GuidanceBlock", "MetricTile"},
     }
@@ -351,6 +351,22 @@ def test_lcd_2_placeholder_pages_demonstrate_representative_components_truthfull
         if mode_id == "preflight":
             assert "Command Readiness" in page_text
             assert "Can I safely use live output right now?" in page_text
+            assert "Liquid Command Deck placeholder" not in page_text
+        elif mode_id == "mapping":
+            assert "HOTAS Map" in page_text
+            assert "What is each physical control doing?" in page_text
+            assert "Liquid Command Deck placeholder" not in page_text
+        elif mode_id == "tuning":
+            assert "Base Tuning" in page_text
+            assert "How does this axis respond and feel?" in page_text
+            assert "Liquid Command Deck placeholder" not in page_text
+        elif mode_id == "analysis":
+            assert "Effective Response Stack" in page_text
+            assert "How does raw input become final output?" in page_text
+            assert "Liquid Command Deck placeholder" not in page_text
+        elif mode_id == "recorder":
+            assert "Flight Recorder" in page_text
+            assert "What can I capture, buffer, and review?" in page_text
             assert "Liquid Command Deck placeholder" not in page_text
         else:
             assert "Liquid Command Deck placeholder" in page_text

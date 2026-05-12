@@ -27,7 +27,27 @@ from v3_app.liquid.parameter_controls import (
     NumericParameterControl,
     ParameterRow,
 )
+from v3_app.liquid.pages.mapping_command_page import create_mapping_command_page
+from v3_app.liquid.pages.mapping_edit_pages import (
+    create_mapping_advanced_route_tables_page,
+    create_mapping_route_details_page,
+)
 from v3_app.liquid.pages.preflight_command_page import create_preflight_command_page
+from v3_app.liquid.pages.tuning_command_pages import (
+    create_base_tuning_command_page,
+    create_combat_profile_command_page,
+    create_conditional_rules_command_page,
+    create_filtering_command_page,
+)
+from v3_app.liquid.pages.analysis_command_pages import (
+    create_effective_response_stack_page,
+    create_live_monitor_page,
+)
+from v3_app.liquid.pages.recorder_command_pages import (
+    create_capture_backend_truth_page,
+    create_clip_library_page,
+    create_flight_recorder_page,
+)
 from v3_app.liquid.status_components import MetricTile, ReadinessGate, StatusChip, TelemetryFreshnessRail, TruthBadge
 
 
@@ -452,7 +472,19 @@ _PAGE_BY_MODE = {page.mode_id: page for page in LIQUID_PLACEHOLDER_PAGES}
 LIQUID_ROUTE_PAGE_FACTORIES = {
     definition.route_key: _make_factory(definition) for definition in LIQUID_ROUTE_PLACEHOLDER_PAGES
 }
+LIQUID_ROUTE_PAGE_FACTORIES["mapping.hotas_map"] = create_mapping_command_page
+LIQUID_ROUTE_PAGE_FACTORIES["mapping.route_details"] = create_mapping_route_details_page
+LIQUID_ROUTE_PAGE_FACTORIES["mapping.advanced_route_tables"] = create_mapping_advanced_route_tables_page
 LIQUID_ROUTE_PAGE_FACTORIES["preflight.command_readiness"] = create_preflight_command_page
+LIQUID_ROUTE_PAGE_FACTORIES["tuning.base_tuning"] = create_base_tuning_command_page
+LIQUID_ROUTE_PAGE_FACTORIES["tuning.filtering"] = create_filtering_command_page
+LIQUID_ROUTE_PAGE_FACTORIES["tuning.combat_profile"] = create_combat_profile_command_page
+LIQUID_ROUTE_PAGE_FACTORIES["tuning.conditional_rules"] = create_conditional_rules_command_page
+LIQUID_ROUTE_PAGE_FACTORIES["analysis.effective_response_stack"] = create_effective_response_stack_page
+LIQUID_ROUTE_PAGE_FACTORIES["analysis.live_monitor"] = create_live_monitor_page
+LIQUID_ROUTE_PAGE_FACTORIES["recorder.flight_recorder"] = create_flight_recorder_page
+LIQUID_ROUTE_PAGE_FACTORIES["recorder.clip_library"] = create_clip_library_page
+LIQUID_ROUTE_PAGE_FACTORIES["recorder.capture_backend_truth"] = create_capture_backend_truth_page
 
 
 def placeholder_definition_by_mode_id(mode_id: str) -> LiquidPlaceholderPageDefinition:

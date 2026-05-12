@@ -10,20 +10,33 @@ WINDOW_TITLE = f"{APP_NAME} — {TECHNICAL_SUBTITLE}"
 KNOWN_TARGET_HARDWARE = "Thrustmaster T-Flight HOTAS One"
 
 
-def build_main_window(*, ui_shell: str | None = None):
+def build_main_window(
+    *,
+    ui_shell: str | None = None,
+    reset_window_geometry: bool | None = None,
+):
     from v3_app.app import build_window
 
-    return build_window(title=WINDOW_TITLE, ui_shell=ui_shell)
+    return build_window(
+        title=WINDOW_TITLE,
+        ui_shell=ui_shell,
+        reset_window_geometry=reset_window_geometry,
+    )
 
 
-def run_app(smoke_exit_ms: int | None = None, *, ui_shell: str | None = None) -> int:
+def run_app(
+    smoke_exit_ms: int | None = None,
+    *,
+    ui_shell: str | None = None,
+    reset_window_geometry: bool | None = None,
+) -> int:
     from PySide6.QtCore import QTimer
     from PySide6.QtWidgets import QApplication
 
     app = QApplication.instance() or QApplication(sys.argv[:1])
     app.setApplicationName(APP_NAME)
     app.setApplicationDisplayName(WINDOW_TITLE)
-    window = build_main_window(ui_shell=ui_shell)
+    window = build_main_window(ui_shell=ui_shell, reset_window_geometry=reset_window_geometry)
     window.show()
 
     if smoke_exit_ms is not None:
@@ -46,8 +59,17 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Select the UI shell. Defaults to legacy unless HELMFORGE_UI_SHELL is set.",
     )
+    parser.add_argument(
+        "--reset-window-geometry",
+        action="store_true",
+        help="Ignore any unsafe remembered placement and center the window inside the available screen.",
+    )
     args = parser.parse_args(argv)
-    return run_app(smoke_exit_ms=args.smoke_exit_ms, ui_shell=args.ui_shell)
+    return run_app(
+        smoke_exit_ms=args.smoke_exit_ms,
+        ui_shell=args.ui_shell,
+        reset_window_geometry=args.reset_window_geometry,
+    )
 
 
 if __name__ == "__main__":

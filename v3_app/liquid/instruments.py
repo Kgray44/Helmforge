@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 
-from PySide6.QtWidgets import QFrame, QLabel, QProgressBar
+from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
+from PySide6.QtWidgets import QFrame, QLabel, QProgressBar, QSizePolicy
 
 from v3_app.liquid.layout import grid_layout, horizontal_layout, vertical_layout
 from v3_app.liquid.status_components import MetricTile, StatusChip, StatusLight, status_tone_for_role
@@ -162,6 +164,169 @@ class MiniCurvePreview(QFrame):
         layout.addWidget(StatusChip("Simulation mode", state_role=state_role))
 
 
+class ResponseCurveGraph(QFrame):
+    def __init__(
+        self,
+        *,
+        title: str,
+        graph_kind: str,
+        lines: Sequence[tuple[str, Sequence[tuple[float, float]], str]],
+        selected_axis: str,
+        x_range: tuple[float, float] = (-1.0, 1.0),
+        y_range: tuple[float, float] = (-1.0, 1.0),
+        state_role: str = "simulation",
+        object_name: str = "liquidResponseCurveGraph",
+    ) -> None:
+        super().__init__()
+        self.setObjectName(object_name)
+        self.setMinimumHeight(190)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self._title = title
+        self._lines = tuple((label, tuple(points), role) for label, points, role in lines)
+        self._x_range = x_range
+        self._y_range = y_range
+        _set_instrument_props(self, component_role="ResponseCurveGraph", state_role=state_role, liquid_role="response_curve_graph")
+        self.setProperty("graphKind", graph_kind)
+        self.setProperty("prominentGraph", True)
+        self.setProperty("selectedAxis", selected_axis)
+        self.setProperty("lineLabels", tuple(label for label, _points, _role in self._lines))
+        self.setProperty("xMin", x_range[0])
+        self.setProperty("xMax", x_range[1])
+        self.setProperty("yMin", y_range[0])
+        self.setProperty("yMax", y_range[1])
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = QRectF(self.rect()).adjusted(14, 14, -14, -14)
+        painter.fillRect(rect, QColor(5, 15, 25, 120))
+        plot = rect.adjusted(42, 28, -18, -34)
+        painter.setPen(QPen(QColor(72, 112, 140, 130), 1))
+        painter.drawRect(plot)
+        painter.drawLine(QPointF(plot.left(), self._map_y(0.0, plot)), QPointF(plot.right(), self._map_y(0.0, plot)))
+        painter.drawLine(QPointF(self._map_x(0.0, plot), plot.top()), QPointF(self._map_x(0.0, plot), plot.bottom()))
+        painter.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
+        painter.setPen(QColor(247, 251, 255, 220))
+        painter.drawText(rect.adjusted(8, 4, -8, -4), Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft, self._title)
+        for index, (label, points, role) in enumerate(self._lines):
+            color = _role_color(role, index)
+            painter.setPen(QPen(color, 2.3 if index else 1.5, Qt.PenStyle.SolidLine if index != 0 else Qt.PenStyle.DashLine))
+            path = QPainterPath()
+            for point_index, (x, y) in enumerate(points):
+                mapped = QPointF(self._map_x(x, plot), self._map_y(y, plot))
+                if point_index == 0:
+                    path.moveTo(mapped)
+                else:
+                    path.lineTo(mapped)
+            painter.drawPath(path)
+            painter.setPen(color)
+            painter.drawText(
+                QRectF(plot.left() + 8 + index * 170, plot.bottom() + 8, 160, 18),
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                label,
+            )
+
+    def _map_x(self, value: float, rect: QRectF) -> float:
+        low, high = self._x_range
+        ratio = (value - low) / max(0.001, high - low)
+        return rect.left() + rect.width() * max(0.0, min(1.0, ratio))
+
+    def _map_y(self, value: float, rect: QRectF) -> float:
+        low, high = self._y_range
+        ratio = (value - low) / max(0.001, high - low)
+        return rect.bottom() - rect.height() * max(0.0, min(1.0, ratio))
+
+
+class LiveAxisTimeSeriesGraph(QFrame):
+    def __init__(
+        self,
+        *,
+        axis_history: Mapping[str, Sequence[tuple[float | None, float | None]]],
+        overlay_final_values: bool = False,
+        capacity: int = 120,
+        state_role: str = "simulation",
+        object_name: str = "liquidAnalysisLiveTimeSeriesGraph",
+    ) -> None:
+        super().__init__()
+        self.setObjectName(object_name)
+        self.setMinimumHeight(260)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self._axis_history = {axis: tuple(samples)[-capacity:] for axis, samples in axis_history.items()}
+        self._overlay_final_values = overlay_final_values
+        self._capacity = capacity
+        _set_instrument_props(self, component_role="LiveAxisTimeSeriesGraph", state_role=state_role, liquid_role="live_axis_time_series")
+        self.setProperty("timeSeriesDirection", "right_to_left")
+        self.setProperty("boundedHistoryCapacity", capacity)
+        self.setProperty("overlayFinalValues", overlay_final_values)
+        self.setProperty("historyLength", max((len(samples) for samples in self._axis_history.values()), default=0))
+        self.setProperty("axisLabels", tuple(self._axis_history.keys()))
+
+    def update_history(
+        self,
+        axis_history: Mapping[str, Sequence[tuple[float | None, float | None]]],
+        *,
+        overlay_final_values: bool,
+    ) -> None:
+        self._axis_history = {axis: tuple(samples)[-self._capacity:] for axis, samples in axis_history.items()}
+        self._overlay_final_values = overlay_final_values
+        self.setProperty("overlayFinalValues", overlay_final_values)
+        self.setProperty("historyLength", max((len(samples) for samples in self._axis_history.values()), default=0))
+        self.setProperty("axisLabels", tuple(self._axis_history.keys()))
+        self.update()
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = QRectF(self.rect()).adjusted(14, 14, -14, -14)
+        painter.fillRect(rect, QColor(5, 15, 25, 120))
+        painter.setPen(QPen(QColor(72, 112, 140, 110), 1))
+        painter.drawRect(rect)
+        painter.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
+        painter.setPen(QColor(247, 251, 255, 220))
+        painter.drawText(rect.adjusted(8, 4, -8, -4), Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft, "Right-to-left passive axis history")
+        plot = rect.adjusted(18, 30, -18, -28)
+        axis_count = max(1, len(self._axis_history))
+        band_height = plot.height() / axis_count
+        for axis_index, (axis, samples) in enumerate(self._axis_history.items()):
+            band = QRectF(plot.left(), plot.top() + axis_index * band_height, plot.width(), band_height - 5)
+            painter.setPen(QPen(QColor(72, 112, 140, 70), 1))
+            painter.drawRect(band)
+            painter.setPen(QColor(159, 185, 207, 180))
+            painter.drawText(band.adjusted(6, 2, -6, -2), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop, axis)
+            self._draw_series(painter, band, samples, value_index=0, color=_role_color("info", axis_index))
+            if self._overlay_final_values:
+                self._draw_series(painter, band, samples, value_index=1, color=_role_color("ready", axis_index), dashed=True)
+
+    def _draw_series(
+        self,
+        painter: QPainter,
+        band: QRectF,
+        samples: Sequence[tuple[float | None, float | None]],
+        *,
+        value_index: int,
+        color: QColor,
+        dashed: bool = False,
+    ) -> None:
+        if not samples:
+            return
+        painter.setPen(QPen(color, 1.8, Qt.PenStyle.DashLine if dashed else Qt.PenStyle.SolidLine))
+        path = QPainterPath()
+        usable = band.adjusted(42, 8, -8, -8)
+        for sample_index, sample in enumerate(reversed(samples[-self._capacity :])):
+            value = sample[value_index]
+            if value is None:
+                continue
+            x_ratio = sample_index / max(1, self._capacity - 1)
+            x = usable.right() - usable.width() * x_ratio
+            y = usable.center().y() - (max(-1.0, min(1.0, value)) * usable.height() / 2)
+            point = QPointF(x, y)
+            if path.elementCount() == 0:
+                path.moveTo(point)
+            else:
+                path.lineTo(point)
+        painter.drawPath(path)
+
+
 class CapabilityRail(QFrame):
     def __init__(
         self,
@@ -175,3 +340,27 @@ class CapabilityRail(QFrame):
         layout = horizontal_layout(self, margins=(0, 0, 0, 0), spacing=10)
         for label, state_role, caption in capabilities:
             layout.addWidget(MetricTile(label, state_role.replace("-", " ").title(), caption, state_role=state_role), 1)
+
+
+def _role_color(role: str, index: int) -> QColor:
+    palette = {
+        "ready": QColor(126, 224, 166, 210),
+        "verified": QColor(126, 224, 166, 210),
+        "info": QColor(118, 217, 255, 210),
+        "simulation": QColor(159, 185, 207, 210),
+        "warning": QColor(242, 198, 109, 220),
+        "blocked": QColor(242, 198, 109, 220),
+        "error": QColor(255, 113, 113, 220),
+        "unavailable": QColor(102, 135, 159, 180),
+    }
+    if role in palette:
+        return palette[role]
+    fallback = (
+        QColor(118, 217, 255, 210),
+        QColor(126, 224, 166, 210),
+        QColor(242, 198, 109, 220),
+        QColor(194, 153, 255, 210),
+        QColor(255, 163, 113, 210),
+        QColor(159, 185, 207, 210),
+    )
+    return fallback[index % len(fallback)]

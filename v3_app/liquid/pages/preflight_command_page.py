@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 
-from PySide6.QtWidgets import QFrame, QLabel, QSizePolicy, QWidget
+from PySide6.QtWidgets import QApplication, QFrame, QLabel, QPushButton, QSizePolicy, QWidget
 
 from shared_core.models.runtime import (
     InputDeviceDetection,
@@ -20,7 +21,7 @@ from v3_app.liquid.components import (
     LiquidPage,
     LiquidStatusRail,
 )
-from v3_app.liquid.glass import glass_panel
+from v3_app.liquid.glass import action_button, glass_panel
 from v3_app.liquid.layout import grid_layout, horizontal_layout, vertical_layout
 from v3_app.liquid.models.preflight_readiness_model import (
     PreflightChecklistItemModel,
@@ -45,11 +46,13 @@ class PreflightCommandPage(LiquidPage):
         state: AppState | None = None,
         runtime_status: RuntimePreflightStatus | None = None,
         telemetry: BridgeTelemetrySnapshot | None = None,
+        on_route_requested: Callable[[str], None] | None = None,
     ) -> None:
         _lcd4f_trace("constructing preflight page")
         self._state = state or _default_state()
         self._runtime_status = runtime_status or runtime_status_from_app_state(self._state)
         self._telemetry = telemetry
+        self._on_route_requested = on_route_requested
         self._last_render_signature: tuple[object, ...] | None = None
         self._render_count = 0
         super().__init__(
@@ -111,7 +114,7 @@ class PreflightCommandPage(LiquidPage):
         self.set_header(_preflight_header(model))
         _lcd4f_trace("constructing preflight hero")
         self.set_status_rail(_status_rail(model))
-        self.set_hero(_hero_panel(model))
+        self.set_hero(_hero_panel(model, self._on_route_requested))
         _lcd4f_trace("constructing preflight system details")
         self.set_inspector(_system_details_panel(model))
         _lcd4f_trace("constructing preflight checklist")
@@ -125,8 +128,14 @@ def create_preflight_command_page(
     state: AppState | None = None,
     runtime_status: RuntimePreflightStatus | None = None,
     telemetry: BridgeTelemetrySnapshot | None = None,
+    on_route_requested: Callable[[str], None] | None = None,
 ) -> PreflightCommandPage:
-    return PreflightCommandPage(state=state, runtime_status=runtime_status, telemetry=telemetry)
+    return PreflightCommandPage(
+        state=state,
+        runtime_status=runtime_status,
+        telemetry=telemetry,
+        on_route_requested=on_route_requested,
+    )
 
 
 def _render_signature(
@@ -239,7 +248,7 @@ def _preflight_header(model: PreflightReadinessModel) -> QFrame:
     return header
 
 
-def _hero_panel(model: PreflightReadinessModel) -> LiquidHeroPanel:
+def _hero_panel(model: PreflightReadinessModel, on_route_requested: Callable[[str], None] | None) -> LiquidHeroPanel:
     hero = LiquidHeroPanel(
         model.overall_label,
         model.short_explanation,
@@ -255,8 +264,68 @@ def _hero_panel(model: PreflightReadinessModel) -> LiquidHeroPanel:
     _append_to_panel(hero, _question_label())
     _append_to_panel(hero, _next_action_label(model.next_recommended_action))
     _append_to_panel(hero, _truth_chip_row(model))
+    _append_to_panel(hero, _preflight_command_actions(model, on_route_requested))
     _append_to_panel(hero, _gate_grid(model))
     return hero
+
+
+def _preflight_command_actions(
+    model: PreflightReadinessModel,
+    on_route_requested: Callable[[str], None] | None,
+) -> QFrame:
+    actions = glass_panel("liquidPreflightCommandActions", role="liquid_preflight_command_actions")
+    actions.setProperty("componentRole", "PreflightCommandActions")
+    actions.setProperty("liquidComponent", True)
+    actions.setProperty("pageActionCluster", True)
+    layout = horizontal_layout(actions, margins=(0, 6, 0, 4), spacing=8)
+    layout.addWidget(
+        _route_button(
+            "Open Setup / Runtime Check",
+            "support.setup_runtime_check",
+            "liquidPreflightOpenSetupButton",
+            on_route_requested,
+        )
+    )
+    layout.addWidget(
+        _route_button(
+            "Open Mapping / HOTAS Map",
+            "mapping.hotas_map",
+            "liquidPreflightOpenMappingButton",
+            on_route_requested,
+        )
+    )
+    layout.addWidget(
+        _route_button(
+            "Open Help / Docs",
+            "support.help_docs",
+            "liquidPreflightOpenHelpButton",
+            on_route_requested,
+        )
+    )
+    layout.addWidget(
+        _copy_button(
+            "Copy preflight status",
+            "liquidPreflightCopyStatusButton",
+            _preflight_status_text(model),
+        )
+    )
+    layout.addWidget(
+        _copy_button(
+            "Copy setup checklist",
+            "liquidPreflightCopyChecklistButton",
+            _preflight_checklist_text(model),
+        )
+    )
+    simulation = action_button(
+        "Simulation mode control pending",
+        object_name="liquidPreflightSimulationControlButton",
+        enabled=False,
+    )
+    simulation.setToolTip("Simulation mode control is pending because LCD-7R does not add runtime authority or mode toggles.")
+    simulation.setAccessibleDescription(simulation.toolTip())
+    layout.addWidget(simulation)
+    layout.addStretch(1)
+    return actions
 
 
 def _question_label() -> QLabel:
@@ -479,6 +548,62 @@ def _detail_row(detail: PreflightSystemDetailModel, *, object_name: str) -> QFra
         badge.setMaximumWidth(260)
         layout.addWidget(badge, 1)
     return row
+
+
+def _route_button(
+    text: str,
+    route_key: str,
+    object_name: str,
+    on_route_requested: Callable[[str], None] | None,
+) -> QPushButton:
+    button = action_button(text, object_name=object_name, enabled=on_route_requested is not None)
+    button.setProperty("routeTarget", route_key)
+    button.setProperty("navigationOnly", True)
+    reason = f"Navigate to {route_key}. This does not change runtime authority."
+    if on_route_requested is None:
+        reason = f"{reason} Navigation callback is unavailable in this context."
+    button.setToolTip(reason)
+    button.setStatusTip(reason)
+    button.setAccessibleDescription(reason)
+    if on_route_requested is not None:
+        button.clicked.connect(lambda _checked=False, target=route_key: on_route_requested(target))
+    return button
+
+
+def _copy_button(text: str, object_name: str, payload: str) -> QPushButton:
+    button = action_button(text, object_name=object_name, enabled=True)
+    button.setProperty("copyOnly", True)
+    button.setToolTip("Copy this Preflight information to the clipboard. This does not change runtime state.")
+    button.setStatusTip(button.toolTip())
+    button.setAccessibleDescription(button.toolTip())
+    button.clicked.connect(lambda _checked=False, data=payload: _copy_to_clipboard(data))
+    return button
+
+
+def _copy_to_clipboard(text: str) -> None:
+    clipboard = QApplication.clipboard()
+    if clipboard is not None:
+        clipboard.setText(text)
+
+
+def _preflight_status_text(model: PreflightReadinessModel) -> str:
+    return "\n".join(
+        (
+            f"Readiness: {model.overall_label}",
+            f"Explanation: {model.short_explanation}",
+            f"Next: {model.next_recommended_action}",
+            f"Runtime truth: {model.runtime_truth_label}",
+            f"Output proof: {model.output_proof_label}",
+            f"Telemetry: {model.telemetry_label}",
+            "Output proof unchanged by copy action.",
+        )
+    )
+
+
+def _preflight_checklist_text(model: PreflightReadinessModel) -> str:
+    lines = ["Preflight setup checklist:"]
+    lines.extend(f"- {item.label}: {item.state} - {item.reason}" for item in model.checklist_items)
+    return "\n".join(lines)
 
 
 def _append_to_panel(panel: QWidget, widget: QWidget) -> None:

@@ -161,6 +161,29 @@ def test_lcd_1f_all_modes_keep_embedded_placeholder_regions():
             assert page.findChild(QWidget, "liquidPreflightSystemDetails") is not None
             assert page.findChild(QWidget, "liquidPreflightActionPanel") is not None
             continue
+        if definition.mode_id == "mapping":
+            assert page.findChild(QWidget, "liquidMappingHotasHero") is not None
+            assert page.findChild(QWidget, "liquidMappingInspector") is not None
+            assert page.findChild(QWidget, "liquidMappingRouteFlowPanel") is not None
+            continue
+        if definition.mode_id == "tuning":
+            assert page.findChild(QWidget, "liquidTuningHero") is not None
+            assert page.findChild(QWidget, "liquidTuningAxisSelectorPanel") is not None
+            assert page.findChild(QWidget, "liquidTuningParameterInspector") is not None
+            assert page.findChild(QWidget, "liquidTuningAdvancedDetails") is not None
+            continue
+        if definition.mode_id == "analysis":
+            assert page.findChild(QWidget, "liquidAnalysisPipelineHero") is not None
+            assert page.findChild(QWidget, "liquidAnalysisAxisInspector") is not None
+            assert page.findChild(QWidget, "liquidAnalysisStageDetails") is not None
+            assert page.findChild(QWidget, "liquidAnalysisAdvancedDetails") is not None
+            continue
+        if definition.mode_id == "recorder":
+            assert page.findChild(QWidget, "liquidRecorderStatusHero") is not None
+            assert page.findChild(QWidget, "liquidRecorderCapabilityPanel") is not None
+            assert page.findChild(QWidget, "liquidRecorderActionPanel") is not None
+            assert page.findChild(QWidget, "liquidRecorderAdvancedDetails") is not None
+            continue
         for suffix in (
             "liquidHeroRegion",
             "liquidContextInspectorRegion",

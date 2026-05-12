@@ -563,6 +563,19 @@ def liquid_qss() -> str:
         border-radius: 16px;
     }}
 
+    QFrame[componentRole="StatusLight"][indicatorShape="status-dot"] {{
+        background: rgba(118, 217, 255, 180);
+        border: 1px solid rgba(247, 251, 255, 96);
+        border-radius: 5px;
+    }}
+
+    QFrame[componentRole="ResponseCurveGraph"],
+    QFrame[componentRole="LiveAxisTimeSeriesGraph"] {{
+        background: rgba(5, 15, 25, 120);
+        border: 1px solid rgba(118, 217, 255, 90);
+        border-radius: 16px;
+    }}
+
     QFrame[componentRole="LiquidAdvancedSection"] {{
         background: rgba(7, 20, 33, 166);
         border: 1px solid rgba(72, 112, 140, 78);
@@ -604,6 +617,85 @@ def liquid_qss() -> str:
         background: rgba(5, 15, 25, 70);
         border: 1px solid rgba(72, 112, 140, 42);
         border-radius: 12px;
+    }}
+
+    QFrame#liquidMappingHotasHero[mappingVisualRole="primary_hotas_map"] {{
+        background: qlineargradient(
+            x1: 0, y1: 0, x2: 1, y2: 1,
+            stop: 0 rgba(35, 82, 104, 232),
+            stop: 0.35 rgba(8, 29, 48, 242),
+            stop: 1 rgba(4, 12, 20, 244)
+        );
+        border: 1px solid rgba(118, 217, 255, 132);
+        border-radius: 24px;
+    }}
+
+    QFrame#liquidMappingHotasMap,
+    QFrame#liquidMappingHeroSummary,
+    QFrame#liquidMappingMetrics {{
+        background: rgba(5, 15, 25, 82);
+        border: 1px solid rgba(72, 112, 140, 48);
+        border-radius: 14px;
+    }}
+
+    QFrame#liquidMappingIntentRail {{
+        background: transparent;
+        border: none;
+    }}
+
+    QFrame#liquidMappingInspector,
+    QFrame#liquidMappingRouteFlowPanel {{
+        background: rgba(7, 20, 33, 178);
+        border-color: rgba(72, 112, 140, 90);
+    }}
+
+    QFrame#liquidMappingAdvancedRouteDetails[visualWeight="subdued"] {{
+        background: rgba(5, 14, 24, 108);
+        border-color: rgba(72, 112, 140, 46);
+    }}
+
+    QFrame#liquidMappingAdvancedRouteList,
+    QFrame#liquidMappingAdvancedSummary,
+    QFrame#liquidMappingAdvancedCounts,
+    QFrame#liquidMappingSelectedAdvancedRoute,
+    QFrame#liquidMappingAdvancedPreviewList,
+    QFrame#liquidMappingDeferredActions {{
+        background: rgba(5, 15, 25, 70);
+        border: 1px solid rgba(72, 112, 140, 42);
+        border-radius: 12px;
+    }}
+
+    QFrame[componentRole="MappingDetailRow"],
+    QFrame[componentRole="MappingAdvancedRouteRow"],
+    QFrame[componentRole="MappingAdvancedCell"],
+    QFrame[componentRole="MappingInspectorHeader"],
+    QFrame[componentRole="MappingTruthNotes"] {{
+        background: rgba(7, 20, 33, 112);
+        border: 1px solid rgba(72, 112, 140, 52);
+        border-radius: 12px;
+    }}
+
+    QPushButton[uiRole="liquidMappingMarker"] {{
+        background: rgba(8, 20, 32, 204);
+        border: 1px solid rgba(118, 217, 255, 98);
+        border-radius: 12px;
+        color: {colors.primary_text};
+        font-size: 11px;
+        font-weight: 850;
+        padding: 4px 7px;
+    }}
+
+    QPushButton[uiRole="liquidMappingMarker"][mappedState="unmapped"],
+    QPushButton[uiRole="liquidMappingMarker"][statusRole="warning"] {{
+        border-color: rgba(242, 198, 109, 138);
+        color: {colors.status_amber};
+    }}
+
+    QPushButton[uiRole="liquidMappingMarker"][selected="true"],
+    QPushButton[uiRole="liquidMappingMarker"]:checked {{
+        background: rgba(35, 86, 82, 226);
+        border: 2px solid rgba(126, 224, 166, 176);
+        color: #ffffff;
     }}
 
     QFrame[toneRole="success"],

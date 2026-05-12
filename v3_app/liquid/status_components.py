@@ -80,6 +80,8 @@ class StatusLight(QFrame):
         super().__init__()
         self.setObjectName(object_name)
         self.setFixedSize(10, 10)
+        self.setProperty("indicatorShape", "status-dot")
+        self.setProperty("interactive", False)
         _set_status_props(self, component_role="StatusLight", state_role=state_role, liquid_role="status_light")
 
 
