@@ -1,0 +1,19 @@
+HelmForge Runtime Setup Check
+Product: HelmForge
+Technical subtitle: HOTAS Control Panel V3
+Known Thrustmaster target: Thrustmaster T-Flight HOTAS One / Thrustmaster T.Flight Hotas One
+Dry run: True
+Admin active: False
+Log path: C:\Users\kkids\AppData\Local\Temp\helmforge_runtime_setup_check.log
+Checked present PnP device names: 239
+Installed runtime software: vJoy Device Driver 2.2.2.0 2.2.2.0 (Shaul Eizikovich)
+Installed runtime software: T.Flight Hotas drivers 5.TFHT.2025 (Thrustmaster)
+HOTAS status: HOTAS Not Connected
+vJoy status: vJoy Detected
+  vJoy device match: vJoy Driver {D6E55CA0-1A2E-4234-AAF3-3852170B492F}\VJOYRAWPDO\1&2D595CA7&0&VJOYINSTANCE00
+  vJoy device match: vJoy Device ROOT\HIDCLASS\0000
+  vJoy file match: C:\Program Files\vJoy\x64\vJoyInterface.dll
+Runtime status: Simulation Mode Active unless physical input and output writes are both verified.
+Full Live Runtime Ready: governed by the Phase 16 proof gate; false unless fresh input, pipeline, real output verification, output-loop state, telemetry, and safety proof all pass.
+No installers launched. Use -LaunchInstallers with explicit installer paths to request installer launch.
+Dry run only. No installers launched.

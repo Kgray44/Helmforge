@@ -1,0 +1,9 @@
+HelmForge Runtime Setup Check
+Add-Content : Stream was not readable.
+At C:\w\hotas-rt1a\scripts\runtime_setup_check.ps1:24 char:5
++     Add-Content -LiteralPath $LogPath -Value ("{0} {1}" -f (Get-Date  ...
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (C:\Users\kkids\...setup_check.log:String) [Add-Content], ArgumentExcep 
+   tion
+    + FullyQualifiedErrorId : GetContentWriterArgumentError,Microsoft.PowerShell.Commands.AddContentCommand
+ 

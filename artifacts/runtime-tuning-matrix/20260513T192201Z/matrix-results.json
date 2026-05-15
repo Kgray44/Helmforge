@@ -1,0 +1,5571 @@
+[
+  {
+    "details": {
+      "violations": []
+    },
+    "name": "shared_runtime_no_ui_imports",
+    "passed": true,
+    "section": "runtime_authority_boundary"
+  },
+  {
+    "details": {
+      "output": -1.0
+    },
+    "name": "Roll_s_-1.0",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": -0.5859375
+    },
+    "name": "Roll_s_-0.75",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": -0.3125
+    },
+    "name": "Roll_s_-0.5",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": -0.1328125
+    },
+    "name": "Roll_s_-0.25",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": -0.0250625
+    },
+    "name": "Roll_s_-0.05",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.0
+    },
+    "name": "Roll_s_0.0",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.0250625
+    },
+    "name": "Roll_s_0.05",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.1328125
+    },
+    "name": "Roll_s_0.25",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.3125
+    },
+    "name": "Roll_s_0.5",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.5859375
+    },
+    "name": "Roll_s_0.75",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 1.0
+    },
+    "name": "Roll_s_1.0",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "max_output": 1.0,
+      "min_output": -1.0
+    },
+    "name": "Roll_s_monotonic",
+    "passed": true,
+    "section": "curve_mode_matrix_summary"
+  },
+  {
+    "details": {
+      "output": -1.0
+    },
+    "name": "Pitch_s_-1.0",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": -0.5859375
+    },
+    "name": "Pitch_s_-0.75",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": -0.3125
+    },
+    "name": "Pitch_s_-0.5",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": -0.1328125
+    },
+    "name": "Pitch_s_-0.25",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": -0.0250625
+    },
+    "name": "Pitch_s_-0.05",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.0
+    },
+    "name": "Pitch_s_0.0",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.0250625
+    },
+    "name": "Pitch_s_0.05",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.1328125
+    },
+    "name": "Pitch_s_0.25",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.3125
+    },
+    "name": "Pitch_s_0.5",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.5859375
+    },
+    "name": "Pitch_s_0.75",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 1.0
+    },
+    "name": "Pitch_s_1.0",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "max_output": 1.0,
+      "min_output": -1.0
+    },
+    "name": "Pitch_s_monotonic",
+    "passed": true,
+    "section": "curve_mode_matrix_summary"
+  },
+  {
+    "details": {
+      "output": -1.0
+    },
+    "name": "Throttle_s_-1.0",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": -0.5859375
+    },
+    "name": "Throttle_s_-0.75",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": -0.3125
+    },
+    "name": "Throttle_s_-0.5",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": -0.1328125
+    },
+    "name": "Throttle_s_-0.25",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": -0.0250625
+    },
+    "name": "Throttle_s_-0.05",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.0
+    },
+    "name": "Throttle_s_0.0",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.0250625
+    },
+    "name": "Throttle_s_0.05",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.1328125
+    },
+    "name": "Throttle_s_0.25",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.3125
+    },
+    "name": "Throttle_s_0.5",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.5859375
+    },
+    "name": "Throttle_s_0.75",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 1.0
+    },
+    "name": "Throttle_s_1.0",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "max_output": 1.0,
+      "min_output": -1.0
+    },
+    "name": "Throttle_s_monotonic",
+    "passed": true,
+    "section": "curve_mode_matrix_summary"
+  },
+  {
+    "details": {
+      "output": -1.0
+    },
+    "name": "Yaw_s_-1.0",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": -0.5859375
+    },
+    "name": "Yaw_s_-0.75",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": -0.3125
+    },
+    "name": "Yaw_s_-0.5",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": -0.1328125
+    },
+    "name": "Yaw_s_-0.25",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": -0.0250625
+    },
+    "name": "Yaw_s_-0.05",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.0
+    },
+    "name": "Yaw_s_0.0",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.0250625
+    },
+    "name": "Yaw_s_0.05",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.1328125
+    },
+    "name": "Yaw_s_0.25",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.3125
+    },
+    "name": "Yaw_s_0.5",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.5859375
+    },
+    "name": "Yaw_s_0.75",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 1.0
+    },
+    "name": "Yaw_s_1.0",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "max_output": 1.0,
+      "min_output": -1.0
+    },
+    "name": "Yaw_s_monotonic",
+    "passed": true,
+    "section": "curve_mode_matrix_summary"
+  },
+  {
+    "details": {
+      "output": -1.0
+    },
+    "name": "Aux 1_s_-1.0",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": -0.5859375
+    },
+    "name": "Aux 1_s_-0.75",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": -0.3125
+    },
+    "name": "Aux 1_s_-0.5",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": -0.1328125
+    },
+    "name": "Aux 1_s_-0.25",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": -0.0250625
+    },
+    "name": "Aux 1_s_-0.05",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.0
+    },
+    "name": "Aux 1_s_0.0",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.0250625
+    },
+    "name": "Aux 1_s_0.05",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.1328125
+    },
+    "name": "Aux 1_s_0.25",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.3125
+    },
+    "name": "Aux 1_s_0.5",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.5859375
+    },
+    "name": "Aux 1_s_0.75",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 1.0
+    },
+    "name": "Aux 1_s_1.0",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "max_output": 1.0,
+      "min_output": -1.0
+    },
+    "name": "Aux 1_s_monotonic",
+    "passed": true,
+    "section": "curve_mode_matrix_summary"
+  },
+  {
+    "details": {
+      "output": -1.0
+    },
+    "name": "Aux 2_s_-1.0",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": -0.5859375
+    },
+    "name": "Aux 2_s_-0.75",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": -0.3125
+    },
+    "name": "Aux 2_s_-0.5",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": -0.1328125
+    },
+    "name": "Aux 2_s_-0.25",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": -0.0250625
+    },
+    "name": "Aux 2_s_-0.05",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.0
+    },
+    "name": "Aux 2_s_0.0",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.0250625
+    },
+    "name": "Aux 2_s_0.05",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.1328125
+    },
+    "name": "Aux 2_s_0.25",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.3125
+    },
+    "name": "Aux 2_s_0.5",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.5859375
+    },
+    "name": "Aux 2_s_0.75",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 1.0
+    },
+    "name": "Aux 2_s_1.0",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "max_output": 1.0,
+      "min_output": -1.0
+    },
+    "name": "Aux 2_s_monotonic",
+    "passed": true,
+    "section": "curve_mode_matrix_summary"
+  },
+  {
+    "details": {
+      "metadata": {
+        "curve_mode": "s",
+        "curve_mode_supported": false,
+        "curve_strength": 0.5,
+        "requested_curve_mode": "unsupported"
+      }
+    },
+    "name": "unsupported_curve_mode_safe_default",
+    "passed": true,
+    "section": "curve_mode_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "curve_strength",
+      "value": -1.0
+    },
+    "name": "curve_strength_-1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "curve_strength",
+      "value": 0.0
+    },
+    "name": "curve_strength_0.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.6996429999999999,
+      "parameter": "curve_strength",
+      "value": 0.001
+    },
+    "name": "curve_strength_0.001",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.6107499999999999,
+      "parameter": "curve_strength",
+      "value": 0.25
+    },
+    "name": "curve_strength_0.25",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.5215,
+      "parameter": "curve_strength",
+      "value": 0.5
+    },
+    "name": "curve_strength_0.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.4322499999999999,
+      "parameter": "curve_strength",
+      "value": 0.75
+    },
+    "name": "curve_strength_0.75",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.3433569999999999,
+      "parameter": "curve_strength",
+      "value": 0.999
+    },
+    "name": "curve_strength_0.999",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.3429999999999999,
+      "parameter": "curve_strength",
+      "value": 1.0
+    },
+    "name": "curve_strength_1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.3429999999999999,
+      "parameter": "curve_strength",
+      "value": 1.5
+    },
+    "name": "curve_strength_1.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "curve_strength",
+      "value": null
+    },
+    "name": "curve_strength_None",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "curve_strength",
+      "value": "NaN"
+    },
+    "name": "curve_strength_nan",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "curve_strength",
+      "value": "Infinity"
+    },
+    "name": "curve_strength_inf",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "curve_strength",
+      "value": "bad"
+    },
+    "name": "curve_strength_'bad'",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "curve_strength",
+      "value": ""
+    },
+    "name": "curve_strength_''",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "deadzone",
+      "value": -1.0
+    },
+    "name": "deadzone_-1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "deadzone",
+      "value": 0.0
+    },
+    "name": "deadzone_0.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.6996996996996997,
+      "parameter": "deadzone",
+      "value": 0.001
+    },
+    "name": "deadzone_0.001",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.6,
+      "parameter": "deadzone",
+      "value": 0.25
+    },
+    "name": "deadzone_0.25",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.3999999999999999,
+      "parameter": "deadzone",
+      "value": 0.5
+    },
+    "name": "deadzone_0.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.0,
+      "parameter": "deadzone",
+      "value": 0.75
+    },
+    "name": "deadzone_0.75",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.0,
+      "parameter": "deadzone",
+      "value": 0.999
+    },
+    "name": "deadzone_0.999",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.0,
+      "parameter": "deadzone",
+      "value": 1.0
+    },
+    "name": "deadzone_1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.0,
+      "parameter": "deadzone",
+      "value": 1.5
+    },
+    "name": "deadzone_1.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "deadzone",
+      "value": null
+    },
+    "name": "deadzone_None",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "deadzone",
+      "value": "NaN"
+    },
+    "name": "deadzone_nan",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "deadzone",
+      "value": "Infinity"
+    },
+    "name": "deadzone_inf",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "deadzone",
+      "value": "bad"
+    },
+    "name": "deadzone_'bad'",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "deadzone",
+      "value": ""
+    },
+    "name": "deadzone_''",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "anti_deadzone",
+      "value": -1.0
+    },
+    "name": "anti_deadzone_-1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "anti_deadzone",
+      "value": 0.0
+    },
+    "name": "anti_deadzone_0.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7002999999999999,
+      "parameter": "anti_deadzone",
+      "value": 0.001
+    },
+    "name": "anti_deadzone_0.001",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7749999999999999,
+      "parameter": "anti_deadzone",
+      "value": 0.25
+    },
+    "name": "anti_deadzone_0.25",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.85,
+      "parameter": "anti_deadzone",
+      "value": 0.5
+    },
+    "name": "anti_deadzone_0.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.925,
+      "parameter": "anti_deadzone",
+      "value": 0.75
+    },
+    "name": "anti_deadzone_0.75",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.9997,
+      "parameter": "anti_deadzone",
+      "value": 0.999
+    },
+    "name": "anti_deadzone_0.999",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 1.0,
+      "parameter": "anti_deadzone",
+      "value": 1.0
+    },
+    "name": "anti_deadzone_1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 1.0,
+      "parameter": "anti_deadzone",
+      "value": 1.5
+    },
+    "name": "anti_deadzone_1.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "anti_deadzone",
+      "value": null
+    },
+    "name": "anti_deadzone_None",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "anti_deadzone",
+      "value": "NaN"
+    },
+    "name": "anti_deadzone_nan",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "anti_deadzone",
+      "value": "Infinity"
+    },
+    "name": "anti_deadzone_inf",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "anti_deadzone",
+      "value": "bad"
+    },
+    "name": "anti_deadzone_'bad'",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "anti_deadzone",
+      "value": ""
+    },
+    "name": "anti_deadzone_''",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "hysteresis",
+      "value": -1.0
+    },
+    "name": "hysteresis_-1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "hysteresis",
+      "value": 0.0
+    },
+    "name": "hysteresis_0.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "hysteresis",
+      "value": 0.001
+    },
+    "name": "hysteresis_0.001",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "hysteresis",
+      "value": 0.25
+    },
+    "name": "hysteresis_0.25",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "hysteresis",
+      "value": 0.5
+    },
+    "name": "hysteresis_0.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "hysteresis",
+      "value": 0.75
+    },
+    "name": "hysteresis_0.75",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "hysteresis",
+      "value": 0.999
+    },
+    "name": "hysteresis_0.999",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "hysteresis",
+      "value": 1.0
+    },
+    "name": "hysteresis_1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "hysteresis",
+      "value": 1.5
+    },
+    "name": "hysteresis_1.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "hysteresis",
+      "value": null
+    },
+    "name": "hysteresis_None",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "hysteresis",
+      "value": "NaN"
+    },
+    "name": "hysteresis_nan",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "hysteresis",
+      "value": "Infinity"
+    },
+    "name": "hysteresis_inf",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "hysteresis",
+      "value": "bad"
+    },
+    "name": "hysteresis_'bad'",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "hysteresis",
+      "value": ""
+    },
+    "name": "hysteresis_''",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": -0.7,
+      "parameter": "output_scale",
+      "value": -1.0
+    },
+    "name": "output_scale_-1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.0,
+      "parameter": "output_scale",
+      "value": 0.0
+    },
+    "name": "output_scale_0.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.0007,
+      "parameter": "output_scale",
+      "value": 0.001
+    },
+    "name": "output_scale_0.001",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.175,
+      "parameter": "output_scale",
+      "value": 0.25
+    },
+    "name": "output_scale_0.25",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.35,
+      "parameter": "output_scale",
+      "value": 0.5
+    },
+    "name": "output_scale_0.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.5249999999999999,
+      "parameter": "output_scale",
+      "value": 0.75
+    },
+    "name": "output_scale_0.75",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.6992999999999999,
+      "parameter": "output_scale",
+      "value": 0.999
+    },
+    "name": "output_scale_0.999",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "output_scale",
+      "value": 1.0
+    },
+    "name": "output_scale_1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 1.0,
+      "parameter": "output_scale",
+      "value": 1.5
+    },
+    "name": "output_scale_1.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "output_scale",
+      "value": null
+    },
+    "name": "output_scale_None",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "output_scale",
+      "value": "NaN"
+    },
+    "name": "output_scale_nan",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "output_scale",
+      "value": "Infinity"
+    },
+    "name": "output_scale_inf",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "output_scale",
+      "value": "bad"
+    },
+    "name": "output_scale_'bad'",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "output_scale",
+      "value": ""
+    },
+    "name": "output_scale_''",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "max_output",
+      "value": -1.0
+    },
+    "name": "max_output_-1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": -0.0,
+      "parameter": "max_output",
+      "value": 0.0
+    },
+    "name": "max_output_0.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.001,
+      "parameter": "max_output",
+      "value": 0.001
+    },
+    "name": "max_output_0.001",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.25,
+      "parameter": "max_output",
+      "value": 0.25
+    },
+    "name": "max_output_0.25",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.5,
+      "parameter": "max_output",
+      "value": 0.5
+    },
+    "name": "max_output_0.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "max_output",
+      "value": 0.75
+    },
+    "name": "max_output_0.75",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "max_output",
+      "value": 0.999
+    },
+    "name": "max_output_0.999",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "max_output",
+      "value": 1.0
+    },
+    "name": "max_output_1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "max_output",
+      "value": 1.5
+    },
+    "name": "max_output_1.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "max_output",
+      "value": null
+    },
+    "name": "max_output_None",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "max_output",
+      "value": "NaN"
+    },
+    "name": "max_output_nan",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "max_output",
+      "value": "Infinity"
+    },
+    "name": "max_output_inf",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "max_output",
+      "value": "bad"
+    },
+    "name": "max_output_'bad'",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "max_output",
+      "value": ""
+    },
+    "name": "max_output_''",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": -0.7,
+      "parameter": "precision_scale",
+      "value": -1.0
+    },
+    "name": "precision_scale_-1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.0,
+      "parameter": "precision_scale",
+      "value": 0.0
+    },
+    "name": "precision_scale_0.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.0007,
+      "parameter": "precision_scale",
+      "value": 0.001
+    },
+    "name": "precision_scale_0.001",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.175,
+      "parameter": "precision_scale",
+      "value": 0.25
+    },
+    "name": "precision_scale_0.25",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.35,
+      "parameter": "precision_scale",
+      "value": 0.5
+    },
+    "name": "precision_scale_0.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.5249999999999999,
+      "parameter": "precision_scale",
+      "value": 0.75
+    },
+    "name": "precision_scale_0.75",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.6992999999999999,
+      "parameter": "precision_scale",
+      "value": 0.999
+    },
+    "name": "precision_scale_0.999",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "precision_scale",
+      "value": 1.0
+    },
+    "name": "precision_scale_1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 1.0,
+      "parameter": "precision_scale",
+      "value": 1.5
+    },
+    "name": "precision_scale_1.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "precision_scale",
+      "value": null
+    },
+    "name": "precision_scale_None",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "precision_scale",
+      "value": "NaN"
+    },
+    "name": "precision_scale_nan",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "precision_scale",
+      "value": "Infinity"
+    },
+    "name": "precision_scale_inf",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "precision_scale",
+      "value": "bad"
+    },
+    "name": "precision_scale_'bad'",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "precision_scale",
+      "value": ""
+    },
+    "name": "precision_scale_''",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.48999999999999994,
+      "parameter": "center_alpha",
+      "value": -1.0
+    },
+    "name": "center_alpha_-1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.48999999999999994,
+      "parameter": "center_alpha",
+      "value": 0.0
+    },
+    "name": "center_alpha_0.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.4902099999999999,
+      "parameter": "center_alpha",
+      "value": 0.001
+    },
+    "name": "center_alpha_0.001",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.5424999999999999,
+      "parameter": "center_alpha",
+      "value": 0.25
+    },
+    "name": "center_alpha_0.25",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.595,
+      "parameter": "center_alpha",
+      "value": 0.5
+    },
+    "name": "center_alpha_0.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.6475,
+      "parameter": "center_alpha",
+      "value": 0.75
+    },
+    "name": "center_alpha_0.75",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.69979,
+      "parameter": "center_alpha",
+      "value": 0.999
+    },
+    "name": "center_alpha_0.999",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "center_alpha",
+      "value": 1.0
+    },
+    "name": "center_alpha_1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "center_alpha",
+      "value": 1.5
+    },
+    "name": "center_alpha_1.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.48999999999999994,
+      "parameter": "center_alpha",
+      "value": null
+    },
+    "name": "center_alpha_None",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.48999999999999994,
+      "parameter": "center_alpha",
+      "value": "NaN"
+    },
+    "name": "center_alpha_nan",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.48999999999999994,
+      "parameter": "center_alpha",
+      "value": "Infinity"
+    },
+    "name": "center_alpha_inf",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.48999999999999994,
+      "parameter": "center_alpha",
+      "value": "bad"
+    },
+    "name": "center_alpha_'bad'",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.48999999999999994,
+      "parameter": "center_alpha",
+      "value": ""
+    },
+    "name": "center_alpha_''",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.21000000000000002,
+      "parameter": "edge_alpha",
+      "value": -1.0
+    },
+    "name": "edge_alpha_-1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.21000000000000002,
+      "parameter": "edge_alpha",
+      "value": 0.0
+    },
+    "name": "edge_alpha_0.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.21049000000000004,
+      "parameter": "edge_alpha",
+      "value": 0.001
+    },
+    "name": "edge_alpha_0.001",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.3325,
+      "parameter": "edge_alpha",
+      "value": 0.25
+    },
+    "name": "edge_alpha_0.25",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.45499999999999996,
+      "parameter": "edge_alpha",
+      "value": 0.5
+    },
+    "name": "edge_alpha_0.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.5774999999999999,
+      "parameter": "edge_alpha",
+      "value": 0.75
+    },
+    "name": "edge_alpha_0.75",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.69951,
+      "parameter": "edge_alpha",
+      "value": 0.999
+    },
+    "name": "edge_alpha_0.999",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "edge_alpha",
+      "value": 1.0
+    },
+    "name": "edge_alpha_1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "edge_alpha",
+      "value": 1.5
+    },
+    "name": "edge_alpha_1.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.21000000000000002,
+      "parameter": "edge_alpha",
+      "value": null
+    },
+    "name": "edge_alpha_None",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.21000000000000002,
+      "parameter": "edge_alpha",
+      "value": "NaN"
+    },
+    "name": "edge_alpha_nan",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.21000000000000002,
+      "parameter": "edge_alpha",
+      "value": "Infinity"
+    },
+    "name": "edge_alpha_inf",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.21000000000000002,
+      "parameter": "edge_alpha",
+      "value": "bad"
+    },
+    "name": "edge_alpha_'bad'",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.21000000000000002,
+      "parameter": "edge_alpha",
+      "value": ""
+    },
+    "name": "edge_alpha_''",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "same_slew_limit",
+      "value": -1.0
+    },
+    "name": "same_slew_limit_-1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.0,
+      "parameter": "same_slew_limit",
+      "value": 0.0
+    },
+    "name": "same_slew_limit_0.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.001,
+      "parameter": "same_slew_limit",
+      "value": 0.001
+    },
+    "name": "same_slew_limit_0.001",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.25,
+      "parameter": "same_slew_limit",
+      "value": 0.25
+    },
+    "name": "same_slew_limit_0.25",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.5,
+      "parameter": "same_slew_limit",
+      "value": 0.5
+    },
+    "name": "same_slew_limit_0.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "same_slew_limit",
+      "value": 0.75
+    },
+    "name": "same_slew_limit_0.75",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "same_slew_limit",
+      "value": 0.999
+    },
+    "name": "same_slew_limit_0.999",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "same_slew_limit",
+      "value": 1.0
+    },
+    "name": "same_slew_limit_1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "same_slew_limit",
+      "value": 1.5
+    },
+    "name": "same_slew_limit_1.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "same_slew_limit",
+      "value": null
+    },
+    "name": "same_slew_limit_None",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "same_slew_limit",
+      "value": "NaN"
+    },
+    "name": "same_slew_limit_nan",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "same_slew_limit",
+      "value": "Infinity"
+    },
+    "name": "same_slew_limit_inf",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "same_slew_limit",
+      "value": "bad"
+    },
+    "name": "same_slew_limit_'bad'",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "same_slew_limit",
+      "value": ""
+    },
+    "name": "same_slew_limit_''",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "reverse_slew_limit",
+      "value": -1.0
+    },
+    "name": "reverse_slew_limit_-1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "reverse_slew_limit",
+      "value": 0.0
+    },
+    "name": "reverse_slew_limit_0.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "reverse_slew_limit",
+      "value": 0.001
+    },
+    "name": "reverse_slew_limit_0.001",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "reverse_slew_limit",
+      "value": 0.25
+    },
+    "name": "reverse_slew_limit_0.25",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "reverse_slew_limit",
+      "value": 0.5
+    },
+    "name": "reverse_slew_limit_0.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "reverse_slew_limit",
+      "value": 0.75
+    },
+    "name": "reverse_slew_limit_0.75",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "reverse_slew_limit",
+      "value": 0.999
+    },
+    "name": "reverse_slew_limit_0.999",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "reverse_slew_limit",
+      "value": 1.0
+    },
+    "name": "reverse_slew_limit_1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "reverse_slew_limit",
+      "value": 1.5
+    },
+    "name": "reverse_slew_limit_1.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "reverse_slew_limit",
+      "value": null
+    },
+    "name": "reverse_slew_limit_None",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "reverse_slew_limit",
+      "value": "NaN"
+    },
+    "name": "reverse_slew_limit_nan",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "reverse_slew_limit",
+      "value": "Infinity"
+    },
+    "name": "reverse_slew_limit_inf",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "reverse_slew_limit",
+      "value": "bad"
+    },
+    "name": "reverse_slew_limit_'bad'",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "reverse_slew_limit",
+      "value": ""
+    },
+    "name": "reverse_slew_limit_''",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_curve",
+      "value": -1.0
+    },
+    "name": "combat_curve_-1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_curve",
+      "value": 0.0
+    },
+    "name": "combat_curve_0.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.6996429999999999,
+      "parameter": "combat_curve",
+      "value": 0.001
+    },
+    "name": "combat_curve_0.001",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.6107499999999999,
+      "parameter": "combat_curve",
+      "value": 0.25
+    },
+    "name": "combat_curve_0.25",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.5215,
+      "parameter": "combat_curve",
+      "value": 0.5
+    },
+    "name": "combat_curve_0.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.4322499999999999,
+      "parameter": "combat_curve",
+      "value": 0.75
+    },
+    "name": "combat_curve_0.75",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.3433569999999999,
+      "parameter": "combat_curve",
+      "value": 0.999
+    },
+    "name": "combat_curve_0.999",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.3429999999999999,
+      "parameter": "combat_curve",
+      "value": 1.0
+    },
+    "name": "combat_curve_1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.3429999999999999,
+      "parameter": "combat_curve",
+      "value": 1.5
+    },
+    "name": "combat_curve_1.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_curve",
+      "value": null
+    },
+    "name": "combat_curve_None",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_curve",
+      "value": "NaN"
+    },
+    "name": "combat_curve_nan",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_curve",
+      "value": "Infinity"
+    },
+    "name": "combat_curve_inf",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_curve",
+      "value": "bad"
+    },
+    "name": "combat_curve_'bad'",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_curve",
+      "value": ""
+    },
+    "name": "combat_curve_''",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": -0.7,
+      "parameter": "combat_scale",
+      "value": -1.0
+    },
+    "name": "combat_scale_-1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.0,
+      "parameter": "combat_scale",
+      "value": 0.0
+    },
+    "name": "combat_scale_0.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.0007,
+      "parameter": "combat_scale",
+      "value": 0.001
+    },
+    "name": "combat_scale_0.001",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.175,
+      "parameter": "combat_scale",
+      "value": 0.25
+    },
+    "name": "combat_scale_0.25",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.35,
+      "parameter": "combat_scale",
+      "value": 0.5
+    },
+    "name": "combat_scale_0.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.5249999999999999,
+      "parameter": "combat_scale",
+      "value": 0.75
+    },
+    "name": "combat_scale_0.75",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.6992999999999999,
+      "parameter": "combat_scale",
+      "value": 0.999
+    },
+    "name": "combat_scale_0.999",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_scale",
+      "value": 1.0
+    },
+    "name": "combat_scale_1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 1.0,
+      "parameter": "combat_scale",
+      "value": 1.5
+    },
+    "name": "combat_scale_1.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_scale",
+      "value": null
+    },
+    "name": "combat_scale_None",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_scale",
+      "value": "NaN"
+    },
+    "name": "combat_scale_nan",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_scale",
+      "value": "Infinity"
+    },
+    "name": "combat_scale_inf",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_scale",
+      "value": "bad"
+    },
+    "name": "combat_scale_'bad'",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_scale",
+      "value": ""
+    },
+    "name": "combat_scale_''",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_center_alpha",
+      "value": -1.0
+    },
+    "name": "combat_center_alpha_-1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_center_alpha",
+      "value": 0.0
+    },
+    "name": "combat_center_alpha_0.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_center_alpha",
+      "value": 0.001
+    },
+    "name": "combat_center_alpha_0.001",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_center_alpha",
+      "value": 0.25
+    },
+    "name": "combat_center_alpha_0.25",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_center_alpha",
+      "value": 0.5
+    },
+    "name": "combat_center_alpha_0.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_center_alpha",
+      "value": 0.75
+    },
+    "name": "combat_center_alpha_0.75",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_center_alpha",
+      "value": 0.999
+    },
+    "name": "combat_center_alpha_0.999",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_center_alpha",
+      "value": 1.0
+    },
+    "name": "combat_center_alpha_1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_center_alpha",
+      "value": 1.5
+    },
+    "name": "combat_center_alpha_1.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_center_alpha",
+      "value": null
+    },
+    "name": "combat_center_alpha_None",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_center_alpha",
+      "value": "NaN"
+    },
+    "name": "combat_center_alpha_nan",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_center_alpha",
+      "value": "Infinity"
+    },
+    "name": "combat_center_alpha_inf",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_center_alpha",
+      "value": "bad"
+    },
+    "name": "combat_center_alpha_'bad'",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_center_alpha",
+      "value": ""
+    },
+    "name": "combat_center_alpha_''",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_edge_alpha",
+      "value": -1.0
+    },
+    "name": "combat_edge_alpha_-1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_edge_alpha",
+      "value": 0.0
+    },
+    "name": "combat_edge_alpha_0.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_edge_alpha",
+      "value": 0.001
+    },
+    "name": "combat_edge_alpha_0.001",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_edge_alpha",
+      "value": 0.25
+    },
+    "name": "combat_edge_alpha_0.25",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_edge_alpha",
+      "value": 0.5
+    },
+    "name": "combat_edge_alpha_0.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_edge_alpha",
+      "value": 0.75
+    },
+    "name": "combat_edge_alpha_0.75",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_edge_alpha",
+      "value": 0.999
+    },
+    "name": "combat_edge_alpha_0.999",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_edge_alpha",
+      "value": 1.0
+    },
+    "name": "combat_edge_alpha_1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_edge_alpha",
+      "value": 1.5
+    },
+    "name": "combat_edge_alpha_1.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_edge_alpha",
+      "value": null
+    },
+    "name": "combat_edge_alpha_None",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_edge_alpha",
+      "value": "NaN"
+    },
+    "name": "combat_edge_alpha_nan",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_edge_alpha",
+      "value": "Infinity"
+    },
+    "name": "combat_edge_alpha_inf",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_edge_alpha",
+      "value": "bad"
+    },
+    "name": "combat_edge_alpha_'bad'",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_edge_alpha",
+      "value": ""
+    },
+    "name": "combat_edge_alpha_''",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_same_slew",
+      "value": -1.0
+    },
+    "name": "combat_same_slew_-1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_same_slew",
+      "value": 0.0
+    },
+    "name": "combat_same_slew_0.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_same_slew",
+      "value": 0.001
+    },
+    "name": "combat_same_slew_0.001",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_same_slew",
+      "value": 0.25
+    },
+    "name": "combat_same_slew_0.25",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_same_slew",
+      "value": 0.5
+    },
+    "name": "combat_same_slew_0.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_same_slew",
+      "value": 0.75
+    },
+    "name": "combat_same_slew_0.75",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_same_slew",
+      "value": 0.999
+    },
+    "name": "combat_same_slew_0.999",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_same_slew",
+      "value": 1.0
+    },
+    "name": "combat_same_slew_1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_same_slew",
+      "value": 1.5
+    },
+    "name": "combat_same_slew_1.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_same_slew",
+      "value": null
+    },
+    "name": "combat_same_slew_None",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_same_slew",
+      "value": "NaN"
+    },
+    "name": "combat_same_slew_nan",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_same_slew",
+      "value": "Infinity"
+    },
+    "name": "combat_same_slew_inf",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_same_slew",
+      "value": "bad"
+    },
+    "name": "combat_same_slew_'bad'",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_same_slew",
+      "value": ""
+    },
+    "name": "combat_same_slew_''",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_reverse_slew",
+      "value": -1.0
+    },
+    "name": "combat_reverse_slew_-1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_reverse_slew",
+      "value": 0.0
+    },
+    "name": "combat_reverse_slew_0.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_reverse_slew",
+      "value": 0.001
+    },
+    "name": "combat_reverse_slew_0.001",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_reverse_slew",
+      "value": 0.25
+    },
+    "name": "combat_reverse_slew_0.25",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_reverse_slew",
+      "value": 0.5
+    },
+    "name": "combat_reverse_slew_0.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_reverse_slew",
+      "value": 0.75
+    },
+    "name": "combat_reverse_slew_0.75",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_reverse_slew",
+      "value": 0.999
+    },
+    "name": "combat_reverse_slew_0.999",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_reverse_slew",
+      "value": 1.0
+    },
+    "name": "combat_reverse_slew_1.0",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_reverse_slew",
+      "value": 1.5
+    },
+    "name": "combat_reverse_slew_1.5",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_reverse_slew",
+      "value": null
+    },
+    "name": "combat_reverse_slew_None",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_reverse_slew",
+      "value": "NaN"
+    },
+    "name": "combat_reverse_slew_nan",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_reverse_slew",
+      "value": "Infinity"
+    },
+    "name": "combat_reverse_slew_inf",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_reverse_slew",
+      "value": "bad"
+    },
+    "name": "combat_reverse_slew_'bad'",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "output": 0.7,
+      "parameter": "combat_reverse_slew",
+      "value": ""
+    },
+    "name": "combat_reverse_slew_''",
+    "passed": true,
+    "section": "numeric_boundary_matrix"
+  },
+  {
+    "details": {
+      "expected": [
+        0.11,
+        0.22,
+        0.33,
+        0.44,
+        0.55,
+        0.66
+      ],
+      "observed": [
+        0.11,
+        0.22,
+        0.33,
+        0.44,
+        0.55,
+        0.66
+      ]
+    },
+    "name": "default",
+    "passed": true,
+    "section": "axis_mapping_matrix"
+  },
+  {
+    "details": {
+      "expected": [
+        0.22,
+        0.11,
+        0.33,
+        0.55,
+        0.44,
+        0.66
+      ],
+      "observed": [
+        0.22,
+        0.11,
+        0.33,
+        0.55,
+        0.44,
+        0.66
+      ]
+    },
+    "name": "roll_pitch_swap_yaw_aux_swap",
+    "passed": true,
+    "section": "axis_mapping_matrix"
+  },
+  {
+    "details": {
+      "expected": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.33
+      ],
+      "observed": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.33
+      ]
+    },
+    "name": "throttle_to_rz",
+    "passed": true,
+    "section": "axis_mapping_matrix"
+  },
+  {
+    "details": {
+      "expected": [
+        0.0,
+        0.22,
+        0.33,
+        0.44,
+        0.55,
+        0.66
+      ],
+      "observed": [
+        0.0,
+        0.22,
+        0.33,
+        0.44,
+        0.55,
+        0.66
+      ]
+    },
+    "name": "roll_unmapped",
+    "passed": true,
+    "section": "axis_mapping_matrix"
+  },
+  {
+    "details": {
+      "expected": [
+        0.22,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "observed": [
+        0.22,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "name": "duplicate_x_last_wins",
+    "passed": true,
+    "section": "axis_mapping_matrix"
+  },
+  {
+    "details": {
+      "expected": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "observed": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "name": "invalid_target_skipped",
+    "passed": true,
+    "section": "axis_mapping_matrix"
+  },
+  {
+    "details": {},
+    "name": "B1_press_hold_release",
+    "passed": true,
+    "section": "button_behavior_matrix"
+  },
+  {
+    "details": {},
+    "name": "B2_press_hold_release",
+    "passed": true,
+    "section": "button_behavior_matrix"
+  },
+  {
+    "details": {},
+    "name": "B3_press_hold_release",
+    "passed": true,
+    "section": "button_behavior_matrix"
+  },
+  {
+    "details": {},
+    "name": "B4_press_hold_release",
+    "passed": true,
+    "section": "button_behavior_matrix"
+  },
+  {
+    "details": {},
+    "name": "B5_press_hold_release",
+    "passed": true,
+    "section": "button_behavior_matrix"
+  },
+  {
+    "details": {},
+    "name": "B6_press_hold_release",
+    "passed": true,
+    "section": "button_behavior_matrix"
+  },
+  {
+    "details": {},
+    "name": "B7_press_hold_release",
+    "passed": true,
+    "section": "button_behavior_matrix"
+  },
+  {
+    "details": {},
+    "name": "B8_press_hold_release",
+    "passed": true,
+    "section": "button_behavior_matrix"
+  },
+  {
+    "details": {},
+    "name": "B9_press_hold_release",
+    "passed": true,
+    "section": "button_behavior_matrix"
+  },
+  {
+    "details": {},
+    "name": "B10_press_hold_release",
+    "passed": true,
+    "section": "button_behavior_matrix"
+  },
+  {
+    "details": {},
+    "name": "B11_press_hold_release",
+    "passed": true,
+    "section": "button_behavior_matrix"
+  },
+  {
+    "details": {},
+    "name": "B12_press_hold_release",
+    "passed": true,
+    "section": "button_behavior_matrix"
+  },
+  {
+    "details": {},
+    "name": "B13_press_hold_release",
+    "passed": true,
+    "section": "button_behavior_matrix"
+  },
+  {
+    "details": {},
+    "name": "B14_press_hold_release",
+    "passed": true,
+    "section": "button_behavior_matrix"
+  },
+  {
+    "details": {},
+    "name": "B15_press_hold_release",
+    "passed": true,
+    "section": "button_behavior_matrix"
+  },
+  {
+    "details": {},
+    "name": "rapid_tap_B3",
+    "passed": true,
+    "section": "button_behavior_matrix"
+  },
+  {
+    "details": {},
+    "name": "three_buttons_simultaneous",
+    "passed": true,
+    "section": "button_behavior_matrix"
+  },
+  {
+    "details": {},
+    "name": "all_buttons_true",
+    "passed": true,
+    "section": "button_behavior_matrix"
+  },
+  {
+    "details": {},
+    "name": "B1_B2_swap",
+    "passed": true,
+    "section": "button_mapping_matrix"
+  },
+  {
+    "details": {},
+    "name": "duplicate_output_or_semantics",
+    "passed": true,
+    "section": "button_mapping_matrix"
+  },
+  {
+    "details": {
+      "expected": "Centered",
+      "observed": "Centered"
+    },
+    "name": "Centered",
+    "passed": true,
+    "section": "hat_pov_matrix"
+  },
+  {
+    "details": {
+      "expected": "Up",
+      "observed": "Up"
+    },
+    "name": "Up",
+    "passed": true,
+    "section": "hat_pov_matrix"
+  },
+  {
+    "details": {
+      "expected": "UpRight",
+      "observed": "UpRight"
+    },
+    "name": "UpRight",
+    "passed": true,
+    "section": "hat_pov_matrix"
+  },
+  {
+    "details": {
+      "expected": "Right",
+      "observed": "Right"
+    },
+    "name": "Right",
+    "passed": true,
+    "section": "hat_pov_matrix"
+  },
+  {
+    "details": {
+      "expected": "DownRight",
+      "observed": "DownRight"
+    },
+    "name": "DownRight",
+    "passed": true,
+    "section": "hat_pov_matrix"
+  },
+  {
+    "details": {
+      "expected": "Down",
+      "observed": "Down"
+    },
+    "name": "Down",
+    "passed": true,
+    "section": "hat_pov_matrix"
+  },
+  {
+    "details": {
+      "expected": "DownLeft",
+      "observed": "DownLeft"
+    },
+    "name": "DownLeft",
+    "passed": true,
+    "section": "hat_pov_matrix"
+  },
+  {
+    "details": {
+      "expected": "Left",
+      "observed": "Left"
+    },
+    "name": "Left",
+    "passed": true,
+    "section": "hat_pov_matrix"
+  },
+  {
+    "details": {
+      "expected": "UpLeft",
+      "observed": "UpLeft"
+    },
+    "name": "UpLeft",
+    "passed": true,
+    "section": "hat_pov_matrix"
+  },
+  {
+    "details": {
+      "expected": "Centered",
+      "observed": "Centered"
+    },
+    "name": "sideways-ish",
+    "passed": true,
+    "section": "hat_pov_matrix"
+  },
+  {
+    "details": {
+      "expected": 0.8,
+      "metadata": {
+        "combat_active": false,
+        "combat_scale": 1.0,
+        "precision_active": false,
+        "precision_scale": 1.0,
+        "stack_mode": "multiply"
+      },
+      "observed": 0.8
+    },
+    "name": "inactive",
+    "passed": true,
+    "section": "mode_modifier_matrix"
+  },
+  {
+    "details": {
+      "expected": 0.4,
+      "metadata": {
+        "combat_active": false,
+        "combat_scale": 1.0,
+        "precision_active": true,
+        "precision_scale": 0.5,
+        "stack_mode": "multiply"
+      },
+      "observed": 0.4
+    },
+    "name": "precision_active",
+    "passed": true,
+    "section": "mode_modifier_matrix"
+  },
+  {
+    "details": {
+      "expected": 0.4,
+      "metadata": {
+        "combat_active": true,
+        "combat_scale": 0.5,
+        "precision_active": false,
+        "precision_scale": 1.0,
+        "stack_mode": "multiply"
+      },
+      "observed": 0.4
+    },
+    "name": "combat_active",
+    "passed": true,
+    "section": "mode_modifier_matrix"
+  },
+  {
+    "details": {
+      "expected": 0.2,
+      "metadata": {
+        "combat_active": true,
+        "combat_scale": 0.5,
+        "precision_active": true,
+        "precision_scale": 0.5,
+        "stack_mode": "multiply"
+      },
+      "observed": 0.2
+    },
+    "name": "precision_and_combat_active",
+    "passed": true,
+    "section": "mode_modifier_matrix"
+  },
+  {
+    "details": {
+      "status": "Active"
+    },
+    "name": "comparator_greater than",
+    "passed": true,
+    "section": "conditional_rule_matrix"
+  },
+  {
+    "details": {
+      "status": "Inactive"
+    },
+    "name": "comparator_less than",
+    "passed": true,
+    "section": "conditional_rule_matrix"
+  },
+  {
+    "details": {
+      "status": "Active"
+    },
+    "name": "comparator_equal",
+    "passed": true,
+    "section": "conditional_rule_matrix"
+  },
+  {
+    "details": {
+      "status": "Active"
+    },
+    "name": "comparator_approximately",
+    "passed": true,
+    "section": "conditional_rule_matrix"
+  },
+  {
+    "details": {
+      "status": "Active"
+    },
+    "name": "comparator_between",
+    "passed": true,
+    "section": "conditional_rule_matrix"
+  },
+  {
+    "details": {
+      "status": "Active"
+    },
+    "name": "comparator_range",
+    "passed": true,
+    "section": "conditional_rule_matrix"
+  },
+  {
+    "details": {
+      "expected": 0.5,
+      "observed": 0.5
+    },
+    "name": "operation_Set",
+    "passed": true,
+    "section": "conditional_rule_matrix"
+  },
+  {
+    "details": {
+      "expected": 1.5,
+      "observed": 1.5
+    },
+    "name": "operation_Add",
+    "passed": true,
+    "section": "conditional_rule_matrix"
+  },
+  {
+    "details": {
+      "expected": 0.5,
+      "observed": 0.5
+    },
+    "name": "operation_Multiply",
+    "passed": true,
+    "section": "conditional_rule_matrix"
+  },
+  {
+    "details": {
+      "reason": "Unknown target axis: Nope",
+      "status": "Blocked"
+    },
+    "name": "invalid_target_axis",
+    "passed": true,
+    "section": "conditional_rule_matrix"
+  },
+  {
+    "details": {
+      "reason": "Unknown reference axis: Nope",
+      "status": "Blocked"
+    },
+    "name": "invalid_reference_axis",
+    "passed": true,
+    "section": "conditional_rule_matrix"
+  },
+  {
+    "details": {
+      "reason": "Unsupported parameter: Max Output",
+      "status": "Blocked"
+    },
+    "name": "invalid_parameter",
+    "passed": true,
+    "section": "conditional_rule_matrix"
+  },
+  {
+    "details": {
+      "reason": "Unsupported comparator: outside",
+      "status": "Blocked"
+    },
+    "name": "invalid_comparator",
+    "passed": true,
+    "section": "conditional_rule_matrix"
+  },
+  {
+    "details": {
+      "reason": "Comparator 'between' requires threshold high.",
+      "status": "Blocked"
+    },
+    "name": "missing_threshold_high",
+    "passed": true,
+    "section": "conditional_rule_matrix"
+  },
+  {
+    "details": {
+      "status": "Inactive"
+    },
+    "name": "mode_button_gated_inactive",
+    "passed": true,
+    "section": "conditional_rule_matrix"
+  },
+  {
+    "details": {
+      "status": "Active"
+    },
+    "name": "mode_button_gated_active",
+    "passed": true,
+    "section": "conditional_rule_matrix"
+  },
+  {
+    "details": {},
+    "name": "Roll",
+    "passed": true,
+    "section": "stage_telemetry_consistency"
+  },
+  {
+    "details": {},
+    "name": "Pitch",
+    "passed": true,
+    "section": "stage_telemetry_consistency"
+  },
+  {
+    "details": {},
+    "name": "Throttle",
+    "passed": true,
+    "section": "stage_telemetry_consistency"
+  },
+  {
+    "details": {},
+    "name": "Yaw",
+    "passed": true,
+    "section": "stage_telemetry_consistency"
+  },
+  {
+    "details": {},
+    "name": "Aux 1",
+    "passed": true,
+    "section": "stage_telemetry_consistency"
+  },
+  {
+    "details": {},
+    "name": "Aux 2",
+    "passed": true,
+    "section": "stage_telemetry_consistency"
+  },
+  {
+    "details": {},
+    "name": "fake_writer_matches_intent",
+    "passed": true,
+    "section": "writer_payload_consistency"
+  },
+  {
+    "details": {},
+    "name": "curve_strength+deadzone",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "curve_strength+anti_deadzone",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "curve_strength+hysteresis",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "curve_strength+output_scale",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "curve_strength+max_output",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "curve_strength+center_alpha",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "curve_strength+edge_alpha",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "curve_strength+same_slew_limit",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "curve_strength+reverse_slew_limit",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "curve_strength+combat_scale",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "curve_strength+mode",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "curve_strength+rule",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "deadzone+anti_deadzone",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "deadzone+hysteresis",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "deadzone+output_scale",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "deadzone+max_output",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "deadzone+center_alpha",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "deadzone+edge_alpha",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "deadzone+same_slew_limit",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "deadzone+reverse_slew_limit",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "deadzone+combat_scale",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "deadzone+mode",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "deadzone+rule",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "anti_deadzone+hysteresis",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "anti_deadzone+output_scale",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "anti_deadzone+max_output",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "anti_deadzone+center_alpha",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "anti_deadzone+edge_alpha",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "anti_deadzone+same_slew_limit",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "anti_deadzone+reverse_slew_limit",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "anti_deadzone+combat_scale",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "anti_deadzone+mode",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "anti_deadzone+rule",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "hysteresis+output_scale",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "hysteresis+max_output",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "hysteresis+center_alpha",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "hysteresis+edge_alpha",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "hysteresis+same_slew_limit",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "hysteresis+reverse_slew_limit",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "hysteresis+combat_scale",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "hysteresis+mode",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "hysteresis+rule",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "output_scale+max_output",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "output_scale+center_alpha",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "output_scale+edge_alpha",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "output_scale+same_slew_limit",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "output_scale+reverse_slew_limit",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "output_scale+combat_scale",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "output_scale+mode",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "output_scale+rule",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "max_output+center_alpha",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "max_output+edge_alpha",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "max_output+same_slew_limit",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "max_output+reverse_slew_limit",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "max_output+combat_scale",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "max_output+mode",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "max_output+rule",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "center_alpha+edge_alpha",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "center_alpha+same_slew_limit",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "center_alpha+reverse_slew_limit",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "center_alpha+combat_scale",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "center_alpha+mode",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "center_alpha+rule",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "edge_alpha+same_slew_limit",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "edge_alpha+reverse_slew_limit",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "edge_alpha+combat_scale",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "edge_alpha+mode",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "edge_alpha+rule",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "same_slew_limit+reverse_slew_limit",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "same_slew_limit+combat_scale",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "same_slew_limit+mode",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "same_slew_limit+rule",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "reverse_slew_limit+combat_scale",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "reverse_slew_limit+mode",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "reverse_slew_limit+rule",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "combat_scale+mode",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "combat_scale+rule",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "mode+rule",
+    "passed": true,
+    "section": "pairwise_interaction_matrix"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_0",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_1",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_2",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_3",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_4",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_5",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_6",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_7",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_8",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_9",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_10",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_11",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_12",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_13",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_14",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_15",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_16",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_17",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_18",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_19",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_20",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_21",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_22",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_23",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_24",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_25",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_26",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_27",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_28",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_29",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_30",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_31",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_32",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_33",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_34",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_35",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_36",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_37",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_38",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_39",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_40",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_41",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_42",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_43",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_44",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_45",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_46",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_47",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_48",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_49",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_50",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_51",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_52",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_53",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_54",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_55",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_56",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_57",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_58",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_59",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_60",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_61",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_62",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_63",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_64",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_65",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_66",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_67",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_68",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_69",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_70",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_71",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_72",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_73",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_74",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_75",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_76",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_77",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_78",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_79",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_80",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_81",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_82",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_1337_case_83",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_0",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_1",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_2",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_3",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_4",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_5",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_6",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_7",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_8",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_9",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_10",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_11",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_12",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_13",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_14",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_15",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_16",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_17",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_18",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_19",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_20",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_21",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_22",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_23",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_24",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_25",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_26",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_27",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_28",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_29",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_30",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_31",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_32",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_33",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_34",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_35",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_36",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_37",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_38",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_39",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_40",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_41",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_42",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_43",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_44",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_45",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_46",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_47",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_48",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_49",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_50",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_51",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_52",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_53",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_54",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_55",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_56",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_57",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_58",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_59",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_60",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_61",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_62",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_63",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_64",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_65",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_66",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_67",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_68",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_69",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_70",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_71",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_72",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_73",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_74",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_75",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_76",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_77",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_78",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_79",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_80",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_81",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_82",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_44044_case_83",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_0",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_1",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_2",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_3",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_4",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_5",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_6",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_7",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_8",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_9",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_10",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_11",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_12",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_13",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_14",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_15",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_16",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_17",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_18",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_19",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_20",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_21",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_22",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_23",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_24",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_25",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_26",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_27",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_28",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_29",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_30",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_31",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_32",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_33",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_34",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_35",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_36",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_37",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_38",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_39",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_40",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_41",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_42",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_43",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_44",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_45",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_46",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_47",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_48",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_49",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_50",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_51",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_52",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_53",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_54",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_55",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_56",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_57",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_58",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_59",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_60",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_61",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_62",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_63",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_64",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_65",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_66",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_67",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_68",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_69",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_70",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_71",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_72",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_73",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_74",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_75",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_76",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_77",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_78",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_79",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_80",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_81",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_82",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {},
+    "name": "seed_8675309_case_83",
+    "passed": true,
+    "section": "seeded_fuzz_property"
+  },
+  {
+    "details": {
+      "available": true,
+      "devices": [
+        "vJoy Device 1"
+      ],
+      "readback_verified": false,
+      "requested": false,
+      "status": "skipped",
+      "write_attempts": 0,
+      "write_successes": 0
+    },
+    "name": "real_vjoy_subset",
+    "passed": true,
+    "section": "real_vjoy_optional"
+  }
+]

@@ -1,0 +1,16 @@
+{
+  "axis_mapping_cases": 6,
+  "button_behavior_cases": 52,
+  "combat_filter_cases": 8,
+  "conditional_rule_cases": 16,
+  "curve_mode_cases": 67,
+  "hat_button_mapping_cases": 15,
+  "hat_pov_cases": 10,
+  "mode_cases": 4,
+  "numeric_boundary_cases": 238,
+  "pairwise_cases": 78,
+  "real_vjoy_optional_cases": 0,
+  "runtime_authority_boundary": 1,
+  "seeded_fuzz_property_cases": 252,
+  "stage_telemetry_cases": 6
+}

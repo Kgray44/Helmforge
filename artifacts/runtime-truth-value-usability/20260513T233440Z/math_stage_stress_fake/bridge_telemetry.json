@@ -1,0 +1,1206 @@
+{
+  "active_modes": {
+    "active_mode_names": [],
+    "combat_active": false,
+    "extra_active": false,
+    "precision_active": false,
+    "zoom_active": false
+  },
+  "active_profile": "Current Workspace",
+  "bridge_name": "HelmForge Bridge",
+  "bridge_process": "bridge_app",
+  "bridge_timing": {
+    "bridge_pid": 5392,
+    "bridge_started_at": "2026-05-13T23:34:48.436893+00:00",
+    "device_enumeration_duration_ms": 0.002,
+    "device_enumeration_skipped_cached_count": 96,
+    "device_selection_refresh_count": 1,
+    "discovery_running": false,
+    "discovery_skipped_reason": "active_sampler_healthy",
+    "embedded_worker_late_tick_count": 0,
+    "fast_loop_status": "ok",
+    "last_command_duration_ms": 0.0,
+    "last_discovery_age_ms": 625.0,
+    "last_discovery_blocked_ms": 883.624,
+    "last_discovery_duration_ms": 883.624,
+    "last_discovery_refresh_reason": "startup",
+    "last_input_read_duration_ms": 0.077,
+    "last_json_publish_blocked_ms": 10.679,
+    "last_json_publish_retry_count": 1,
+    "last_output_loop_status": "fake_write_recorded",
+    "last_output_loop_tick_duration_ms": 0.019,
+    "last_output_write_duration_ms": 0.019,
+    "last_pipeline_duration_ms": 0.992,
+    "last_runtime_frame_duration_ms": 0.992,
+    "last_runtime_io_duration_ms": 0.516,
+    "last_runtime_orchestrator_rebuild_reason": "startup",
+    "last_slow_lane_duration_ms": 883.624,
+    "last_telemetry_publish_duration_ms": 0.0,
+    "last_tick_duration_ms": 1.743,
+    "last_worker_tick_duration_ms": 0.0,
+    "output_loop_rate_limited": false,
+    "output_loop_safety_stopped": false,
+    "runtime_orchestrator_rebuild_count": 1,
+    "selected_physical_device_id": "truth-probe-hotas-one",
+    "selected_physical_device_source": "cached",
+    "slow_lane_status": "cached_sampler_active",
+    "tick_count": 96,
+    "tick_interval_target_ms": 40
+  },
+  "bridge_workspace": {
+    "active_profile": "current-workspace",
+    "config_path": "artifacts\\runtime-truth-value-usability\\20260513T233440Z\\math-stage-stress-workspace.json",
+    "config_status": "loaded",
+    "errors": [],
+    "generated_at": "2026-05-13T23:34:48.432331+00:00",
+    "loaded_at": "2026-05-13T23:34:48.432331+00:00",
+    "product_name": "HelmForge",
+    "schema_version": "3.0.0",
+    "using_default_workspace": false,
+    "warnings": [],
+    "workspace_hash": "707cef8a96387050944f1f2f1ab81396e945f1f77d66ff697b0b78bd2abea3a8",
+    "workspace_revision": "707cef8a9638"
+  },
+  "buttons": {
+    "B1": false,
+    "B10": false,
+    "B11": false,
+    "B12": false,
+    "B13": false,
+    "B14": false,
+    "B15": false,
+    "B2": false,
+    "B3": false,
+    "B4": false,
+    "B5": false,
+    "B6": false,
+    "B7": false,
+    "B8": false,
+    "B9": false
+  },
+  "config_path": "artifacts\\runtime-truth-value-usability\\20260513T233440Z\\math-stage-stress-workspace.json",
+  "config_status": "loaded",
+  "device_discovery": {
+    "available": true,
+    "backend": "windows_pnp",
+    "checked_at": "2026-05-13T23:34:48.436893+00:00",
+    "device_name": "HID-compliant game controller HID\\VID_044F&PID_B68D\\8&39EC0CDD&0&0000",
+    "error": null,
+    "manufacturer": null,
+    "matched": true,
+    "product_id": "b68d",
+    "serial_number": null,
+    "status": "supported_device_detected",
+    "vendor_id": "044f",
+    "warnings": [
+      "Supported HOTAS detected; polling is not active in Phase 9H."
+    ]
+  },
+  "errors": [],
+  "final_axes": {
+    "Aux 1": 0.2034311092782104,
+    "Aux 2": -0.013586466279926617,
+    "Pitch": 0.010446721510301646,
+    "Roll": -0.011140910729624906,
+    "Throttle": 0.5264773662526302,
+    "Yaw": 0.4229364566610508
+  },
+  "generated_at": "2026-05-13T23:34:49.951953+00:00",
+  "hats": {
+    "HOTAS Hat": "Centered",
+    "Output Hat": "Centered"
+  },
+  "input_status": "detected",
+  "last_command": null,
+  "lifecycle_state": "LiveUnverified",
+  "output_loop_runtime": {
+    "actual_write_rate_hz": 25.0,
+    "backend_kind": "fake",
+    "backend_name": "Fake output backend",
+    "consecutive_write_failures": 0,
+    "current_output_intent_source": "runtime_orchestrator_physical",
+    "enabled": true,
+    "errors": [],
+    "failure_count": 0,
+    "last_recreate_reason": "startup",
+    "last_skipped_write_reason": "None",
+    "last_write_duration_ms": 0.019,
+    "last_write_status": "fake_write_recorded",
+    "last_write_timestamp": "2026-05-13T12:00:03.800000+00:00",
+    "loop_recreated_count": 0,
+    "neutral_restore_attempted": false,
+    "neutral_restore_duration_ms": null,
+    "neutral_restore_error": "",
+    "neutral_restore_message": "",
+    "neutral_restore_status": "not_attempted",
+    "neutral_restore_timestamp": null,
+    "running": true,
+    "safety_stop_reason": "None",
+    "safety_stop_timestamp": null,
+    "selected_output_device": "Fake virtual output device - Not real vJoy",
+    "state": "running",
+    "tick_count": 96,
+    "verification_age_ms": 3800.0,
+    "verification_cached": true,
+    "verification_fake": true,
+    "verification_real": false,
+    "verification_source": "fake/mock - Not real vJoy",
+    "verification_status": "fake_verified",
+    "warnings": [
+      "Fake verification does not prove real output."
+    ],
+    "write_attempt_count": 96,
+    "write_count": 96,
+    "write_failure_count": 0,
+    "write_rate_hz": 30.0,
+    "write_skipped_count": 0,
+    "write_skipped_disabled_count": 0,
+    "write_skipped_rate_limited_count": 0,
+    "write_skipped_safety_count": 0,
+    "write_skipped_unsafe_count": 0,
+    "write_success_count": 96
+  },
+  "output_status": "vjoy_detected",
+  "output_verification": {
+    "backend_name": "Fake output backend",
+    "last_verified_at": null,
+    "message": "Live output writes are not verified.",
+    "verified": false
+  },
+  "output_verified": false,
+  "physical_input_backend_choice": {
+    "candidate_backends": [
+      "fake_physical_input_backend:fake"
+    ],
+    "errors": [],
+    "fallback_reason": "",
+    "fallback_used": false,
+    "selected_backend_kind": "fake",
+    "selected_backend_name": "fake_physical_input_backend",
+    "selection_reason": "Physical input backend was supplied explicitly.",
+    "warnings": [
+      "Fake backend provides deterministic read-only samples for tests."
+    ]
+  },
+  "physical_input_fidelity": {
+    "axes": {
+      "Aux 1": {
+        "center": 32767.5,
+        "inverted": false,
+        "last_delta_normalized": null,
+        "last_delta_raw": null,
+        "logical_name": "Aux 1",
+        "normalized_value": -0.18999,
+        "one_sided": false,
+        "raw_max": 65535.0,
+        "raw_min": 0.0,
+        "raw_name": "U",
+        "raw_value": 26542,
+        "resolution_hint": "16-bit-ish",
+        "warning": null
+      },
+      "Aux 2": {
+        "center": 32767.5,
+        "inverted": false,
+        "last_delta_normalized": null,
+        "last_delta_raw": null,
+        "logical_name": "Aux 2",
+        "normalized_value": -0.050004,
+        "one_sided": false,
+        "raw_max": 65535.0,
+        "raw_min": 0.0,
+        "raw_name": "V",
+        "raw_value": 31129,
+        "resolution_hint": "16-bit-ish",
+        "warning": null
+      },
+      "Pitch": {
+        "center": 32767.5,
+        "inverted": false,
+        "last_delta_normalized": null,
+        "last_delta_raw": null,
+        "logical_name": "Pitch",
+        "normalized_value": 0.080003,
+        "one_sided": false,
+        "raw_max": 65535.0,
+        "raw_min": 0.0,
+        "raw_name": "Y",
+        "raw_value": 35389,
+        "resolution_hint": "16-bit-ish",
+        "warning": null
+      },
+      "Roll": {
+        "center": 32767.5,
+        "inverted": false,
+        "last_delta_normalized": null,
+        "last_delta_raw": null,
+        "logical_name": "Roll",
+        "normalized_value": -0.460014,
+        "one_sided": false,
+        "raw_max": 65535.0,
+        "raw_min": 0.0,
+        "raw_name": "X",
+        "raw_value": 17694,
+        "resolution_hint": "16-bit-ish",
+        "warning": null
+      },
+      "Throttle": {
+        "center": 32767.5,
+        "inverted": false,
+        "last_delta_normalized": null,
+        "last_delta_raw": null,
+        "logical_name": "Throttle",
+        "normalized_value": 0.648798,
+        "one_sided": true,
+        "raw_max": 65535.0,
+        "raw_min": 0.0,
+        "raw_name": "Z",
+        "raw_value": 42519,
+        "resolution_hint": "16-bit-ish",
+        "warning": null
+      },
+      "Yaw": {
+        "center": 32767.5,
+        "inverted": false,
+        "last_delta_normalized": null,
+        "last_delta_raw": null,
+        "logical_name": "Yaw",
+        "normalized_value": 0.219989,
+        "one_sided": false,
+        "raw_max": 65535.0,
+        "raw_min": 0.0,
+        "raw_name": "R",
+        "raw_value": 39976,
+        "resolution_hint": "16-bit-ish",
+        "warning": null
+      }
+    },
+    "axis_count": 6,
+    "backend_kind": "fake",
+    "backend_name": "fake_physical_input_backend",
+    "button_count": 15,
+    "buttons": {
+      "B1": false,
+      "B10": false,
+      "B11": false,
+      "B12": false,
+      "B13": false,
+      "B14": false,
+      "B15": false,
+      "B2": false,
+      "B3": false,
+      "B4": false,
+      "B5": false,
+      "B6": false,
+      "B7": false,
+      "B8": false,
+      "B9": false
+    },
+    "device_id": "truth-probe-hotas-one",
+    "device_name": "Truth Probe Thrustmaster T.Flight HOTAS One",
+    "errors": [],
+    "estimated_sample_rate_hz": null,
+    "hat_count": 1,
+    "hats": {
+      "Hat 1": "Centered"
+    },
+    "mapping_status": "ok",
+    "read_duration_ms": 0.077,
+    "sample_age_ms": 41686150.429,
+    "sampled_at": "2026-05-13T12:00:03.800000+00:00",
+    "sequence": 97,
+    "warnings": []
+  },
+  "product_name": "HelmForge",
+  "raw_axes": {
+    "Aux 1": -0.18999,
+    "Aux 2": -0.050004,
+    "Pitch": 0.080003,
+    "Roll": -0.460014,
+    "Throttle": 0.648798,
+    "Yaw": 0.219989
+  },
+  "rule_summary": {
+    "active_count": 0,
+    "blocked_count": 0,
+    "disabled_count": 0
+  },
+  "runtime_frame": {
+    "active_modes": [],
+    "active_rule_count": 1,
+    "active_rule_names": [
+      "Stress Yaw scale | Roll > 0.25"
+    ],
+    "axis_stage_values": {
+      "Aux 1": [
+        {
+          "active": true,
+          "delta": 0.0,
+          "injected_rules": [],
+          "input_value": -0.18999,
+          "metadata": {},
+          "output_value": -0.18999,
+          "stage_name": "Raw Input"
+        },
+        {
+          "active": true,
+          "delta": -0.05522795454545454,
+          "injected_rules": [],
+          "input_value": -0.18999,
+          "metadata": {
+            "anti_deadzone": 0.18,
+            "deadzone": 0.12,
+            "hysteresis": 0.04,
+            "hysteresis_active": true,
+            "invert": false,
+            "remapped": true
+          },
+          "output_value": -0.24521795454545453,
+          "stage_name": "Center Conditioning"
+        },
+        {
+          "active": true,
+          "delta": 0.14750242973104186,
+          "injected_rules": [],
+          "input_value": -0.24521795454545453,
+          "metadata": {
+            "curve_mode": "s",
+            "curve_mode_supported": true,
+            "curve_strength": 0.64,
+            "requested_curve_mode": "s"
+          },
+          "output_value": -0.09771552481441267,
+          "stage_name": "Curve / Shape"
+        },
+        {
+          "active": true,
+          "delta": -0.03420043368504444,
+          "injected_rules": [],
+          "input_value": -0.09771552481441267,
+          "metadata": {
+            "configured_output_scale": 1.35,
+            "injected_rules": [],
+            "max_output": 0.72,
+            "output_scale": 1.35
+          },
+          "output_value": -0.13191595849945711,
+          "stage_name": "Base Output Limits"
+        },
+        {
+          "active": true,
+          "delta": 0.33534706777766754,
+          "injected_rules": [],
+          "input_value": -0.13191595849945711,
+          "metadata": {
+            "alpha": 0.26442621343965256,
+            "alpha_region": "center",
+            "center_alpha": 0.18,
+            "combat_filter_active": false,
+            "edge_alpha": 0.82,
+            "effective_center_alpha": 0.18,
+            "effective_edge_alpha": 0.82,
+            "effective_reverse_slew_limit": 0.11,
+            "effective_same_slew_limit": 0.24,
+            "previous_output": 0.3134311092782104,
+            "reverse_slew_limit": 0.11,
+            "same_slew_limit": 0.24,
+            "slew_limit": 0.11,
+            "slew_limited": true,
+            "slew_path": "reverse-direction",
+            "smoothed": 0.19566967047930944,
+            "target": -0.13191595849945711
+          },
+          "output_value": 0.2034311092782104,
+          "stage_name": "Filtering"
+        },
+        {
+          "active": false,
+          "delta": 0.0,
+          "injected_rules": [],
+          "input_value": 0.2034311092782104,
+          "metadata": {
+            "combat_active": false,
+            "combat_scale": 1.0,
+            "precision_active": false,
+            "precision_scale": 1.0,
+            "stack_mode": "multiply"
+          },
+          "output_value": 0.2034311092782104,
+          "stage_name": "Mode Modifiers"
+        },
+        {
+          "active": false,
+          "delta": 0.0,
+          "injected_rules": [],
+          "input_value": 0.2034311092782104,
+          "metadata": {
+            "disabled_rules": [],
+            "enabled_rules_deferred": [
+              "Stress Yaw scale | Roll > 0.25"
+            ]
+          },
+          "output_value": 0.2034311092782104,
+          "stage_name": "Rule Injections"
+        },
+        {
+          "active": true,
+          "delta": 0.0,
+          "injected_rules": [],
+          "input_value": 0.2034311092782104,
+          "metadata": {},
+          "output_value": 0.2034311092782104,
+          "stage_name": "Final Output"
+        }
+      ],
+      "Aux 2": [
+        {
+          "active": true,
+          "delta": 0.0,
+          "injected_rules": [],
+          "input_value": -0.050004,
+          "metadata": {},
+          "output_value": -0.050004,
+          "stage_name": "Raw Input"
+        },
+        {
+          "active": true,
+          "delta": 0.050004,
+          "injected_rules": [],
+          "input_value": -0.050004,
+          "metadata": {
+            "anti_deadzone": 0.18,
+            "deadzone": 0.12,
+            "hysteresis": 0.04,
+            "hysteresis_active": true,
+            "invert": false,
+            "remapped": false
+          },
+          "output_value": 0.0,
+          "stage_name": "Center Conditioning"
+        },
+        {
+          "active": true,
+          "delta": 0.0,
+          "injected_rules": [],
+          "input_value": 0.0,
+          "metadata": {
+            "curve_mode": "s",
+            "curve_mode_supported": true,
+            "curve_strength": 0.64,
+            "requested_curve_mode": "s"
+          },
+          "output_value": 0.0,
+          "stage_name": "Curve / Shape"
+        },
+        {
+          "active": true,
+          "delta": 0.0,
+          "injected_rules": [],
+          "input_value": 0.0,
+          "metadata": {
+            "configured_output_scale": 1.35,
+            "injected_rules": [],
+            "max_output": 0.72,
+            "output_scale": 1.35
+          },
+          "output_value": 0.0,
+          "stage_name": "Base Output Limits"
+        },
+        {
+          "active": true,
+          "delta": -0.013586466279926617,
+          "injected_rules": [],
+          "input_value": 0.0,
+          "metadata": {
+            "alpha": 0.18,
+            "alpha_region": "center",
+            "center_alpha": 0.18,
+            "combat_filter_active": false,
+            "edge_alpha": 0.82,
+            "effective_center_alpha": 0.18,
+            "effective_edge_alpha": 0.82,
+            "effective_reverse_slew_limit": 0.11,
+            "effective_same_slew_limit": 0.24,
+            "previous_output": -0.01656886131698368,
+            "reverse_slew_limit": 0.11,
+            "same_slew_limit": 0.24,
+            "slew_limit": 0.11,
+            "slew_limited": false,
+            "slew_path": "reverse-direction",
+            "smoothed": -0.013586466279926617,
+            "target": 0.0
+          },
+          "output_value": -0.013586466279926617,
+          "stage_name": "Filtering"
+        },
+        {
+          "active": false,
+          "delta": 0.0,
+          "injected_rules": [],
+          "input_value": -0.013586466279926617,
+          "metadata": {
+            "combat_active": false,
+            "combat_scale": 1.0,
+            "precision_active": false,
+            "precision_scale": 1.0,
+            "stack_mode": "multiply"
+          },
+          "output_value": -0.013586466279926617,
+          "stage_name": "Mode Modifiers"
+        },
+        {
+          "active": false,
+          "delta": 0.0,
+          "injected_rules": [],
+          "input_value": -0.013586466279926617,
+          "metadata": {
+            "disabled_rules": [],
+            "enabled_rules_deferred": [
+              "Stress Yaw scale | Roll > 0.25"
+            ]
+          },
+          "output_value": -0.013586466279926617,
+          "stage_name": "Rule Injections"
+        },
+        {
+          "active": true,
+          "delta": 0.0,
+          "injected_rules": [],
+          "input_value": -0.013586466279926617,
+          "metadata": {},
+          "output_value": -0.013586466279926617,
+          "stage_name": "Final Output"
+        }
+      ],
+      "Pitch": [
+        {
+          "active": true,
+          "delta": 0.0,
+          "injected_rules": [],
+          "input_value": 0.080003,
+          "metadata": {},
+          "output_value": 0.080003,
+          "stage_name": "Raw Input"
+        },
+        {
+          "active": true,
+          "delta": 0.06272706818181818,
+          "injected_rules": [],
+          "input_value": 0.080003,
+          "metadata": {
+            "anti_deadzone": 0.18,
+            "deadzone": 0.12,
+            "hysteresis": 0.04,
+            "hysteresis_active": true,
+            "invert": false,
+            "remapped": true
+          },
+          "output_value": 0.1427300681818182,
+          "stage_name": "Center Conditioning"
+        },
+        {
+          "active": true,
+          "delta": -0.08948632924827474,
+          "injected_rules": [],
+          "input_value": 0.1427300681818182,
+          "metadata": {
+            "curve_mode": "s",
+            "curve_mode_supported": true,
+            "curve_strength": 0.64,
+            "requested_curve_mode": "s"
+          },
+          "output_value": 0.05324373893354344,
+          "stage_name": "Curve / Shape"
+        },
+        {
+          "active": true,
+          "delta": 0.01863530862674021,
+          "injected_rules": [],
+          "input_value": 0.05324373893354344,
+          "metadata": {
+            "configured_output_scale": 1.35,
+            "injected_rules": [],
+            "max_output": 0.72,
+            "output_scale": 1.35
+          },
+          "output_value": 0.07187904756028365,
+          "stage_name": "Base Output Limits"
+        },
+        {
+          "active": true,
+          "delta": -0.06143232604998201,
+          "injected_rules": [],
+          "input_value": 0.07187904756028365,
+          "metadata": {
+            "alpha": 0.22600259043858154,
+            "alpha_region": "center",
+            "center_alpha": 0.18,
+            "combat_filter_active": false,
+            "edge_alpha": 0.82,
+            "effective_center_alpha": 0.18,
+            "effective_edge_alpha": 0.82,
+            "effective_reverse_slew_limit": 0.11,
+            "effective_same_slew_limit": 0.24,
+            "previous_output": -0.0074911483745997865,
+            "reverse_slew_limit": 0.11,
+            "same_slew_limit": 0.24,
+            "slew_limit": 0.11,
+            "slew_limited": false,
+            "slew_path": "reverse-direction",
+            "smoothed": 0.010446721510301646,
+            "target": 0.07187904756028365
+          },
+          "output_value": 0.010446721510301646,
+          "stage_name": "Filtering"
+        },
+        {
+          "active": false,
+          "delta": 0.0,
+          "injected_rules": [],
+          "input_value": 0.010446721510301646,
+          "metadata": {
+            "combat_active": false,
+            "combat_scale": 1.0,
+            "precision_active": false,
+            "precision_scale": 1.0,
+            "stack_mode": "multiply"
+          },
+          "output_value": 0.010446721510301646,
+          "stage_name": "Mode Modifiers"
+        },
+        {
+          "active": false,
+          "delta": 0.0,
+          "injected_rules": [],
+          "input_value": 0.010446721510301646,
+          "metadata": {
+            "disabled_rules": [],
+            "enabled_rules_deferred": [
+              "Stress Yaw scale | Roll > 0.25"
+            ]
+          },
+          "output_value": 0.010446721510301646,
+          "stage_name": "Rule Injections"
+        },
+        {
+          "active": true,
+          "delta": 0.0,
+          "injected_rules": [],
+          "input_value": 0.010446721510301646,
+          "metadata": {},
+          "output_value": 0.010446721510301646,
+          "stage_name": "Final Output"
+        }
+      ],
+      "Roll": [
+        {
+          "active": true,
+          "delta": 0.0,
+          "injected_rules": [],
+          "input_value": -0.460014,
+          "metadata": {},
+          "output_value": -0.460014,
+          "stage_name": "Raw Input"
+        },
+        {
+          "active": true,
+          "delta": -0.03681722727272729,
+          "injected_rules": [],
+          "input_value": -0.460014,
+          "metadata": {
+            "anti_deadzone": 0.18,
+            "deadzone": 0.12,
+            "hysteresis": 0.04,
+            "hysteresis_active": true,
+            "invert": false,
+            "remapped": true
+          },
+          "output_value": -0.49683122727272727,
+          "stage_name": "Center Conditioning"
+        },
+        {
+          "active": true,
+          "delta": 0.23948337725140179,
+          "injected_rules": [],
+          "input_value": -0.49683122727272727,
+          "metadata": {
+            "curve_mode": "s",
+            "curve_mode_supported": true,
+            "curve_strength": 0.64,
+            "requested_curve_mode": "s"
+          },
+          "output_value": -0.2573478500213255,
+          "stage_name": "Curve / Shape"
+        },
+        {
+          "active": true,
+          "delta": -0.09007174750746394,
+          "injected_rules": [],
+          "input_value": -0.2573478500213255,
+          "metadata": {
+            "configured_output_scale": 1.35,
+            "injected_rules": [],
+            "max_output": 0.72,
+            "output_scale": 1.35
+          },
+          "output_value": -0.3474195975287894,
+          "stage_name": "Base Output Limits"
+        },
+        {
+          "active": true,
+          "delta": 0.3362786867991645,
+          "injected_rules": [],
+          "input_value": -0.3474195975287894,
+          "metadata": {
+            "alpha": 0.4023485424184252,
+            "alpha_region": "center",
+            "center_alpha": 0.18,
+            "combat_filter_active": false,
+            "edge_alpha": 0.82,
+            "effective_center_alpha": 0.18,
+            "effective_edge_alpha": 0.82,
+            "effective_reverse_slew_limit": 0.11,
+            "effective_same_slew_limit": 0.24,
+            "previous_output": 0.0988590892703751,
+            "reverse_slew_limit": 0.11,
+            "same_slew_limit": 0.24,
+            "slew_limit": 0.11,
+            "slew_limited": true,
+            "slew_path": "reverse-direction",
+            "smoothed": -0.08070048987567763,
+            "target": -0.3474195975287894
+          },
+          "output_value": -0.011140910729624906,
+          "stage_name": "Filtering"
+        },
+        {
+          "active": false,
+          "delta": 0.0,
+          "injected_rules": [],
+          "input_value": -0.011140910729624906,
+          "metadata": {
+            "combat_active": false,
+            "combat_scale": 1.0,
+            "precision_active": false,
+            "precision_scale": 1.0,
+            "stack_mode": "multiply"
+          },
+          "output_value": -0.011140910729624906,
+          "stage_name": "Mode Modifiers"
+        },
+        {
+          "active": false,
+          "delta": 0.0,
+          "injected_rules": [],
+          "input_value": -0.011140910729624906,
+          "metadata": {
+            "disabled_rules": [],
+            "enabled_rules_deferred": [
+              "Stress Yaw scale | Roll > 0.25"
+            ]
+          },
+          "output_value": -0.011140910729624906,
+          "stage_name": "Rule Injections"
+        },
+        {
+          "active": true,
+          "delta": 0.0,
+          "injected_rules": [],
+          "input_value": -0.011140910729624906,
+          "metadata": {},
+          "output_value": -0.011140910729624906,
+          "stage_name": "Final Output"
+        }
+      ],
+      "Throttle": [
+        {
+          "active": true,
+          "delta": 0.0,
+          "injected_rules": [],
+          "input_value": 0.648798,
+          "metadata": {},
+          "output_value": 0.648798,
+          "stage_name": "Raw Input"
+        },
+        {
+          "active": true,
+          "delta": 0.023945590909090875,
+          "injected_rules": [],
+          "input_value": 0.648798,
+          "metadata": {
+            "anti_deadzone": 0.18,
+            "deadzone": 0.12,
+            "hysteresis": 0.04,
+            "hysteresis_active": true,
+            "invert": false,
+            "remapped": true
+          },
+          "output_value": 0.6727435909090909,
+          "stage_name": "Center Conditioning"
+        },
+        {
+          "active": true,
+          "delta": -0.2356932137759662,
+          "injected_rules": [],
+          "input_value": 0.6727435909090909,
+          "metadata": {
+            "curve_mode": "s",
+            "curve_mode_supported": true,
+            "curve_strength": 0.64,
+            "requested_curve_mode": "s"
+          },
+          "output_value": 0.43705037713312467,
+          "stage_name": "Curve / Shape"
+        },
+        {
+          "active": true,
+          "delta": 0.1529676319965937,
+          "injected_rules": [],
+          "input_value": 0.43705037713312467,
+          "metadata": {
+            "configured_output_scale": 1.35,
+            "injected_rules": [],
+            "max_output": 0.72,
+            "output_scale": 1.35
+          },
+          "output_value": 0.5900180091297184,
+          "stage_name": "Base Output Limits"
+        },
+        {
+          "active": true,
+          "delta": -0.06354064287708816,
+          "injected_rules": [],
+          "input_value": 0.5900180091297184,
+          "metadata": {
+            "alpha": 0.5576115258430197,
+            "alpha_region": "edge",
+            "center_alpha": 0.18,
+            "combat_filter_active": false,
+            "edge_alpha": 0.82,
+            "effective_center_alpha": 0.18,
+            "effective_edge_alpha": 0.82,
+            "effective_reverse_slew_limit": 0.11,
+            "effective_same_slew_limit": 0.24,
+            "previous_output": 0.44638713583860967,
+            "reverse_slew_limit": 0.11,
+            "same_slew_limit": 0.24,
+            "slew_limit": 0.24,
+            "slew_limited": false,
+            "slew_path": "same-direction",
+            "smoothed": 0.5264773662526302,
+            "target": 0.5900180091297184
+          },
+          "output_value": 0.5264773662526302,
+          "stage_name": "Filtering"
+        },
+        {
+          "active": false,
+          "delta": 0.0,
+          "injected_rules": [],
+          "input_value": 0.5264773662526302,
+          "metadata": {
+            "combat_active": false,
+            "combat_scale": 1.0,
+            "precision_active": false,
+            "precision_scale": 1.0,
+            "stack_mode": "multiply"
+          },
+          "output_value": 0.5264773662526302,
+          "stage_name": "Mode Modifiers"
+        },
+        {
+          "active": false,
+          "delta": 0.0,
+          "injected_rules": [],
+          "input_value": 0.5264773662526302,
+          "metadata": {
+            "disabled_rules": [],
+            "enabled_rules_deferred": [
+              "Stress Yaw scale | Roll > 0.25"
+            ]
+          },
+          "output_value": 0.5264773662526302,
+          "stage_name": "Rule Injections"
+        },
+        {
+          "active": true,
+          "delta": 0.0,
+          "injected_rules": [],
+          "input_value": 0.5264773662526302,
+          "metadata": {},
+          "output_value": 0.5264773662526302,
+          "stage_name": "Final Output"
+        }
+      ],
+      "Yaw": [
+        {
+          "active": true,
+          "delta": 0.0,
+          "injected_rules": [],
+          "input_value": 0.219989,
+          "metadata": {},
+          "output_value": 0.219989,
+          "stage_name": "Raw Input"
+        },
+        {
+          "active": true,
+          "delta": 0.05318256818181821,
+          "injected_rules": [],
+          "input_value": 0.219989,
+          "metadata": {
+            "anti_deadzone": 0.18,
+            "deadzone": 0.12,
+            "hysteresis": 0.04,
+            "hysteresis_active": true,
+            "invert": false,
+            "remapped": true
+          },
+          "output_value": 0.2731715681818182,
+          "stage_name": "Center Conditioning"
+        },
+        {
+          "active": true,
+          "delta": -0.16178353065850226,
+          "injected_rules": [],
+          "input_value": 0.2731715681818182,
+          "metadata": {
+            "curve_mode": "s",
+            "curve_mode_supported": true,
+            "curve_strength": 0.64,
+            "requested_curve_mode": "s"
+          },
+          "output_value": 0.11138803752331593,
+          "stage_name": "Curve / Shape"
+        },
+        {
+          "active": true,
+          "delta": 0.03898581313316059,
+          "injected_rules": [],
+          "input_value": 0.11138803752331593,
+          "metadata": {
+            "configured_output_scale": 1.35,
+            "injected_rules": [],
+            "max_output": 0.72,
+            "output_scale": 1.35
+          },
+          "output_value": 0.15037385065647652,
+          "stage_name": "Base Output Limits"
+        },
+        {
+          "active": true,
+          "delta": 0.27256260600457427,
+          "injected_rules": [],
+          "input_value": 0.15037385065647652,
+          "metadata": {
+            "alpha": 0.27623926442014496,
+            "alpha_region": "center",
+            "center_alpha": 0.18,
+            "combat_filter_active": false,
+            "edge_alpha": 0.82,
+            "effective_center_alpha": 0.18,
+            "effective_edge_alpha": 0.82,
+            "effective_reverse_slew_limit": 0.11,
+            "effective_same_slew_limit": 0.24,
+            "previous_output": 0.5269659930669175,
+            "reverse_slew_limit": 0.11,
+            "same_slew_limit": 0.24,
+            "slew_limit": 0.11,
+            "slew_limited": false,
+            "slew_path": "reverse-direction",
+            "smoothed": 0.4229364566610508,
+            "target": 0.15037385065647652
+          },
+          "output_value": 0.4229364566610508,
+          "stage_name": "Filtering"
+        },
+        {
+          "active": false,
+          "delta": 0.0,
+          "injected_rules": [],
+          "input_value": 0.4229364566610508,
+          "metadata": {
+            "combat_active": false,
+            "combat_scale": 1.0,
+            "precision_active": false,
+            "precision_scale": 1.0,
+            "stack_mode": "multiply"
+          },
+          "output_value": 0.4229364566610508,
+          "stage_name": "Mode Modifiers"
+        },
+        {
+          "active": false,
+          "delta": 0.0,
+          "injected_rules": [],
+          "input_value": 0.4229364566610508,
+          "metadata": {
+            "active_rules": [],
+            "blocked_rules": [],
+            "disabled_rules": [],
+            "evaluations": [
+              {
+                "applies": false,
+                "blocked_reason": null,
+                "injection_stage": "Base Output Limits",
+                "metadata": {
+                  "comparator": "greater than",
+                  "effective_change": {
+                    "injection_stage": "Base Output Limits",
+                    "operation": "Set",
+                    "parameter": "Output Scale",
+                    "target_axis": "Yaw",
+                    "value": 0.42
+                  },
+                  "measure": "absolute",
+                  "measured_value": 0.011140910729624906,
+                  "reference_axis": "Roll",
+                  "reference_stage": "Final Output",
+                  "reference_value": -0.011140910729624906,
+                  "threshold": 0.25,
+                  "threshold_high": null
+                },
+                "operation": "Set",
+                "parameter": "Output Scale",
+                "rule_title": "Stress Yaw scale | Roll > 0.25",
+                "status": "Inactive",
+                "summary": "Set Yaw Output Scale to 0.42 when absolute Roll final output is greater than 0.25.",
+                "target_axis": "Yaw",
+                "value": 0.42
+              }
+            ],
+            "inactive_rules": [
+              "Stress Yaw scale | Roll > 0.25"
+            ]
+          },
+          "output_value": 0.4229364566610508,
+          "stage_name": "Rule Injections"
+        },
+        {
+          "active": true,
+          "delta": 0.0,
+          "injected_rules": [],
+          "input_value": 0.4229364566610508,
+          "metadata": {},
+          "output_value": 0.4229364566610508,
+          "stage_name": "Final Output"
+        }
+      ]
+    },
+    "blocked_reason": "blocked_fake_path_only",
+    "errors": [],
+    "evaluated_at": "2026-05-13T12:00:03.800000+00:00",
+    "fake_or_real_path": "fake_test",
+    "final_output_axes": {
+      "RX": 0.4229364566610508,
+      "RY": 0.2034311092782104,
+      "RZ": -0.013586466279926617,
+      "X": -0.011140910729624906,
+      "Y": 0.010446721510301646,
+      "Z": 0.5264773662526302
+    },
+    "final_pipeline_axes": {
+      "Aux 1": 0.2034311092782104,
+      "Aux 2": -0.013586466279926617,
+      "Pitch": 0.010446721510301646,
+      "Roll": -0.011140910729624906,
+      "Throttle": 0.5264773662526302,
+      "Yaw": 0.4229364566610508
+    },
+    "frame_id": "runtime-frame-96",
+    "full_live_runtime_ready": false,
+    "generated_at": "2026-05-13T12:00:03.800000+00:00",
+    "input_device": "Truth Probe Thrustmaster T.Flight HOTAS One",
+    "input_proof": "fresh physical sample",
+    "input_sample_age_ms": 0,
+    "input_source": "physical",
+    "input_stale": false,
+    "input_status": "active",
+    "input_verified_for_runtime": true,
+    "last_output_write_status": "fake_write_recorded",
+    "output_backend": "Fake output backend",
+    "output_intent_buttons": {
+      "Out1": false,
+      "Out10": false,
+      "Out11": false,
+      "Out12": false,
+      "Out13": false,
+      "Out14": false,
+      "Out15": false,
+      "Out16": false,
+      "Out17": false,
+      "Out18": false,
+      "Out19": false,
+      "Out2": false,
+      "Out20": false,
+      "Out3": false,
+      "Out4": false,
+      "Out5": false,
+      "Out6": false,
+      "Out7": false,
+      "Out8": false,
+      "Out9": false
+    },
+    "output_intent_ready": true,
+    "output_loop_enabled": true,
+    "output_loop_running": true,
+    "output_loop_safety_stopped": false,
+    "output_loop_state": "running",
+    "output_proof": "fake verified test only",
+    "output_verification_status": "fake_verified",
+    "output_verified": false,
+    "output_verified_for_runtime": false,
+    "pipeline_proof": "ok",
+    "pipeline_ready": true,
+    "pipeline_status": "blocked_fake_path_only",
+    "proof_summary": "Input: fresh physical sample; Pipeline: ok; Output: fake verified test only; Output loop: running; Telemetry: fresh; Safety: ok; Ready: false; Blocked: blocked_fake_path_only; input=fresh_physical_sample; pipeline=ok; output=fake_verified_test_only; loop=running; ready=false; blocked=blocked_unverified_output",
+    "ready_state": "fake_test",
+    "rule_status_counts": {
+      "active": 0,
+      "blocked": 0,
+      "disabled": 0,
+      "inactive": 1,
+      "total": 1
+    },
+    "runtime_orchestrator_rebuild_count": 1,
+    "runtime_orchestrator_rebuild_reason": "startup",
+    "runtime_truth": "blocked_fake_path_only",
+    "safety_proof": "ok",
+    "schema_version": "helmforge.runtime_frame.v1",
+    "sequence": 96,
+    "telemetry_proof": "fresh",
+    "verified_runtime_candidate": false,
+    "warnings": []
+  },
+  "runtime_truth": "detected_unverified",
+  "technical_subtitle": "HOTAS Control Panel V3",
+  "telemetry_publish": {
+    "json_attempts": 1,
+    "json_error": "",
+    "json_path": "artifacts\\runtime-truth-value-usability\\20260513T233440Z\\math_stage_stress_fake\\bridge_telemetry.json",
+    "json_success": true,
+    "last_failure_at": null,
+    "last_success_at": "2026-05-13T23:34:49.948913+00:00"
+  },
+  "telemetry_stream": {
+    "client_count": 0,
+    "enabled": false,
+    "errors": [],
+    "frames_sent": 0,
+    "host": "127.0.0.1",
+    "last_error": "",
+    "last_send_at": null,
+    "last_send_status": "disabled",
+    "pipe_name": null,
+    "port": 8765,
+    "send_error_count": 0,
+    "server_started_at": null,
+    "transport_name": "local_websocket",
+    "warnings": []
+  },
+  "tick_count": 95,
+  "timestamp": "2026-05-13T23:34:49.951953+00:00",
+  "warnings": [
+    "No live vJoy output write has been verified.",
+    "Input/output pieces were detected, but live output writes are not verified."
+  ]
+}

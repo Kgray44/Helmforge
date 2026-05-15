@@ -1,0 +1,18 @@
+{
+  "avg_end_to_end_ms": 10.428,
+  "avg_input_read_ms": 0.154,
+  "avg_output_write_ms": 0.027,
+  "avg_pipeline_ms": 1.739,
+  "backend_kind": "fake",
+  "backend_name": "Fake output backend",
+  "button_expected_true_count": 16,
+  "button_true_output_count": 16,
+  "frame_count": 96,
+  "max_end_to_end_ms": 27.615,
+  "max_final_abs_diff": 1e-05,
+  "max_output_abs_diff": 1e-05,
+  "name": "math_stage_stress_fake",
+  "orchestrator_rebuild_count": 1.0,
+  "write_count": 97,
+  "write_success_count": 97
+}

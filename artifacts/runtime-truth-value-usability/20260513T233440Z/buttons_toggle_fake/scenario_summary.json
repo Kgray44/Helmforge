@@ -1,0 +1,18 @@
+{
+  "avg_end_to_end_ms": 4.947,
+  "avg_input_read_ms": 0.08,
+  "avg_output_write_ms": 0.014,
+  "avg_pipeline_ms": 1.085,
+  "backend_kind": "fake",
+  "backend_name": "Fake output backend",
+  "button_expected_true_count": 15,
+  "button_true_output_count": 15,
+  "frame_count": 45,
+  "max_end_to_end_ms": 14.538,
+  "max_final_abs_diff": 0.053974,
+  "max_output_abs_diff": 0.053974,
+  "name": "buttons_toggle_fake",
+  "orchestrator_rebuild_count": 1.0,
+  "write_count": 46,
+  "write_success_count": 46
+}

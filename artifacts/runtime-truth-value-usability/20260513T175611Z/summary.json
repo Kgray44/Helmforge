@@ -1,0 +1,411 @@
+{
+  "current_mapping": {
+    "axis_routes": [
+      {
+        "function_name": "Roll",
+        "invert": false,
+        "logical_output": "X",
+        "output_axis": "X",
+        "raw_axis_channel": "Axis 1",
+        "runtime_vjoy_output": "X(axis1)"
+      },
+      {
+        "function_name": "Pitch",
+        "invert": false,
+        "logical_output": "Y",
+        "output_axis": "Y",
+        "raw_axis_channel": "Axis 2",
+        "runtime_vjoy_output": "Y(axis2)"
+      },
+      {
+        "function_name": "Throttle",
+        "invert": false,
+        "logical_output": "Z",
+        "output_axis": "Z",
+        "raw_axis_channel": "Axis 3",
+        "runtime_vjoy_output": "Z(axis3)"
+      },
+      {
+        "function_name": "Yaw",
+        "invert": false,
+        "logical_output": "RZ",
+        "output_axis": "RX",
+        "raw_axis_channel": "Axis 6",
+        "runtime_vjoy_output": "RX(axis4)"
+      },
+      {
+        "function_name": "Aux 1",
+        "invert": false,
+        "logical_output": "SL0",
+        "output_axis": "RY",
+        "raw_axis_channel": "Axis 7",
+        "runtime_vjoy_output": "RY(axis5)"
+      },
+      {
+        "function_name": "Aux 2",
+        "invert": false,
+        "logical_output": "RX",
+        "output_axis": "RZ",
+        "raw_axis_channel": "Axis 8",
+        "runtime_vjoy_output": "RZ(axis6)"
+      }
+    ],
+    "button_routes": [
+      {
+        "hotas_button": 1,
+        "output_button": 1
+      },
+      {
+        "hotas_button": 2,
+        "output_button": 2
+      },
+      {
+        "hotas_button": 3,
+        "output_button": 3
+      },
+      {
+        "hotas_button": 4,
+        "output_button": 4
+      },
+      {
+        "hotas_button": 5,
+        "output_button": 5
+      },
+      {
+        "hotas_button": 6,
+        "output_button": 6
+      },
+      {
+        "hotas_button": 7,
+        "output_button": 7
+      },
+      {
+        "hotas_button": 8,
+        "output_button": 8
+      },
+      {
+        "hotas_button": 9,
+        "output_button": 9
+      },
+      {
+        "hotas_button": 10,
+        "output_button": 10
+      },
+      {
+        "hotas_button": 11,
+        "output_button": 11
+      },
+      {
+        "hotas_button": 12,
+        "output_button": 12
+      },
+      {
+        "hotas_button": 13,
+        "output_button": 13
+      },
+      {
+        "hotas_button": 14,
+        "output_button": 14
+      },
+      {
+        "hotas_button": 15,
+        "output_button": 15
+      }
+    ],
+    "hat_routes": [
+      {
+        "down_button": 19,
+        "hotas_hat": 1,
+        "left_button": 0,
+        "right_button": 18,
+        "up_button": 7,
+        "vjoy_pov": 1
+      }
+    ]
+  },
+  "failures": [],
+  "generated_at": "2026-05-13T17:56:24.209254+00:00",
+  "graphs": {
+    "Math-stage stress measured vs intended": "docs\\HelmForge\\runtime-truth-value-usability-assets\\axis-math-stage-stress-measured-vs-intended.svg",
+    "Sharp-step sine measured vs intended": "docs\\HelmForge\\runtime-truth-value-usability-assets\\axis-sharp-step-measured-vs-intended.svg",
+    "Sine measured vs intended": "docs\\HelmForge\\runtime-truth-value-usability-assets\\axis-sine-measured-vs-intended.svg"
+  },
+  "live_probe": {
+    "bridge_status": "HelmForge Bridge: lifecycle=LiveVerified truth=blocked_missing_device output_verified=True",
+    "bridge_status_exit": 0,
+    "hotas_pid_proof": "",
+    "real_vjoy_available": true,
+    "real_vjoy_devices": [
+      "vJoy Device 1"
+    ],
+    "real_vjoy_status": "backend_available",
+    "runtime_setup_exit": 0
+  },
+  "overall_status": "passed",
+  "scenarios": [
+    {
+      "avg_end_to_end_ms": 6.694,
+      "avg_input_read_ms": 0.127,
+      "avg_output_write_ms": 0.023,
+      "avg_pipeline_ms": 1.402,
+      "backend_kind": "fake",
+      "backend_name": "Fake output backend",
+      "button_expected_true_count": 0,
+      "button_true_output_count": 0,
+      "frame_count": 180,
+      "max_end_to_end_ms": 63.257,
+      "max_final_abs_diff": 2.1e-05,
+      "max_output_abs_diff": 2.1e-05,
+      "name": "axis_sine_fake",
+      "orchestrator_rebuild_count": 1.0,
+      "write_count": 61,
+      "write_success_count": 61
+    },
+    {
+      "avg_end_to_end_ms": 6.876,
+      "avg_input_read_ms": 0.137,
+      "avg_output_write_ms": 0.025,
+      "avg_pipeline_ms": 1.204,
+      "backend_kind": "fake",
+      "backend_name": "Fake output backend",
+      "button_expected_true_count": 0,
+      "button_true_output_count": 0,
+      "frame_count": 180,
+      "max_end_to_end_ms": 65.588,
+      "max_final_abs_diff": 2.6e-05,
+      "max_output_abs_diff": 2.6e-05,
+      "name": "axis_sharp_step_sine_fake",
+      "orchestrator_rebuild_count": 1.0,
+      "write_count": 61,
+      "write_success_count": 61
+    },
+    {
+      "avg_end_to_end_ms": 6.606,
+      "avg_input_read_ms": 0.126,
+      "avg_output_write_ms": 0.02,
+      "avg_pipeline_ms": 1.541,
+      "backend_kind": "fake",
+      "backend_name": "Fake output backend",
+      "button_expected_true_count": 15,
+      "button_true_output_count": 15,
+      "frame_count": 45,
+      "max_end_to_end_ms": 19.912,
+      "max_final_abs_diff": 8e-06,
+      "max_output_abs_diff": 8e-06,
+      "name": "buttons_toggle_fake",
+      "orchestrator_rebuild_count": 1.0,
+      "write_count": 46,
+      "write_success_count": 46
+    },
+    {
+      "avg_end_to_end_ms": 6.053,
+      "avg_input_read_ms": 0.131,
+      "avg_output_write_ms": 0.024,
+      "avg_pipeline_ms": 1.246,
+      "backend_kind": "fake",
+      "backend_name": "Fake output backend",
+      "button_expected_true_count": 16,
+      "button_true_output_count": 16,
+      "frame_count": 96,
+      "max_end_to_end_ms": 7.639,
+      "max_final_abs_diff": 1e-05,
+      "max_output_abs_diff": 1e-05,
+      "name": "math_stage_stress_fake",
+      "orchestrator_rebuild_count": 1.0,
+      "write_count": 97,
+      "write_success_count": 97
+    },
+    {
+      "avg_end_to_end_ms": 6.118,
+      "avg_input_read_ms": 0.12,
+      "avg_output_write_ms": 0.025,
+      "avg_pipeline_ms": 1.206,
+      "backend_kind": "fake",
+      "backend_name": "Fake output backend",
+      "button_expected_true_count": 1,
+      "button_true_output_count": 1,
+      "frame_count": 2,
+      "max_end_to_end_ms": 6.6,
+      "max_final_abs_diff": 1e-05,
+      "max_output_abs_diff": 1e-05,
+      "name": "mapping_variant_fake",
+      "orchestrator_rebuild_count": 1.0,
+      "write_count": 3,
+      "write_success_count": 3
+    }
+  ],
+  "stage_coverage": {
+    "Anti-Deadzone": {
+      "covered": true,
+      "evidence": "Center Conditioning exposes anti_deadzone=0.18."
+    },
+    "Center Alpha": {
+      "covered": true,
+      "evidence": "Filtering exposes center_alpha=0.18 on center-region samples."
+    },
+    "Conditional Rules": {
+      "covered": true,
+      "evidence": "Stress workspace enables a Yaw output-scale rule gated by Roll final output."
+    },
+    "Curve Mode": {
+      "covered": true,
+      "evidence": "Curve / Shape exposes curve_mode."
+    },
+    "Curve Strength": {
+      "covered": true,
+      "evidence": "Stress workspace sets curve_strength=0.64 on every axis."
+    },
+    "Deadzone": {
+      "covered": true,
+      "evidence": "Center Conditioning exposes deadzone=0.12 and samples below/above the threshold."
+    },
+    "Edge Alpha": {
+      "covered": true,
+      "evidence": "Filtering exposes edge_alpha=0.82 on edge-region samples."
+    },
+    "Hysteresis": {
+      "covered": true,
+      "evidence": "Stress workspace sets hysteresis=0.04; coverage requires an active hysteresis transition."
+    },
+    "Max Output": {
+      "covered": true,
+      "evidence": "Base Output Limits exposes max_output=0.72 and edge samples drive clamping."
+    },
+    "Output Scale": {
+      "covered": true,
+      "evidence": "Base Output Limits exposes configured_output_scale=1.35."
+    },
+    "Reverse Slew Limit": {
+      "covered": true,
+      "evidence": "Filtering exposes reverse_slew_limit=0.11 and reverse-direction limited deltas in stateful intent."
+    },
+    "Same Slew Limit": {
+      "covered": true,
+      "evidence": "Filtering exposes same_slew_limit=0.24 and same-direction limited deltas."
+    }
+  },
+  "variant_mapping": {
+    "axis_routes": [
+      {
+        "function_name": "Roll",
+        "invert": false,
+        "logical_output": "Y",
+        "output_axis": "Y",
+        "raw_axis_channel": "Axis 1",
+        "runtime_vjoy_output": "Y(axis2)"
+      },
+      {
+        "function_name": "Pitch",
+        "invert": false,
+        "logical_output": "X",
+        "output_axis": "X",
+        "raw_axis_channel": "Axis 2",
+        "runtime_vjoy_output": "X(axis1)"
+      },
+      {
+        "function_name": "Throttle",
+        "invert": false,
+        "logical_output": "Z",
+        "output_axis": "Z",
+        "raw_axis_channel": "Axis 3",
+        "runtime_vjoy_output": "Z(axis3)"
+      },
+      {
+        "function_name": "Yaw",
+        "invert": false,
+        "logical_output": "RZ",
+        "output_axis": "RX",
+        "raw_axis_channel": "Axis 6",
+        "runtime_vjoy_output": "RX(axis4)"
+      },
+      {
+        "function_name": "Aux 1",
+        "invert": false,
+        "logical_output": "SL0",
+        "output_axis": "RY",
+        "raw_axis_channel": "Axis 7",
+        "runtime_vjoy_output": "RY(axis5)"
+      },
+      {
+        "function_name": "Aux 2",
+        "invert": false,
+        "logical_output": "RX",
+        "output_axis": "RZ",
+        "raw_axis_channel": "Axis 8",
+        "runtime_vjoy_output": "RZ(axis6)"
+      }
+    ],
+    "button_routes": [
+      {
+        "hotas_button": 1,
+        "output_button": 2
+      },
+      {
+        "hotas_button": 2,
+        "output_button": 1
+      },
+      {
+        "hotas_button": 3,
+        "output_button": 3
+      },
+      {
+        "hotas_button": 4,
+        "output_button": 4
+      },
+      {
+        "hotas_button": 5,
+        "output_button": 5
+      },
+      {
+        "hotas_button": 6,
+        "output_button": 6
+      },
+      {
+        "hotas_button": 7,
+        "output_button": 7
+      },
+      {
+        "hotas_button": 8,
+        "output_button": 8
+      },
+      {
+        "hotas_button": 9,
+        "output_button": 9
+      },
+      {
+        "hotas_button": 10,
+        "output_button": 10
+      },
+      {
+        "hotas_button": 11,
+        "output_button": 11
+      },
+      {
+        "hotas_button": 12,
+        "output_button": 12
+      },
+      {
+        "hotas_button": 13,
+        "output_button": 13
+      },
+      {
+        "hotas_button": 14,
+        "output_button": 14
+      },
+      {
+        "hotas_button": 15,
+        "output_button": 15
+      }
+    ],
+    "hat_routes": [
+      {
+        "down_button": 19,
+        "hotas_hat": 1,
+        "left_button": 0,
+        "right_button": 18,
+        "up_button": 7,
+        "vjoy_pov": 1
+      }
+    ]
+  }
+}

@@ -5,6 +5,8 @@ import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import pytest
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -155,6 +157,47 @@ def test_phase16b_bridge_telemetry_includes_compact_runtime_frame(tmp_path):
     assert "stage_names_by_axis" not in runtime_frame
 
 
+def test_phase16b_runtime_frame_exposes_axis_stage_values_without_extra_pipeline_pass(tmp_path, monkeypatch):
+    import shared_core.runtime.runtime_orchestrator as runtime_orchestrator
+    from bridge_app.service import BridgeService, BridgeServiceOptions
+    from shared_core.math.pipeline import WorkspaceSignalPipeline
+    from shared_core.math.stack import EXPECTED_STAGE_NAMES
+
+    process_calls = 0
+
+    class CountingPipeline(WorkspaceSignalPipeline):
+        def process(self, *args, **kwargs):
+            nonlocal process_calls
+            process_calls += 1
+            return super().process(*args, **kwargs)
+
+    monkeypatch.setattr(runtime_orchestrator, "WorkspaceSignalPipeline", CountingPipeline)
+    telemetry_path = tmp_path / "stage-values-runtime-frame.json"
+    service = BridgeService(
+        BridgeServiceOptions(
+            telemetry_path=telemetry_path,
+            command_path=tmp_path / "command.json",
+            simulate=True,
+            enable_telemetry_stream=False,
+        )
+    )
+
+    try:
+        payload = service.run_once().to_dict()
+    finally:
+        service.shutdown()
+
+    runtime_frame = payload["runtime_frame"]
+    roll_stages = runtime_frame["axis_stage_values"]["Roll"]
+
+    assert process_calls == 1
+    assert [stage["stage_name"] for stage in roll_stages] == list(EXPECTED_STAGE_NAMES)
+    assert roll_stages[0]["stage_name"] == "Raw Input"
+    assert set(roll_stages[0]) >= {"input_value", "output_value", "delta", "active", "metadata"}
+    assert roll_stages[-1]["stage_name"] == "Final Output"
+    assert roll_stages[-1]["output_value"] == pytest.approx(payload["final_axes"]["Roll"])
+
+
 def test_phase16b_bridge_client_parses_missing_and_malformed_runtime_frame_safely(tmp_path):
     from v3_app.services.bridge_client import BridgeTelemetryClient, BridgeTelemetryStatus
 
@@ -180,6 +223,40 @@ def test_phase16b_bridge_client_parses_missing_and_malformed_runtime_frame_safel
     stale = BridgeTelemetryClient(telemetry_path=stale_path, stale_after_seconds=5.0).read()
     assert stale.status is BridgeTelemetryStatus.STALE
     assert stale.should_use_fallback is True
+
+
+def test_phase16b_bridge_client_preserves_axis_stage_values(tmp_path):
+    from v3_app.services.bridge_client import BridgeTelemetryClient
+
+    runtime_frame = _runtime_frame()
+    runtime_frame["axis_stage_values"] = {
+        "Roll": [
+            {
+                "stage_name": "Raw Input",
+                "input_value": 0.42,
+                "output_value": 0.42,
+                "delta": 0.0,
+                "active": True,
+                "metadata": {},
+                "injected_rules": [],
+            },
+            {
+                "stage_name": "Final Output",
+                "input_value": 0.21,
+                "output_value": 0.21,
+                "delta": 0.0,
+                "active": True,
+                "metadata": {},
+                "injected_rules": [],
+            },
+        ]
+    }
+    telemetry_path = tmp_path / "stage-values-client.json"
+    _write_payload(telemetry_path, _payload(runtime_frame=runtime_frame))
+
+    result = BridgeTelemetryClient(telemetry_path=telemetry_path).read()
+
+    assert result.telemetry.runtime_frame.axis_stage_values["Roll"][-1]["output_value"] == 0.21
 
 
 def test_phase16b_mapping_live_monitor_and_diagnostics_show_runtime_frame_truth(tmp_path):

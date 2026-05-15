@@ -1,0 +1,27 @@
+{
+  "hidhide": {
+    "action": "install_required",
+    "cli_path": "",
+    "client_path": "",
+    "detection_notes": [],
+    "install_locations": [],
+    "installed": false,
+    "reboot_required": false,
+    "registry_display_name": "",
+    "registry_publisher": "",
+    "version": "",
+    "winget_available": true,
+    "winget_package_id": "Nefarius.HidHide",
+    "winget_publisher": "Nefarius"
+  },
+  "install_guidance": [
+    "Install official Nefarius HidHide from the verified Nefarius release/MSI or a verified package-manager source.",
+    "winget found Nefarius.HidHide; install manually with: winget install -e --id Nefarius.HidHide",
+    "If the installer requires admin/UAC or reboot, complete that manually and rerun this probe after reboot."
+  ],
+  "truth_boundaries": {
+    "driver_install": "never_silent",
+    "reboot": "never_silent",
+    "untrusted_downloads": "not_used"
+  }
+}

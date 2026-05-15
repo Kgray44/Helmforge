@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from shared_core.math.curves import clamp
+from shared_core.math.curves import clamp, finite_float
 
 
 @dataclass(frozen=True)
@@ -24,8 +24,9 @@ def apply_center_deadzone(
     x = clamp(value)
     dz = clamp(deadzone, 0.0, 1.0)
     anti = clamp(anti_deadzone, 0.0, 1.0)
-    hyst = max(0.0, hysteresis)
+    hyst = max(0.0, finite_float(hysteresis, 0.0))
     magnitude = abs(x)
+    previous = None if previous_output is None else finite_float(previous_output, 0.0)
 
     metadata: dict[str, float | bool] = {
         "deadzone": dz,
@@ -36,8 +37,8 @@ def apply_center_deadzone(
     }
 
     threshold = dz
-    if hyst > 0.0 and previous_output is not None:
-        if previous_output == 0.0:
+    if hyst > 0.0 and previous is not None:
+        if previous == 0.0:
             threshold = min(1.0, dz + hyst)
         else:
             threshold = max(0.0, dz - hyst)

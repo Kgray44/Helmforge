@@ -1,0 +1,166 @@
+{
+  "axis_routes": [
+    {
+      "function_name": "Roll",
+      "raw_axis_channel": "Axis 1",
+      "runtime_vjoy_output": "X(axis1)"
+    },
+    {
+      "function_name": "Pitch",
+      "raw_axis_channel": "Axis 2",
+      "runtime_vjoy_output": "Y(axis2)"
+    },
+    {
+      "function_name": "Throttle",
+      "raw_axis_channel": "Axis 3",
+      "runtime_vjoy_output": "Z(axis3)"
+    },
+    {
+      "function_name": "Yaw",
+      "raw_axis_channel": "Axis 6",
+      "runtime_vjoy_output": "RX(axis4)"
+    },
+    {
+      "function_name": "Aux 1",
+      "raw_axis_channel": "Axis 7",
+      "runtime_vjoy_output": "RY(axis5)"
+    },
+    {
+      "function_name": "Aux 2",
+      "raw_axis_channel": "Axis 8",
+      "runtime_vjoy_output": "RZ(axis6)"
+    }
+  ],
+  "button_routes": [
+    {
+      "hotas_button": 1,
+      "output_button": 1
+    },
+    {
+      "hotas_button": 2,
+      "output_button": 2
+    },
+    {
+      "hotas_button": 3,
+      "output_button": 3
+    },
+    {
+      "hotas_button": 4,
+      "output_button": 4
+    },
+    {
+      "hotas_button": 5,
+      "output_button": 5
+    },
+    {
+      "hotas_button": 6,
+      "output_button": 6
+    },
+    {
+      "hotas_button": 7,
+      "output_button": 7
+    },
+    {
+      "hotas_button": 8,
+      "output_button": 8
+    },
+    {
+      "hotas_button": 9,
+      "output_button": 9
+    },
+    {
+      "hotas_button": 10,
+      "output_button": 10
+    },
+    {
+      "hotas_button": 11,
+      "output_button": 11
+    },
+    {
+      "hotas_button": 12,
+      "output_button": 12
+    },
+    {
+      "hotas_button": 13,
+      "output_button": 13
+    },
+    {
+      "hotas_button": 14,
+      "output_button": 14
+    },
+    {
+      "hotas_button": 15,
+      "output_button": 15
+    }
+  ],
+  "curve_modes_supported": [
+    "s"
+  ],
+  "hat_routes": [
+    {
+      "down_button": 19,
+      "hotas_hat": 1,
+      "left_button": 0,
+      "right_button": 18,
+      "up_button": 7,
+      "vjoy_pov": 1
+    }
+  ],
+  "known_gaps": {
+    "vjoy_readback": "No vJoy readback channel exists; accepted write calls are not readback proof."
+  },
+  "numeric_parameters": {
+    "combat": [
+      "combat_curve",
+      "combat_scale",
+      "combat_center_alpha",
+      "combat_edge_alpha",
+      "combat_same_slew",
+      "combat_reverse_slew"
+    ],
+    "filtering": [
+      "center_alpha",
+      "edge_alpha",
+      "same_slew_limit",
+      "reverse_slew_limit"
+    ],
+    "tuning": [
+      "curve_strength",
+      "deadzone",
+      "anti_deadzone",
+      "hysteresis",
+      "output_scale",
+      "max_output",
+      "precision_scale"
+    ]
+  },
+  "rule_supported_comparators": [
+    "greater than",
+    "less than",
+    "equal",
+    "approximately",
+    "between",
+    "range"
+  ],
+  "rule_supported_injection_stages": [
+    "Base Output Limits"
+  ],
+  "rule_supported_measures": [
+    "absolute",
+    "signed",
+    "raw"
+  ],
+  "rule_supported_mode_gates": [
+    "Always",
+    "Precision",
+    "Combat"
+  ],
+  "rule_supported_operations": [
+    "Set",
+    "Add",
+    "Multiply"
+  ],
+  "rule_supported_parameters": [
+    "Output Scale"
+  ]
+}

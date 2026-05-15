@@ -1,8 +1,25 @@
 from __future__ import annotations
 
+import math
+
+
+def finite_float(value: object, default: float = 0.0) -> float:
+    try:
+        numeric = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return default
+    if not math.isfinite(numeric):
+        return default
+    return numeric
+
 
 def clamp(value: float, lower: float = -1.0, upper: float = 1.0) -> float:
-    return max(lower, min(upper, value))
+    safe_lower = finite_float(lower, -1.0)
+    safe_upper = finite_float(upper, 1.0)
+    if safe_lower > safe_upper:
+        safe_lower, safe_upper = safe_upper, safe_lower
+    safe_value = finite_float(value, 0.0)
+    return max(safe_lower, min(safe_upper, safe_value))
 
 
 def s_curve_centered(value: float, *, curve_strength: float) -> float:
@@ -20,10 +37,10 @@ def one_sided_curve(value: float, *, curve_strength: float) -> float:
 
 
 def apply_output_limits(value: float, *, output_scale: float, max_output: float) -> float:
-    limit = abs(max_output)
+    limit = abs(finite_float(max_output, 1.0))
     if limit <= 0.0:
         return 0.0
-    return clamp(value * output_scale, -limit, limit)
+    return clamp(finite_float(value, 0.0) * finite_float(output_scale, 1.0), -limit, limit)
 
 
 def apply_centered_curve(
@@ -48,4 +65,3 @@ def linear_reference_points(
         return ((minimum, minimum),)
     step = (maximum - minimum) / (sample_count - 1)
     return tuple((minimum + step * index, minimum + step * index) for index in range(sample_count))
-

@@ -55,6 +55,7 @@ class RuntimeFrameTelemetryPayload:
     active_rule_count: int = 0
     active_rule_names: tuple[str, ...] = ()
     final_output_axes: Mapping[str, float] = field(default_factory=dict)
+    axis_stage_values: Mapping[str, tuple[Mapping[str, object], ...]] = field(default_factory=dict)
     output_intent_ready: bool = False
     output_backend: str = "Unavailable"
     output_verification_status: str = "not_attempted"
@@ -379,6 +380,7 @@ def _parse_runtime_frame(value: object) -> RuntimeFrameTelemetryPayload | None:
     evaluated_at = _parse_optional_timestamp(value.get("evaluated_at"))
     if value.get("evaluated_at") and evaluated_at is None:
         errors.append("runtime_frame evaluated_at must be an ISO string")
+    axis_stage_values = _axis_stage_values(value.get("axis_stage_values"), errors)
 
     has_readiness_proof = any(
         key in value
@@ -413,6 +415,7 @@ def _parse_runtime_frame(value: object) -> RuntimeFrameTelemetryPayload | None:
         active_rule_count=_optional_int(value.get("active_rule_count")) or 0,
         active_rule_names=tuple(str(item) for item in value.get("active_rule_names", ()) or ()),
         final_output_axes=final_output_axes,
+        axis_stage_values=axis_stage_values,
         output_intent_ready=bool(value.get("output_intent_ready", False)),
         output_backend=str(value.get("output_backend") or "Unavailable"),
         output_verification_status=str(value.get("output_verification_status") or "not_attempted"),
@@ -490,6 +493,27 @@ def _optional_int(value: object) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _axis_stage_values(value: object, errors: list[str]) -> Mapping[str, tuple[Mapping[str, object], ...]]:
+    if value in (None, {}):
+        return {}
+    if not isinstance(value, Mapping):
+        errors.append("runtime_frame axis_stage_values must be an object")
+        return {}
+    parsed: dict[str, tuple[Mapping[str, object], ...]] = {}
+    for axis_name, stages in value.items():
+        if not isinstance(stages, (list, tuple)):
+            errors.append(f"runtime_frame axis_stage_values.{axis_name} must be a list")
+            continue
+        stage_payloads: list[Mapping[str, object]] = []
+        for index, stage in enumerate(stages):
+            if not isinstance(stage, Mapping):
+                errors.append(f"runtime_frame axis_stage_values.{axis_name}[{index}] must be an object")
+                continue
+            stage_payloads.append(dict(stage))
+        parsed[str(axis_name)] = tuple(stage_payloads)
+    return parsed
 
 
 def _float_mapping(value: object, *, field_name: str) -> dict[str, float]:

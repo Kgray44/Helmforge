@@ -1,0 +1,86 @@
+{
+  "allowlisted_apps": [
+    "C:\\Users\\kkids\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+    "C:\\Users\\kkids\\AppData\\Local\\Programs\\Python\\Python312\\pythonw.exe"
+  ],
+  "ambiguous_device_entries": [],
+  "automation": {
+    "cli_path": "C:\\Program Files\\Nefarius Software Solutions\\HidHide\\x64\\HidHideCLI.exe",
+    "programmatic_apply": false,
+    "reason": "Dry run only; no HidHide settings changed."
+  },
+  "hidden_device_entries": [
+    {
+      "instance_path": "HID\\VID_044F&PID_B68D\\8&39EC0CDD&0&0000",
+      "is_vjoy": false,
+      "manufacturer": "(Standard system devices)",
+      "name": "HID-compliant game controller",
+      "present": true,
+      "product_id": "B68D",
+      "selection_reason": "matched_target_vid_pid_and_not_vjoy",
+      "source": "Win32_PnPEntity",
+      "status": "OK",
+      "vendor_id": "044F",
+      "vid_pid": "VID_044F&PID_B68D"
+    },
+    {
+      "instance_path": "USB\\VID_044F&PID_B68D\\7&18CB956B&0&3",
+      "is_vjoy": false,
+      "manufacturer": "(Standard system devices)",
+      "name": "USB Input Device",
+      "present": true,
+      "product_id": "B68D",
+      "selection_reason": "matched_target_vid_pid_and_not_vjoy",
+      "source": "Win32_PnPEntity",
+      "status": "OK",
+      "vendor_id": "044F",
+      "vid_pid": "VID_044F&PID_B68D"
+    }
+  ],
+  "hotas_groups": {
+    "VID_044F&PID_B68D": [
+      "HID\\VID_044F&PID_B68D\\8&39EC0CDD&0&0000",
+      "USB\\VID_044F&PID_B68D\\7&18CB956B&0&3"
+    ]
+  },
+  "installed": true,
+  "safety": {
+    "hide_by_vid_pid_only": true,
+    "requires_allowlist_before_hiding": true,
+    "requires_confirm_for_apply": true,
+    "vjoy_never_hidden": true
+  },
+  "status": "dry_run",
+  "target_game_allowlisted_by_default": false,
+  "vjoy": {
+    "devices": [
+      {
+        "instance_path": "{D6E55CA0-1A2E-4234-AAF3-3852170B492F}\\VJOYRAWPDO\\1&2D595CA7&0&VJOYINSTANCE00",
+        "is_vjoy": true,
+        "manufacturer": "",
+        "name": "vJoy Driver",
+        "present": true,
+        "product_id": "",
+        "source": "Win32_PnPEntity",
+        "status": "OK",
+        "vendor_id": "",
+        "vid_pid": ""
+      },
+      {
+        "instance_path": "ROOT\\HIDCLASS\\0000",
+        "is_vjoy": true,
+        "manufacturer": "Shaul Eizikovich",
+        "name": "vJoy Device",
+        "present": true,
+        "product_id": "",
+        "source": "Win32_PnPEntity",
+        "status": "OK",
+        "vendor_id": "",
+        "vid_pid": ""
+      }
+    ],
+    "hidden": false,
+    "must_remain_visible": true
+  },
+  "will_enable_device_hiding": false
+}

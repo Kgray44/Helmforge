@@ -1,0 +1,18 @@
+HelmForge Runtime Setup Check
+Product: HelmForge
+Technical subtitle: HOTAS Control Panel V3
+Known Thrustmaster target: Thrustmaster T-Flight HOTAS One / Thrustmaster T.Flight Hotas One
+Dry run: True
+Admin active: False
+Log path: C:\Users\kkids\AppData\Local\Temp\helmforge_runtime_setup_check.log
+Checked present PnP device names: 239
+Installed runtime software: vJoy Device Driver 2.2.2.0 2.2.2.0 (Shaul Eizikovich)
+Installed runtime software: T.Flight Hotas drivers 5.TFHT.2025 (Thrustmaster)
+Add-Content : The process cannot access the file 'C:\Users\kkids\AppData\Local\Temp\helmforge_runtime_setup_check.log' 
+because it is being used by another process.
+At C:\w\hotas-rt1a\scripts\runtime_setup_check.ps1:24 char:5
++     Add-Content -LiteralPath $LogPath -Value ("{0} {1}" -f (Get-Date  ...
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : WriteError: (C:\Users\kkids\...setup_check.log:String) [Add-Content], IOException
+    + FullyQualifiedErrorId : GetContentWriterIOError,Microsoft.PowerShell.Commands.AddContentCommand
+ 

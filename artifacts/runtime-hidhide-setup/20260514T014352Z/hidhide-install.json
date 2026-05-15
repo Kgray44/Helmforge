@@ -1,0 +1,69 @@
+{
+  "install_command": [
+    "winget",
+    "install",
+    "-e",
+    "--id",
+    "Nefarius.HidHide"
+  ],
+  "installed_during_this_phase": true,
+  "message": "HidHide installation completed and detection was rechecked.",
+  "post_install_detection": {
+    "cli_path": "C:\\Program Files\\Nefarius Software Solutions\\HidHide\\x64\\HidHideCLI.exe",
+    "client_path": "C:\\Program Files\\Nefarius Software Solutions\\HidHide\\x64\\HidHideClient.exe",
+    "detection_notes": [],
+    "install_locations": [
+      "C:\\Program Files\\Nefarius Software Solutions\\HidHide\\x64"
+    ],
+    "installed": true,
+    "reboot_required": false,
+    "registry_display_name": "HidHide",
+    "registry_publisher": "Nefarius Software Solutions e.U.",
+    "version": "1.5.230",
+    "winget_available": true,
+    "winget_package_id": "",
+    "winget_publisher": ""
+  },
+  "pre_install_detection": {
+    "cli_path": "",
+    "client_path": "",
+    "detection_notes": [],
+    "install_locations": [],
+    "installed": false,
+    "reboot_required": false,
+    "registry_display_name": "",
+    "registry_publisher": "",
+    "version": "",
+    "winget_available": true,
+    "winget_package_id": "Nefarius.HidHide",
+    "winget_publisher": "Nefarius"
+  },
+  "reboot_required": false,
+  "status": "installed",
+  "winget_install": {
+    "command": [
+      "winget",
+      "install",
+      "-e",
+      "--id",
+      "Nefarius.HidHide"
+    ],
+    "returncode": 0,
+    "status": "passed",
+    "stderr": "",
+    "stdout": "\n   - \n                                                                                                                        \n\n   - \n   \\ \n   | \n                                                                                                                        \nFound HidHide [Nefarius.HidHide] Version 1.5.230\nThis application is licensed to you by its owner.\nMicrosoft is not responsible for, nor does it grant any licenses to, third-party packages.\nDownloading https://github.com/nefarius/HidHide/releases/download/v1.5.230.0/HidHide_1.5.230_x64.exe\n\n   - \n   \\ \n   | \n   / \n   - \n   \\ \n   | \n   / \n   - \n   \\ \n   | \n   / \n   - \n   \\ \n   | \n   / \n   - \n   \\ \n   | \n   / \n                                                                                                                        \n\n  \u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019   720 KB / 7.70 MB\n  \u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019\u00e2\u2013\u2019  3.70 MB / 7.70 MB\n  \u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6\u00e2\u2013\u02c6  7.70 MB / 7.70 MB\nSuccessfully verified installer hash\nStarting package install...\nThe installer will request to run as administrator. Expect a prompt.\n\n   - \n   \\ \n   | \n   / \n   - \n   \\ \n   | \n   / \n   - \n   \\ \n   | \n   / \n   - \n   \\ \n   | \n   / \n   - \n   \\ \n   | \n   / \n   - \n   \\ \n   | \n   / \n   - \n   \\ \n   | \n   / \n   - \n   \\ \n   | \n   / \n   - \n   \\ \n   | \n   / \n   - \n   \\ \n   | \n   / \n   - \n   \\ \n   | \n   / \n   - \n                                                                                                                        \nSuccessfully installed\n",
+    "timed_out": false
+  },
+  "winget_search": {
+    "command": [
+      "winget",
+      "search",
+      "HidHide"
+    ],
+    "returncode": 0,
+    "status": "passed",
+    "stderr": "",
+    "stdout": "\n   - \n                                                                                                                        \nName    Id               Version Source\n----------------------------------------\nHidHide Nefarius.HidHide 1.5.230 winget\n",
+    "timed_out": false
+  }
+}
