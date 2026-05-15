@@ -363,6 +363,23 @@ class PhysicalInputDeviceInfo:
     support_reason: str = "Device has not been classified."
     warnings: tuple[str, ...] = ()
 
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "device_id": self.device_id,
+            "display_name": self.display_name,
+            "manufacturer": self.manufacturer,
+            "vendor_id": self.vendor_id,
+            "product_id": self.product_id,
+            "serial_number": self.serial_number,
+            "axis_count": self.axis_count,
+            "button_count": self.button_count,
+            "hat_count": self.hat_count,
+            "backend_name": self.backend_name,
+            "is_supported": self.is_supported,
+            "support_reason": self.support_reason,
+            "warnings": list(self.warnings),
+        }
+
 
 @dataclass(frozen=True)
 class RawInputDeviceRecord:

@@ -16,6 +16,7 @@ from scripts.runtime_physical_hotas_smoke_probe import (
     runtime_authority_violations,
 )
 from shared_core.models.workspace import create_default_workspace
+from shared_core.runtime.hotas_input import PhysicalInputDeviceInfo
 from shared_core.runtime.vjoy_output import build_workspace_virtual_output_intent
 
 
@@ -129,6 +130,37 @@ def test_live_progress_reporter_records_raw_axis_deltas_while_waiting(tmp_path):
     assert current["raw_axis_deltas"]["Yaw"] == 0.42
     assert current["raw_axis_deltas"]["Aux 1"] == 0.0
     assert current["largest_raw_axis_delta"]["axis"] == "Yaw"
+
+
+def test_physical_sampling_device_info_serializes_for_probe_summary():
+    device = PhysicalInputDeviceInfo(
+        device_id="joy:0",
+        display_name="T-Flight HOTAS One",
+        manufacturer="Thrustmaster",
+        vendor_id="044F",
+        product_id="B68D",
+        serial_number="example",
+        axis_count=6,
+        button_count=15,
+        hat_count=1,
+        backend_name="winmm",
+        is_supported=True,
+        support_reason="Supported HOTAS VID/PID.",
+        warnings=("rawinput_unavailable",),
+    )
+
+    payload = device.to_dict()
+
+    assert payload["device_id"] == "joy:0"
+    assert payload["display_name"] == "T-Flight HOTAS One"
+    assert payload["vendor_id"] == "044F"
+    assert payload["product_id"] == "B68D"
+    assert payload["axis_count"] == 6
+    assert payload["button_count"] == 15
+    assert payload["hat_count"] == 1
+    assert payload["backend_name"] == "winmm"
+    assert payload["is_supported"] is True
+    assert payload["warnings"] == ["rawinput_unavailable"]
 
 
 def test_button_step_detects_press_and_release():
