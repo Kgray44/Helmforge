@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from shared_core.math.curves import apply_output_limits, clamp, s_curve_centered
+from shared_core.math.curves import apply_output_limits, clamp, finite_float, s_curve_centered
 from shared_core.math.deadzone import apply_center_deadzone
 from shared_core.math.filtering import FilterState, step_filter
 from shared_core.models.combat import AxisCombatProfile
@@ -70,11 +70,13 @@ def _stage(
     metadata: dict[str, Any] | None = None,
     injected_rules: tuple[str, ...] = (),
 ) -> StageResult:
+    safe_input = finite_float(input_value, 0.0)
+    safe_output = finite_float(output_value, 0.0)
     return StageResult(
         stage_name=name,
-        input_value=input_value,
-        output_value=output_value,
-        delta=output_value - input_value,
+        input_value=safe_input,
+        output_value=safe_output,
+        delta=safe_output - safe_input,
         active=active,
         explanation=explanation,
         metadata=metadata or {},
@@ -97,19 +99,71 @@ def _apply_mode_modifiers(
         "stack_mode": mode_config.precision_combat_stack_mode.value,
     }
 
-    precision_scale = tuning.precision_scale if mode_state.precision_active else 1.0
-    combat_scale = combat.combat_scale if mode_state.combat_active else 1.0
+    precision_scale = finite_float(tuning.precision_scale, 1.0) if mode_state.precision_active else 1.0
+    combat_scale = finite_float(combat.combat_scale, 1.0) if mode_state.combat_active else 1.0
 
     if mode_config.precision_combat_stack_mode is StackMode.MULTIPLY:
         if mode_state.precision_active:
             output *= precision_scale
         if mode_state.combat_active:
-            output = s_curve_centered(output, curve_strength=combat.combat_curve)
+            output = s_curve_centered(output, curve_strength=finite_float(combat.combat_curve, 0.0))
             output *= combat_scale
 
     metadata["precision_scale"] = precision_scale
     metadata["combat_scale"] = combat_scale
     return output, mode_state.precision_active or mode_state.combat_active, metadata
+
+
+def _effective_filtering_for_mode(
+    filtering: AxisFiltering,
+    combat: AxisCombatProfile,
+    mode_state: ModeState,
+) -> tuple[AxisFiltering, dict[str, Any]]:
+    base_center_alpha = clamp(finite_float(filtering.center_alpha, 0.35), 0.0, 1.0)
+    base_edge_alpha = clamp(finite_float(filtering.edge_alpha, 0.70), 0.0, 1.0)
+    base_same_slew = max(0.0, abs(finite_float(filtering.same_slew_limit, 1.0)))
+    base_reverse_slew = max(0.0, abs(finite_float(filtering.reverse_slew_limit, 0.65)))
+
+    combat_filter_active = mode_state.combat_active
+    if combat_filter_active:
+        effective_center_alpha = clamp(finite_float(combat.combat_center_alpha, base_center_alpha), 0.0, 1.0)
+        effective_edge_alpha = clamp(finite_float(combat.combat_edge_alpha, base_edge_alpha), 0.0, 1.0)
+        effective_same_slew = max(0.0, abs(finite_float(combat.combat_same_slew, base_same_slew)))
+        effective_reverse_slew = max(0.0, abs(finite_float(combat.combat_reverse_slew, base_reverse_slew)))
+    else:
+        effective_center_alpha = base_center_alpha
+        effective_edge_alpha = base_edge_alpha
+        effective_same_slew = base_same_slew
+        effective_reverse_slew = base_reverse_slew
+
+    effective_filtering = AxisFiltering(
+        axis=filtering.axis,
+        center_alpha=effective_center_alpha,
+        edge_alpha=effective_edge_alpha,
+        same_slew_limit=effective_same_slew,
+        reverse_slew_limit=effective_reverse_slew,
+    )
+    metadata: dict[str, Any] = {
+        "center_alpha": base_center_alpha,
+        "edge_alpha": base_edge_alpha,
+        "same_slew_limit": base_same_slew,
+        "reverse_slew_limit": base_reverse_slew,
+        "effective_center_alpha": effective_center_alpha,
+        "effective_edge_alpha": effective_edge_alpha,
+        "effective_same_slew_limit": effective_same_slew,
+        "effective_reverse_slew_limit": effective_reverse_slew,
+        "combat_filter_active": combat_filter_active,
+    }
+    if combat_filter_active:
+        metadata.update(
+            {
+                "combat_center_alpha": effective_center_alpha,
+                "combat_edge_alpha": effective_edge_alpha,
+                "combat_same_slew": effective_same_slew,
+                "combat_reverse_slew": effective_reverse_slew,
+            }
+        )
+    return effective_filtering, metadata
 
 
 def process_axis_stack(
@@ -145,6 +199,7 @@ def process_axis_stack(
         deadzone=tuning.deadzone,
         anti_deadzone=tuning.anti_deadzone,
         hysteresis=tuning.hysteresis,
+        previous_output=(previous_filter_state.previous_output if previous_filter_state is not None else None),
     )
     stages.append(
         _stage(
@@ -157,40 +212,44 @@ def process_axis_stack(
         )
     )
 
-    curved = s_curve_centered(centered.output, curve_strength=tuning.curve_strength)
+    curve_mode, curve_mode_metadata = _curve_mode_metadata(tuning.curve_mode)
+    curve_strength = clamp(tuning.curve_strength, 0.0, 1.0)
+    curved = s_curve_centered(centered.output, curve_strength=curve_strength)
     stages.append(
         _stage(
             "Curve / Shape",
             centered.output,
             curved,
-            active=tuning.curve_strength != 0.0,
+            active=curve_strength != 0.0,
             explanation="Applies centered cubic-blend S-curve y = (1-k)x + kx^3.",
-            metadata={"curve_mode": tuning.curve_mode, "curve_strength": tuning.curve_strength},
+            metadata=curve_mode_metadata | {"curve_mode": curve_mode, "curve_strength": curve_strength},
         )
     )
 
     output_scale, applied_limit_rules = _apply_base_output_limit_rules(tuning.output_scale, rule_results)
-    limited = apply_output_limits(curved, output_scale=output_scale, max_output=tuning.max_output)
+    configured_max_output = finite_float(tuning.max_output, 1.0)
+    limited = apply_output_limits(curved, output_scale=output_scale, max_output=configured_max_output)
     stages.append(
         _stage(
             "Base Output Limits",
             curved,
             limited,
-            active=tuning.output_scale != 1.0 or tuning.max_output < 1.0 or bool(applied_limit_rules),
+            active=output_scale != 1.0 or configured_max_output < 1.0 or bool(applied_limit_rules),
             explanation="Applies output scale and max output clamp.",
             metadata={
                 "output_scale": output_scale,
-                "configured_output_scale": tuning.output_scale,
-                "max_output": tuning.max_output,
+                "configured_output_scale": finite_float(tuning.output_scale, 1.0),
+                "max_output": configured_max_output,
                 "injected_rules": applied_limit_rules,
             },
         )
     )
 
+    effective_filtering, filtering_metadata = _effective_filtering_for_mode(filtering, combat, mode_state)
     filter_result = step_filter(
         target_value=limited,
         state=previous_filter_state or FilterState(),
-        settings=filtering,
+        settings=effective_filtering,
     )
     stages.append(
         _stage(
@@ -199,7 +258,7 @@ def process_axis_stack(
             filter_result.output,
             active=True,
             explanation="Applies center/edge alpha smoothing and same/reverse-direction slew limits.",
-            metadata=filter_result.diagnostics,
+            metadata=filter_result.diagnostics | filtering_metadata,
         )
     )
 
@@ -210,7 +269,7 @@ def process_axis_stack(
         mode_config=mode_config,
         mode_state=mode_state,
     )
-    mode_output = apply_output_limits(mode_output, output_scale=1.0, max_output=tuning.max_output)
+    mode_output = apply_output_limits(mode_output, output_scale=1.0, max_output=configured_max_output)
     stages.append(
         _stage(
             "Mode Modifiers",
@@ -253,7 +312,8 @@ def process_axis_stack(
         )
     )
 
-    final = clamp(mode_output, -abs(tuning.max_output), abs(tuning.max_output))
+    max_output = abs(configured_max_output)
+    final = clamp(mode_output, -max_output, max_output)
     stages.append(
         _stage(
             "Final Output",
@@ -271,11 +331,19 @@ def process_axis_stack(
     )
 
 
+def _curve_mode_metadata(curve_mode: object) -> tuple[str, dict[str, Any]]:
+    requested = str(curve_mode or "s").strip()
+    normalized = requested.casefold() or "s"
+    if normalized == "s":
+        return "s", {"requested_curve_mode": requested or "s", "curve_mode_supported": True}
+    return "s", {"requested_curve_mode": requested, "curve_mode_supported": False}
+
+
 def _apply_base_output_limit_rules(
     configured_output_scale: float,
     rule_results: tuple[RuleEvaluationResult, ...],
 ) -> tuple[float, tuple[str, ...]]:
-    output_scale = configured_output_scale
+    output_scale = finite_float(configured_output_scale, 1.0)
     applied_rules: list[str] = []
     for result in rule_results:
         if result.status is not RuleStatus.ACTIVE:
@@ -285,11 +353,11 @@ def _apply_base_output_limit_rules(
         if result.parameter != "Output Scale":
             continue
         if result.operation == "Set":
-            output_scale = result.value
+            output_scale = finite_float(result.value, output_scale)
         elif result.operation == "Add":
-            output_scale += result.value
+            output_scale += finite_float(result.value, 0.0)
         elif result.operation == "Multiply":
-            output_scale *= result.value
+            output_scale *= finite_float(result.value, 1.0)
         else:
             continue
         applied_rules.append(result.rule_title)

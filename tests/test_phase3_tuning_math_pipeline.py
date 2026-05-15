@@ -120,6 +120,30 @@ def test_filtering_stage_metadata_exposes_configured_response_parameters():
     assert metadata["reverse_slew_limit"] == pytest.approx(0.47)
 
 
+def test_deadzone_hysteresis_receives_previous_runtime_state():
+    first = process_axis_stack(
+        0.2,
+        tuning=AxisTuning(axis="Roll", deadzone=0.1, hysteresis=0.04),
+        filtering=AxisFiltering("Roll"),
+        combat=AxisCombatProfile(axis="Roll"),
+        mode_config=default_mode_config(),
+        mode_state=ModeState(),
+    )
+    second = process_axis_stack(
+        0.08,
+        tuning=AxisTuning(axis="Roll", deadzone=0.1, hysteresis=0.04),
+        filtering=AxisFiltering("Roll"),
+        combat=AxisCombatProfile(axis="Roll"),
+        mode_config=default_mode_config(),
+        mode_state=ModeState(),
+        previous_filter_state=first.filter_state,
+    )
+
+    metadata = second.stage_by_name("Center Conditioning").metadata
+    assert metadata["hysteresis"] == pytest.approx(0.04)
+    assert metadata["hysteresis_active"] is True
+
+
 def test_filtering_uses_center_vs_edge_alpha_behavior():
     settings = AxisFiltering("Roll", center_alpha=0.20, edge_alpha=0.80, same_slew_limit=1.0, reverse_slew_limit=1.0)
 

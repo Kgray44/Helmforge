@@ -182,7 +182,11 @@ def test_phase16b_runtime_frame_exposes_axis_stage_values_without_extra_pipeline
         )
     )
 
-    payload = service.run_once().to_dict()
+    try:
+        payload = service.run_once().to_dict()
+    finally:
+        service.shutdown()
+
     runtime_frame = payload["runtime_frame"]
     roll_stages = runtime_frame["axis_stage_values"]["Roll"]
 

@@ -53,6 +53,7 @@ class WorkspaceSignalPipeline:
         *,
         mode_state: ModeState | None = None,
         state: SignalPipelineState | None = None,
+        active_buttons: tuple[int, ...] = (),
     ) -> WorkspaceSignalPipelineResult:
         active_mode_state = mode_state or ModeState()
         current_state = state or self.initial_state()
@@ -68,7 +69,11 @@ class WorkspaceSignalPipeline:
             )[2]
             rule_evaluations = evaluate_rules(
                 self._workspace.rules.rules,
-                _rule_context_from_axis_results(baseline_results),
+                _rule_context_from_axis_results(
+                    baseline_results,
+                    mode_state=active_mode_state,
+                    active_buttons=active_buttons,
+                ),
             )
 
         ordered_raw_values, final_output_values, axis_results, next_filter_states = self._process_axes(
@@ -124,10 +129,25 @@ class WorkspaceSignalPipeline:
         return ordered_raw_values, final_output_values, axis_results, next_filter_states
 
 
-def _rule_context_from_axis_results(axis_results: Mapping[str, AxisStackResult]) -> RuleEvaluationContext:
+def _rule_context_from_axis_results(
+    axis_results: Mapping[str, AxisStackResult],
+    *,
+    mode_state: ModeState | None = None,
+    active_buttons: tuple[int, ...] = (),
+) -> RuleEvaluationContext:
     values_by_stage: dict[str, dict[str, float]] = {}
     for axis_name, result in axis_results.items():
         for stage in result.stages:
             values_by_stage.setdefault(stage.stage_name, {})[axis_name] = stage.output_value
         values_by_stage.setdefault("Final Output", {})[axis_name] = result.final_output
-    return RuleEvaluationContext(values_by_stage=values_by_stage)
+    active_modes: list[str] = []
+    if mode_state is not None:
+        if mode_state.precision_active:
+            active_modes.append("Precision")
+        if mode_state.combat_active:
+            active_modes.append("Combat")
+    return RuleEvaluationContext(
+        values_by_stage=values_by_stage,
+        active_modes=tuple(active_modes),
+        active_buttons=tuple(int(button) for button in active_buttons),
+    )

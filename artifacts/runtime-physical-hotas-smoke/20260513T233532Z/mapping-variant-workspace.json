@@ -1,0 +1,442 @@
+{
+  "active_profile": "current-workspace",
+  "combat": {
+    "assumptions": "Exact shipped combat-profile values are unknown. Defaults are conservative placeholders that reduce authority slightly during combat/zoom without implementing combat logic yet.",
+    "axes": {
+      "aux_1": {
+        "axis": "Aux 1",
+        "combat_center_alpha": 0.25,
+        "combat_curve": 0.45,
+        "combat_edge_alpha": 0.6,
+        "combat_reverse_slew": 0.5,
+        "combat_same_slew": 0.8,
+        "combat_scale": 0.85
+      },
+      "aux_2": {
+        "axis": "Aux 2",
+        "combat_center_alpha": 0.25,
+        "combat_curve": 0.45,
+        "combat_edge_alpha": 0.6,
+        "combat_reverse_slew": 0.5,
+        "combat_same_slew": 0.8,
+        "combat_scale": 0.85
+      },
+      "pitch": {
+        "axis": "Pitch",
+        "combat_center_alpha": 0.25,
+        "combat_curve": 0.5,
+        "combat_edge_alpha": 0.6,
+        "combat_reverse_slew": 0.5,
+        "combat_same_slew": 0.8,
+        "combat_scale": 0.8
+      },
+      "roll": {
+        "axis": "Roll",
+        "combat_center_alpha": 0.25,
+        "combat_curve": 0.45,
+        "combat_edge_alpha": 0.6,
+        "combat_reverse_slew": 0.5,
+        "combat_same_slew": 0.8,
+        "combat_scale": 0.85
+      },
+      "throttle": {
+        "axis": "Throttle",
+        "combat_center_alpha": 0.55,
+        "combat_curve": 0.15,
+        "combat_edge_alpha": 0.8,
+        "combat_reverse_slew": 0.85,
+        "combat_same_slew": 1.0,
+        "combat_scale": 1.0
+      },
+      "yaw": {
+        "axis": "Yaw",
+        "combat_center_alpha": 0.2,
+        "combat_curve": 0.6,
+        "combat_edge_alpha": 0.55,
+        "combat_reverse_slew": 0.4,
+        "combat_same_slew": 0.65,
+        "combat_scale": 0.75
+      }
+    }
+  },
+  "filtering": {
+    "assumptions": "Exact shipped filtering values are unknown. Defaults are mild and simulation-safe: more smoothing near center, lighter smoothing at the edge, and bounded slew placeholders.",
+    "axes": {
+      "aux_1": {
+        "axis": "Aux 1",
+        "center_alpha": 0.35,
+        "edge_alpha": 0.7,
+        "reverse_slew_limit": 0.65,
+        "same_slew_limit": 1.0
+      },
+      "aux_2": {
+        "axis": "Aux 2",
+        "center_alpha": 0.35,
+        "edge_alpha": 0.7,
+        "reverse_slew_limit": 0.65,
+        "same_slew_limit": 1.0
+      },
+      "pitch": {
+        "axis": "Pitch",
+        "center_alpha": 0.35,
+        "edge_alpha": 0.7,
+        "reverse_slew_limit": 0.65,
+        "same_slew_limit": 1.0
+      },
+      "roll": {
+        "axis": "Roll",
+        "center_alpha": 0.35,
+        "edge_alpha": 0.7,
+        "reverse_slew_limit": 0.65,
+        "same_slew_limit": 1.0
+      },
+      "throttle": {
+        "axis": "Throttle",
+        "center_alpha": 0.55,
+        "edge_alpha": 0.8,
+        "reverse_slew_limit": 0.8,
+        "same_slew_limit": 1.0
+      },
+      "yaw": {
+        "axis": "Yaw",
+        "center_alpha": 0.25,
+        "edge_alpha": 0.6,
+        "reverse_slew_limit": 0.5,
+        "same_slew_limit": 1.0
+      }
+    }
+  },
+  "legacy_source_note": "Recovered V2 used hotas_bridge_config_v2.json.",
+  "mappings": {
+    "axis_routes": [
+      {
+        "function_name": "Roll",
+        "invert": false,
+        "live_output_value": 0.0,
+        "live_raw_value": 0.0,
+        "logical_output": "Y",
+        "raw_axis_channel": "Axis 1",
+        "runtime_vjoy_output": "Y(axis2)"
+      },
+      {
+        "function_name": "Pitch",
+        "invert": false,
+        "live_output_value": 0.0,
+        "live_raw_value": 0.0,
+        "logical_output": "X",
+        "raw_axis_channel": "Axis 2",
+        "runtime_vjoy_output": "X(axis1)"
+      },
+      {
+        "function_name": "Throttle",
+        "invert": false,
+        "live_output_value": 0.0,
+        "live_raw_value": 0.0,
+        "logical_output": "Z",
+        "raw_axis_channel": "Axis 3",
+        "runtime_vjoy_output": "Z(axis3)"
+      },
+      {
+        "function_name": "Yaw",
+        "invert": false,
+        "live_output_value": 0.0,
+        "live_raw_value": 0.0,
+        "logical_output": "RZ",
+        "raw_axis_channel": "Axis 6",
+        "runtime_vjoy_output": "RX(axis4)"
+      },
+      {
+        "function_name": "Aux 1",
+        "invert": false,
+        "live_output_value": 0.0,
+        "live_raw_value": 0.0,
+        "logical_output": "SL0",
+        "raw_axis_channel": "Axis 7",
+        "runtime_vjoy_output": "RY(axis5)"
+      },
+      {
+        "function_name": "Aux 2",
+        "invert": false,
+        "live_output_value": 0.0,
+        "live_raw_value": 0.0,
+        "logical_output": "RX",
+        "raw_axis_channel": "Axis 8",
+        "runtime_vjoy_output": "RZ(axis6)"
+      }
+    ],
+    "button_routes": [
+      {
+        "hotas_button": 1,
+        "output_button": 2,
+        "output_state": false,
+        "raw_state": false
+      },
+      {
+        "hotas_button": 2,
+        "output_button": 1,
+        "output_state": false,
+        "raw_state": false
+      },
+      {
+        "hotas_button": 3,
+        "output_button": 3,
+        "output_state": false,
+        "raw_state": false
+      },
+      {
+        "hotas_button": 4,
+        "output_button": 4,
+        "output_state": false,
+        "raw_state": false
+      },
+      {
+        "hotas_button": 5,
+        "output_button": 5,
+        "output_state": false,
+        "raw_state": false
+      },
+      {
+        "hotas_button": 6,
+        "output_button": 6,
+        "output_state": false,
+        "raw_state": false
+      },
+      {
+        "hotas_button": 7,
+        "output_button": 7,
+        "output_state": false,
+        "raw_state": false
+      },
+      {
+        "hotas_button": 8,
+        "output_button": 8,
+        "output_state": false,
+        "raw_state": false
+      },
+      {
+        "hotas_button": 9,
+        "output_button": 9,
+        "output_state": false,
+        "raw_state": false
+      },
+      {
+        "hotas_button": 10,
+        "output_button": 10,
+        "output_state": false,
+        "raw_state": false
+      },
+      {
+        "hotas_button": 11,
+        "output_button": 11,
+        "output_state": false,
+        "raw_state": false
+      },
+      {
+        "hotas_button": 12,
+        "output_button": 12,
+        "output_state": false,
+        "raw_state": false
+      },
+      {
+        "hotas_button": 13,
+        "output_button": 13,
+        "output_state": false,
+        "raw_state": false
+      },
+      {
+        "hotas_button": 14,
+        "output_button": 14,
+        "output_state": false,
+        "raw_state": false
+      },
+      {
+        "hotas_button": 15,
+        "output_button": 15,
+        "output_state": false,
+        "raw_state": false
+      }
+    ],
+    "hat_routes": [
+      {
+        "down_button": 11,
+        "hotas_hat": 1,
+        "left_button": 12,
+        "live_hat_state": "Centered",
+        "right_button": 10,
+        "up_button": 9,
+        "vjoy_pov": 1
+      }
+    ],
+    "routing_note": "Battlefield-safe runtime routing may remap RX / RY / RZ / SL0 behind the scenes when needed."
+  },
+  "modes": {
+    "combat_extra_buttons": [],
+    "combat_trigger_buttons": [],
+    "combat_zoom_aim_buttons": [
+      5
+    ],
+    "precision_combat_stack_mode": "multiply",
+    "precision_hold_buttons": [
+      0
+    ]
+  },
+  "product_name": "HelmForge",
+  "profiles": {
+    "active_profile_id": "current-workspace",
+    "profiles": [
+      {
+        "active": false,
+        "description": "Recovered built-in preset: Balanced Flight.",
+        "name": "Balanced Flight",
+        "profile_id": "balanced-flight",
+        "profile_type": "built-in",
+        "source_path": null
+      },
+      {
+        "active": false,
+        "description": "Recovered built-in preset: Precision Tracking.",
+        "name": "Precision Tracking",
+        "profile_id": "precision-tracking",
+        "profile_type": "built-in",
+        "source_path": null
+      },
+      {
+        "active": false,
+        "description": "Recovered built-in preset: Aggressive Combat.",
+        "name": "Aggressive Combat",
+        "profile_id": "aggressive-combat",
+        "profile_type": "built-in",
+        "source_path": null
+      },
+      {
+        "active": false,
+        "description": "Recovered built-in preset: Smooth Cinematic.",
+        "name": "Smooth Cinematic",
+        "profile_id": "smooth-cinematic",
+        "profile_type": "built-in",
+        "source_path": null
+      },
+      {
+        "active": true,
+        "description": "Editable personal workspace copy.",
+        "name": "Current Workspace",
+        "profile_id": "current-workspace",
+        "profile_type": "personal",
+        "source_path": "hotas_bridge_config_v3.json"
+      }
+    ]
+  },
+  "rules": {
+    "rules": [
+      {
+        "button_test": "Any",
+        "buttons": [],
+        "comparator": "greater than",
+        "enabled": false,
+        "injection_stage": "Base Output Limits",
+        "measure": "absolute",
+        "mode_gate": "Always",
+        "operation": "Set",
+        "parameter": "Output Scale",
+        "reference_axis": "Roll",
+        "stage": "Final Output",
+        "target_axis": "Yaw",
+        "threshold": 0.35,
+        "threshold_high": null,
+        "title": "Yaw 0.75 | Roll > 0.35",
+        "value": 0.75
+      }
+    ]
+  },
+  "schema_version": "3.0.0",
+  "source_path": "artifact-only-runtime-usability-1d-mapping-variant.json",
+  "state": {
+    "dirty": false,
+    "last_saved_at": null,
+    "saved": true
+  },
+  "target_hardware": {
+    "alternate_device_name": "Thrustmaster T.Flight Hotas One",
+    "device_role": "physical HOTAS input",
+    "primary_device_name": "Thrustmaster T-Flight HOTAS One",
+    "vendor_hint": "Thrustmaster"
+  },
+  "technical_subtitle": "HOTAS Control Panel V3",
+  "tuning": {
+    "assumptions": "Exact shipped tuning values are unknown. Defaults are conservative, recovered-field-aligned, and keep output scale/max at 1.0 while applying mild S-curve shaping.",
+    "axes": {
+      "aux_1": {
+        "anti_deadzone": 0.0,
+        "axis": "Aux 1",
+        "curve_mode": "s",
+        "curve_strength": 0.2,
+        "deadzone": 0.03,
+        "hysteresis": 0.0,
+        "invert": false,
+        "max_output": 1.0,
+        "output_scale": 1.0,
+        "precision_scale": 0.65
+      },
+      "aux_2": {
+        "anti_deadzone": 0.0,
+        "axis": "Aux 2",
+        "curve_mode": "s",
+        "curve_strength": 0.2,
+        "deadzone": 0.03,
+        "hysteresis": 0.0,
+        "invert": false,
+        "max_output": 1.0,
+        "output_scale": 1.0,
+        "precision_scale": 0.65
+      },
+      "pitch": {
+        "anti_deadzone": 0.0,
+        "axis": "Pitch",
+        "curve_mode": "s",
+        "curve_strength": 0.42,
+        "deadzone": 0.03,
+        "hysteresis": 0.0,
+        "invert": false,
+        "max_output": 1.0,
+        "output_scale": 1.0,
+        "precision_scale": 0.65
+      },
+      "roll": {
+        "anti_deadzone": 0.0,
+        "axis": "Roll",
+        "curve_mode": "s",
+        "curve_strength": 0.34,
+        "deadzone": 0.03,
+        "hysteresis": 0.0,
+        "invert": false,
+        "max_output": 1.0,
+        "output_scale": 1.0,
+        "precision_scale": 0.65
+      },
+      "throttle": {
+        "anti_deadzone": 0.0,
+        "axis": "Throttle",
+        "curve_mode": "s",
+        "curve_strength": 0.1,
+        "deadzone": 0.02,
+        "hysteresis": 0.0,
+        "invert": false,
+        "max_output": 1.0,
+        "output_scale": 1.0,
+        "precision_scale": 0.65
+      },
+      "yaw": {
+        "anti_deadzone": 0.0,
+        "axis": "Yaw",
+        "curve_mode": "s",
+        "curve_strength": 0.58,
+        "deadzone": 0.04,
+        "hysteresis": 0.0,
+        "invert": false,
+        "max_output": 1.0,
+        "output_scale": 1.0,
+        "precision_scale": 0.65
+      }
+    }
+  }
+}

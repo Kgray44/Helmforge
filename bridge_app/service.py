@@ -19,7 +19,6 @@ from bridge_app.telemetry_stream import (
     TelemetryStreamOptions,
     TelemetryStreamServer,
 )
-from shared_core.math.pipeline import WorkspaceSignalPipeline
 from shared_core.models.runtime import RuntimePreflightStatus
 from shared_core.models.runtime import InputDeviceDetection, InputStatus, OutputBackendDetection, OutputStatus, RuntimeMode, RuntimeTruth
 from shared_core.runtime.bridge_contracts import BridgeCommandRequest, BridgeCommandType
@@ -113,6 +112,8 @@ class BridgeTimingStats:
     device_selection_refresh_count: int = 0
     device_enumeration_duration_ms: float = 0.0
     device_enumeration_skipped_cached_count: int = 0
+    runtime_orchestrator_rebuild_count: int = 0
+    last_runtime_orchestrator_rebuild_reason: str = "not_initialized"
     fast_loop_status: str = "starting"
     slow_lane_status: str = "not_checked"
     runtime_orchestrator_rebuild_count: int = 0
@@ -152,6 +153,8 @@ class BridgeTimingStats:
             "device_selection_refresh_count": self.device_selection_refresh_count,
             "device_enumeration_duration_ms": self.device_enumeration_duration_ms,
             "device_enumeration_skipped_cached_count": self.device_enumeration_skipped_cached_count,
+            "runtime_orchestrator_rebuild_count": self.runtime_orchestrator_rebuild_count,
+            "last_runtime_orchestrator_rebuild_reason": self.last_runtime_orchestrator_rebuild_reason,
             "fast_loop_status": self.fast_loop_status,
             "slow_lane_status": self.slow_lane_status,
             "runtime_orchestrator_rebuild_count": self.runtime_orchestrator_rebuild_count,
@@ -170,14 +173,7 @@ class BridgeService:
             errors=self.config.errors,
         )
         self.simulation = SimulatedRuntime(deterministic=False, workspace=self.config.workspace)
-        self.runtime_orchestrator = RuntimeOrchestrator(
-            workspace=self.config.workspace,
-            runtime_status=self.runtime_status,
-            config=RuntimeOrchestratorConfig(deterministic_simulation=False),
-        )
-        self._runtime_orchestrator_signature: tuple[object, ...] | None = None
-        self.pipeline = WorkspaceSignalPipeline(self.config.workspace)
-        self.pipeline_state = self.pipeline.initial_state()
+        self.runtime_orchestrator: RuntimeOrchestrator | None = None
         if self.options.physical_input_backend is not None:
             self.physical_input_backend = self.options.physical_input_backend
             caps = self.physical_input_backend.get_capabilities()
@@ -249,9 +245,17 @@ class BridgeService:
         requested_path = Path(config_path) if config_path else self.options.config_path
         self.config = load_bridge_workspace(requested_path)
         self.simulation = SimulatedRuntime(deterministic=False, workspace=self.config.workspace)
-        self.pipeline = WorkspaceSignalPipeline(self.config.workspace)
-        self.pipeline_state = self.pipeline.initial_state()
-        self._runtime_orchestrator_signature = None
+        if self.runtime_orchestrator is not None:
+            self.runtime_orchestrator.update_runtime_context(
+                workspace=self.config.workspace,
+                runtime_status=self.runtime_status,
+                physical_input_snapshot=self.physical_sampler.latest_snapshot if self.physical_sampler is not None else None,
+                virtual_output_backend=self.virtual_output_backend,
+                virtual_output_verification=self.virtual_output_verification,
+                virtual_output_loop=self.virtual_output_loop,
+                rebuild_reason="workspace_config_changed",
+            )
+            self._sync_runtime_orchestrator_timing()
         self.state = self.state.with_messages(warnings=self.config.warnings, errors=self.config.errors)
         return self.config
 
@@ -550,45 +554,35 @@ class BridgeService:
             physical_snapshot=latest_snapshot,
             output_verification=self.virtual_output_verification,
         )
-        self._ensure_runtime_orchestrator(latest_snapshot=latest_snapshot, output_allowed=output_allowed)
+        orchestrator_config = RuntimeOrchestratorConfig(
+            preferred_input_source=RuntimeFrameSource.PHYSICAL if latest_snapshot is not None else RuntimeFrameSource.SIMULATION,
+            deterministic_simulation=False,
+            allow_simulation_fallback=True,
+            allow_output_loop_tick=output_allowed,
+        )
+        if self.runtime_orchestrator is None:
+            self.runtime_orchestrator = RuntimeOrchestrator(
+                workspace=self.config.workspace,
+                runtime_status=self.runtime_status,
+                physical_input_snapshot=latest_snapshot,
+                virtual_output_backend=self.virtual_output_backend,
+                virtual_output_verification=self.virtual_output_verification,
+                virtual_output_loop=self.virtual_output_loop,
+                config=orchestrator_config,
+                clock=self.options.clock,
+            )
+        else:
+            self.runtime_orchestrator.update_runtime_context(
+                workspace=self.config.workspace,
+                runtime_status=self.runtime_status,
+                physical_input_snapshot=latest_snapshot,
+                virtual_output_backend=self.virtual_output_backend,
+                virtual_output_verification=self.virtual_output_verification,
+                virtual_output_loop=self.virtual_output_loop,
+                config=orchestrator_config,
+            )
+        self._sync_runtime_orchestrator_timing()
         self.timing.last_runtime_io_duration_ms = _elapsed_ms(runtime_started)
-
-    def _ensure_runtime_orchestrator(self, *, latest_snapshot, output_allowed: bool) -> None:
-        signature = (
-            id(self.config.workspace),
-            self.runtime_status.truth.value,
-            self.runtime_status.input.status.value,
-            self.runtime_status.output.status.value,
-            bool(self.runtime_status.live_output_writes_verified),
-            _snapshot_signature(latest_snapshot),
-            bool(output_allowed),
-            id(self.virtual_output_backend),
-            id(self.virtual_output_loop),
-            bool(self.virtual_output_verification and self.virtual_output_verification.real_output_verified),
-        )
-        if signature == self._runtime_orchestrator_signature:
-            self.timing.last_runtime_orchestrator_rebuild_reason = "unchanged"
-            return
-        self.runtime_orchestrator = RuntimeOrchestrator(
-            workspace=self.config.workspace,
-            runtime_status=self.runtime_status,
-            physical_input_snapshot=latest_snapshot,
-            virtual_output_backend=self.virtual_output_backend,
-            virtual_output_verification=self.virtual_output_verification,
-            virtual_output_loop=self.virtual_output_loop,
-            config=RuntimeOrchestratorConfig(
-                preferred_input_source=RuntimeFrameSource.PHYSICAL if latest_snapshot is not None else RuntimeFrameSource.SIMULATION,
-                deterministic_simulation=False,
-                allow_simulation_fallback=True,
-                allow_output_loop_tick=output_allowed,
-            ),
-            clock=self.options.clock,
-        )
-        self._runtime_orchestrator_signature = signature
-        self.timing.runtime_orchestrator_rebuild_count += 1
-        self.timing.last_runtime_orchestrator_rebuild_reason = (
-            "startup" if self.timing.runtime_orchestrator_rebuild_count == 1 else "runtime_context_changed"
-        )
 
     def _select_physical_device_id(self) -> str | None:
         if self.options.simulate or not self.options.enable_live_input:
@@ -627,6 +621,14 @@ class BridgeService:
     def _sync_device_selection_timing(self) -> None:
         self.timing.selected_physical_device_id = self._selected_physical_device_id
         self.timing.selected_physical_device_source = self._selected_physical_device_source
+
+    def _sync_runtime_orchestrator_timing(self) -> None:
+        if self.runtime_orchestrator is None:
+            self.timing.runtime_orchestrator_rebuild_count = 0
+            self.timing.last_runtime_orchestrator_rebuild_reason = "not_initialized"
+            return
+        self.timing.runtime_orchestrator_rebuild_count = self.runtime_orchestrator.runtime_context_rebuild_count
+        self.timing.last_runtime_orchestrator_rebuild_reason = self.runtime_orchestrator.runtime_context_rebuild_reason
 
     def _consume_pending_command(self) -> None:
         command = read_command(self.options.command_path)
@@ -693,6 +695,9 @@ class BridgeService:
 
     def _telemetry_from_runtime(self, lifecycle_state: BridgeLifecycleState) -> BridgeTelemetrySnapshot:
         frame_started = time.perf_counter()
+        if self.runtime_orchestrator is None:
+            self._refresh_runtime_io()
+        assert self.runtime_orchestrator is not None
         frame = self.runtime_orchestrator.build_frame()
         frame_duration = _elapsed_ms(frame_started)
         self.timing.last_runtime_frame_duration_ms = frame_duration
@@ -714,7 +719,7 @@ class BridgeService:
         hat_state = "Centered"
         if self.physical_sampler is not None and self.physical_sampler.latest_snapshot is not None and self.physical_sampler.latest_snapshot.hats:
             hat_state = self.physical_sampler.latest_snapshot.hats[0].normalized_direction
-        counts = frame.pipeline.rule_status_counts
+        counts = dict(frame.pipeline.rule_status_counts)
         rule_summary = RuleStateSummary(
             active_count=int(counts.get("active", frame.pipeline.active_rules_count)),
             blocked_count=int(counts.get("blocked", 0)),

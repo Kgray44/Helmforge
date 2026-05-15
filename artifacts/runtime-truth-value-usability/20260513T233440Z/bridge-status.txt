@@ -1,0 +1,2 @@
+HelmForge Bridge: lifecycle=LiveVerified truth=live_verified output_verified=True
+telemetry_path=C:\Users\kkids\AppData\Local\Temp\helmforge_bridge_telemetry.json

@@ -1,0 +1,39 @@
+{
+  "install_command": [],
+  "installed_during_this_phase": false,
+  "message": "HidHide is already installed; not reinstalling.",
+  "post_install_detection": {
+    "cli_path": "C:\\Program Files\\Nefarius Software Solutions\\HidHide\\x64\\HidHideCLI.exe",
+    "client_path": "C:\\Program Files\\Nefarius Software Solutions\\HidHide\\x64\\HidHideClient.exe",
+    "detection_notes": [],
+    "install_locations": [
+      "C:\\Program Files\\Nefarius Software Solutions\\HidHide\\x64"
+    ],
+    "installed": true,
+    "reboot_required": false,
+    "registry_display_name": "HidHide",
+    "registry_publisher": "Nefarius Software Solutions e.U.",
+    "version": "1.5.230",
+    "winget_available": true,
+    "winget_package_id": "Nefarius.HidHide",
+    "winget_publisher": "Nefarius"
+  },
+  "pre_install_detection": {
+    "cli_path": "C:\\Program Files\\Nefarius Software Solutions\\HidHide\\x64\\HidHideCLI.exe",
+    "client_path": "C:\\Program Files\\Nefarius Software Solutions\\HidHide\\x64\\HidHideClient.exe",
+    "detection_notes": [],
+    "install_locations": [
+      "C:\\Program Files\\Nefarius Software Solutions\\HidHide\\x64"
+    ],
+    "installed": true,
+    "reboot_required": false,
+    "registry_display_name": "HidHide",
+    "registry_publisher": "Nefarius Software Solutions e.U.",
+    "version": "1.5.230",
+    "winget_available": true,
+    "winget_package_id": "Nefarius.HidHide",
+    "winget_publisher": "Nefarius"
+  },
+  "reboot_required": false,
+  "status": "already_installed"
+}

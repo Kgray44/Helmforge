@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from shared_core.math.curves import clamp
+from shared_core.math.curves import clamp, finite_float
 from shared_core.models.filtering import AxisFiltering
 
 
@@ -47,7 +47,7 @@ def step_filter(
 
     reverse = _is_reverse(previous, requested_delta)
     limit = settings.reverse_slew_limit if reverse else settings.same_slew_limit
-    limit = max(0.0, abs(limit))
+    limit = max(0.0, abs(finite_float(limit, 1.0)))
 
     if limit == 0.0:
         limited_delta = 0.0

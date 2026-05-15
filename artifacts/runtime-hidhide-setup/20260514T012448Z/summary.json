@@ -1,0 +1,165 @@
+{
+  "artifact_dir": "artifacts\\runtime-hidhide-setup\\20260514T012448Z",
+  "artifact_files": {
+    "game_readiness_checklist": "artifacts\\runtime-hidhide-setup\\20260514T012448Z\\game-readiness-after-hidhide.md",
+    "manual_steps": "artifacts\\runtime-hidhide-setup\\20260514T012448Z\\manual-hidhide-setup-steps.md"
+  },
+  "configuration": {
+    "allowlisted_apps": [
+      "C:\\Users\\kkids\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "C:\\Users\\kkids\\AppData\\Local\\Programs\\Python\\Python312\\pythonw.exe"
+    ],
+    "ambiguous_device_entries": [],
+    "automation": {
+      "cli_path": "",
+      "programmatic_apply": false,
+      "reason": ""
+    },
+    "failure_reason": "HidHide is not installed or could not be verified.",
+    "hidden_device_entries": [
+      {
+        "instance_path": "HID\\VID_044F&PID_B68D\\8&39EC0CDD&0&0000",
+        "is_vjoy": false,
+        "manufacturer": "(Standard system devices)",
+        "name": "HID-compliant game controller",
+        "present": true,
+        "product_id": "B68D",
+        "selection_reason": "matched_target_vid_pid_and_not_vjoy",
+        "source": "Win32_PnPEntity",
+        "status": "OK",
+        "vendor_id": "044F",
+        "vid_pid": "VID_044F&PID_B68D"
+      },
+      {
+        "instance_path": "USB\\VID_044F&PID_B68D\\7&18CB956B&0&3",
+        "is_vjoy": false,
+        "manufacturer": "(Standard system devices)",
+        "name": "USB Input Device",
+        "present": true,
+        "product_id": "B68D",
+        "selection_reason": "matched_target_vid_pid_and_not_vjoy",
+        "source": "Win32_PnPEntity",
+        "status": "OK",
+        "vendor_id": "044F",
+        "vid_pid": "VID_044F&PID_B68D"
+      }
+    ],
+    "hotas_groups": {
+      "VID_044F&PID_B68D": [
+        "HID\\VID_044F&PID_B68D\\8&39EC0CDD&0&0000",
+        "USB\\VID_044F&PID_B68D\\7&18CB956B&0&3"
+      ]
+    },
+    "installed": false,
+    "safety": {
+      "hide_by_vid_pid_only": true,
+      "requires_allowlist_before_hiding": true,
+      "requires_confirm_for_apply": true,
+      "vjoy_never_hidden": true
+    },
+    "status": "install_required",
+    "target_game_allowlisted_by_default": false,
+    "vjoy": {
+      "devices": [
+        {
+          "instance_path": "{D6E55CA0-1A2E-4234-AAF3-3852170B492F}\\VJOYRAWPDO\\1&2D595CA7&0&VJOYINSTANCE00",
+          "is_vjoy": true,
+          "manufacturer": "",
+          "name": "vJoy Driver",
+          "present": true,
+          "product_id": "",
+          "source": "Win32_PnPEntity",
+          "status": "OK",
+          "vendor_id": "",
+          "vid_pid": ""
+        },
+        {
+          "instance_path": "ROOT\\HIDCLASS\\0000",
+          "is_vjoy": true,
+          "manufacturer": "Shaul Eizikovich",
+          "name": "vJoy Device",
+          "present": true,
+          "product_id": "",
+          "source": "Win32_PnPEntity",
+          "status": "OK",
+          "vendor_id": "",
+          "vid_pid": ""
+        }
+      ],
+      "hidden": false,
+      "must_remain_visible": true
+    },
+    "will_enable_device_hiding": false
+  },
+  "generated_at": "2026-05-14T01:24:54.427815+00:00",
+  "hidhide": {
+    "cli_path": "",
+    "client_path": "",
+    "detection_notes": [],
+    "install_locations": [],
+    "installed": false,
+    "reboot_required": false,
+    "registry_display_name": "",
+    "registry_publisher": "",
+    "version": "",
+    "winget_available": true,
+    "winget_package_id": "Nefarius.HidHide",
+    "winget_publisher": "Nefarius"
+  },
+  "sections": {
+    "game_level_proof": "manual_checklist_only",
+    "hidhide_configuration_proof": "install_required",
+    "physical_hotas_detection_proof": "detected",
+    "vjoy_readback_status": "not_implemented",
+    "vjoy_write_call_proof": "not_run"
+  },
+  "truth_boundaries": {
+    "bridge_visibility": "proves_allowlisted_HelmForge_path_only",
+    "game_level_verification": "manual_checklist_only_unless_observed",
+    "ordinary_application_visibility": "not_proven_without_non_whitelisted_observer_or_game",
+    "vjoy_readback": "not_implemented",
+    "vjoy_write_call": "accepted_call_only"
+  },
+  "verification": {
+    "bridge_physical_hotas": "detected",
+    "commands": {
+      "bridge_status": {
+        "command": [
+          "C:\\Users\\kkids\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-m",
+          "bridge_app.main",
+          "--status"
+        ],
+        "returncode": 0,
+        "status": "passed",
+        "stderr": "",
+        "stdout": "HelmForge Bridge: lifecycle=LiveVerified truth=live_verified output_verified=True\ntelemetry_path=C:\\Users\\kkids\\AppData\\Local\\Temp\\helmforge_bridge_telemetry.json\n",
+        "timed_out": false
+      },
+      "runtime_setup_check": {
+        "command": [
+          "powershell",
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          ".\\scripts\\runtime_setup_check.ps1",
+          "-DryRun"
+        ],
+        "returncode": 0,
+        "status": "passed",
+        "stderr": "",
+        "stdout": "HelmForge Runtime Setup Check\nProduct: HelmForge\nTechnical subtitle: HOTAS Control Panel V3\nKnown Thrustmaster target: Thrustmaster T-Flight HOTAS One / Thrustmaster T.Flight Hotas One\nDry run: True\nAdmin active: False\nLog path: C:\\Users\\kkids\\AppData\\Local\\Temp\\helmforge_runtime_setup_check.log\nChecked present PnP device names: 257\nInstalled runtime software: vJoy Device Driver 2.2.2.0 2.2.2.0 (Shaul Eizikovich)\nInstalled runtime software: T.Flight Hotas drivers 5.TFHT.2025 (Thrustmaster)\nHOTAS status: T-Flight HOTAS One Detected\n  HOTAS match: HID-compliant game controller HID\\VID_044F&PID_B68D\\8&39EC0CDD&0&0000\n  HOTAS match: USB Input Device USB\\VID_044F&PID_B68D\\7&18CB956B&0&3\nvJoy status: vJoy Detected\n  vJoy device match: vJoy Driver {D6E55CA0-1A2E-4234-AAF3-3852170B492F}\\VJOYRAWPDO\\1&2D595CA7&0&VJOYINSTANCE00\n  vJoy device match: vJoy Device ROOT\\HIDCLASS\\0000\n  vJoy file match: C:\\Program Files\\vJoy\\x64\\vJoyInterface.dll\nRuntime status: Simulation Mode Active unless physical input and output writes are both verified.\nFull Live Runtime Ready: governed by the Phase 16 proof gate; false unless fresh input, pipeline, real output verification, output-loop state, telemetry, and safety proof all pass.\nNo installers launched. Use -LaunchInstallers with explicit installer paths to request installer launch.\nDry run only. No installers launched.\n",
+        "timed_out": false
+      }
+    },
+    "game_facing_visibility": "manual_checklist_only",
+    "physical_smoke_probe": "not_run",
+    "real_verification_skip_reason": "Skipped real HOTAS/vJoy-write verification because HidHide setup is not installed/configured safely yet.",
+    "runtime_setup_dry_run": "passed",
+    "runtime_setup_hotas_vid_pid": "HOTAS match: HID-compliant game controller HID\\VID_044F&PID_B68D\\8&39EC0CDD&0&0000",
+    "vjoy_detected": "detected",
+    "vjoy_readback": "not_implemented",
+    "vjoy_write_call": "not_run"
+  }
+}

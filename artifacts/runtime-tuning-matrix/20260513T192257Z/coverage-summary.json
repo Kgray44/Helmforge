@@ -1,0 +1,34 @@
+{
+  "failures": 0,
+  "generated_case_counts": {
+    "axis_mapping_cases": 6,
+    "button_behavior_cases": 52,
+    "conditional_rule_cases": 16,
+    "curve_mode_cases": 67,
+    "hat_pov_cases": 10,
+    "mode_cases": 4,
+    "numeric_boundary_cases": 238,
+    "pairwise_cases": 78,
+    "real_vjoy_optional_cases": 3,
+    "runtime_authority_boundary": 1,
+    "seeded_fuzz_property_cases": 252,
+    "stage_telemetry_cases": 6
+  },
+  "inventory_gaps": {
+    "combat_filter_parameters": "combat_center_alpha, combat_edge_alpha, combat_same_slew, and combat_reverse_slew are model/UI metadata fields but are not applied by the current runtime stack.",
+    "hat_button_mapping": "HatMapping button fields exist, but runtime output intent currently emits POV1 state rather than translating hat directions to output buttons.",
+    "vjoy_readback": "No vJoy readback channel exists; accepted write calls are not readback proof."
+  },
+  "overall_status": "passed",
+  "setting_families": {
+    "axis_mapping": "covered",
+    "base_tuning": "covered",
+    "button_mapping": "covered",
+    "combat_curve_scale": "covered",
+    "combat_filter_parameters": "reported_gap_not_runtime_applied",
+    "conditional_rules": "covered",
+    "filtering": "covered",
+    "hat_pov": "pov_passthrough_covered_hat_button_mapping_gap",
+    "modes": "covered"
+  }
+}

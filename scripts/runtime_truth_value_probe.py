@@ -886,7 +886,11 @@ def _render_report(
     live = summary["live_probe"]
     lines.append("## Live Environment Truth")
     lines.append(f"- Bridge status: `{live.get('bridge_status')}`")
-    lines.append(f"- Runtime setup HOTAS PID proof: `{live.get('hotas_pid_proof')}`")
+    hotas_pid_proof = str(live.get("hotas_pid_proof") or "")
+    if hotas_pid_proof:
+        lines.append(f"- Runtime setup HOTAS PID proof: `{hotas_pid_proof}`")
+    else:
+        lines.append("- Runtime setup HOTAS PID proof: `hardware proof deferred; supported HOTAS was not detected during this run`")
     lines.append(f"- Real vJoy available: `{live.get('real_vjoy_available')}`")
     lines.append(f"- Real vJoy status: `{live.get('real_vjoy_status')}`")
     lines.append("")
@@ -991,10 +995,24 @@ def _render_report(
     lines.append("## Interpretation")
     lines.append("- Stage values are now present in `runtime_frame.axis_stage_values` and are generated from the existing `AxisStackResult`; the focused regression verifies no second pipeline pass.")
     lines.append("- Axis value truth is available at Raw Input, Center Conditioning, Curve / Shape, Base Output Limits, Filtering, Mode Modifiers, Rule Injections, and Final Output for every axis.")
-    lines.append("- The bridge reports `runtime_context_changed` rebuilds on every simulated sample, so stateful filtering diverges from the expected continuous pipeline response during sine and step tests.")
-    lines.append("- The current output intent path still uses recovered static axis routing; the temporary mapping swap did not move output intent values to the swapped targets.")
-    lines.append("- Button input telemetry sees B1-B15, but the runtime output intent does not drive mapped output buttons true.")
-    lines.append("- The dedicated stress input covers every named math parameter except active hysteresis transitions; the stack reports hysteresis configuration, but this run did not observe `hysteresis_active=true`.")
+    failures = set(str(item) for item in summary.get("failures", []))
+    if "runtime_orchestrator_rebuilds_each_sample" in failures:
+        lines.append("- The bridge reports rebuilds on every simulated sample, so stateful filtering diverges from the expected continuous pipeline response during sine and step tests.")
+    else:
+        lines.append("- Stable-config simulated scenarios preserved one orchestrator context; filtering, slew, and hysteresis state carried across samples.")
+    if "workspace_mapping_not_applied_to_output_intent" in failures:
+        lines.append("- The output intent path still uses recovered static axis routing; the temporary mapping swap did not move output intent values to the swapped targets.")
+    else:
+        lines.append("- Workspace axis mappings are applied to output intent; the temporary Roll/Pitch swap moved values to the swapped vJoy axes without changing the values.")
+    if "button_mapping_not_applied_to_output_intent" in failures:
+        lines.append("- Button input telemetry sees B1-B15, but the runtime output intent does not drive mapped output buttons true.")
+    else:
+        lines.append("- Button mappings are applied to output intent and writer payloads; B1-B15 press/release checks drive only their mapped output buttons.")
+    hysteresis = stage_coverage.get("Hysteresis") if isinstance(stage_coverage, Mapping) else None
+    if isinstance(hysteresis, Mapping) and hysteresis.get("covered"):
+        lines.append("- The dedicated stress input covers every named math parameter, including at least one active hysteresis transition.")
+    else:
+        lines.append("- The dedicated stress input covers every named math parameter except active hysteresis transitions; the stack reports hysteresis configuration, but this run did not observe `hysteresis_active=true`.")
     lines.append("- Real vJoy write calls can be accepted when enabled, but the current product path does not expose a vJoy readback channel; this report distinguishes write-call proof from readback proof.")
     lines.append("")
     return "\n".join(lines) + "\n"

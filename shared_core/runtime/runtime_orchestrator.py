@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -17,6 +18,7 @@ from shared_core.models.runtime import (
     simulation_fallback_status,
 )
 from shared_core.models.workspace import WorkspaceConfig, create_default_workspace
+from shared_core.persistence.schema import to_plain
 from shared_core.rules.evaluator import status_counts
 from shared_core.runtime.hotas_input import PhysicalInputSamplingStatus, PhysicalInputSnapshot
 from shared_core.runtime.simulated_runtime import SimulatedRuntime
@@ -29,7 +31,7 @@ from shared_core.runtime.vjoy_output import (
     VirtualOutputVerificationResult,
     VirtualOutputWriteLoop,
     VirtualOutputWriteLoopState,
-    build_recovered_virtual_output_intent,
+    build_workspace_virtual_output_intent,
     build_virtual_output_diagnostics,
 )
 
@@ -111,6 +113,7 @@ class RuntimePipelineResult:
     errors: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "rule_status_counts", MappingProxyType(dict(self.rule_status_counts)))
         object.__setattr__(self, "raw_axis_values", MappingProxyType(dict(self.raw_axis_values)))
         object.__setattr__(self, "final_output_values", MappingProxyType(dict(self.final_output_values)))
         object.__setattr__(self, "rule_status_counts", MappingProxyType(dict(self.rule_status_counts)))
@@ -202,6 +205,8 @@ class RuntimeFrame:
     proof: RuntimeProofState
     safety: RuntimeSafetyState
     readiness: RuntimeReadinessGateResult
+    runtime_orchestrator_rebuild_count: int = 1
+    runtime_orchestrator_rebuild_reason: str = "startup"
 
     def to_summary_dict(self) -> dict[str, object]:
         return {
@@ -288,11 +293,15 @@ class RuntimeFrame:
             "active_rule_count": self.pipeline.active_rules_count,
             "active_rule_names": list(self.pipeline.active_rules[:8]),
             "rule_status_counts": dict(self.pipeline.rule_status_counts),
+            "final_pipeline_axes": dict(self.pipeline.final_output_values),
             "final_output_axes": {axis.axis_name: axis.value for axis in self.output_intent.axes},
+            "output_intent_buttons": {button.button_name: button.pressed for button in self.output_intent.buttons},
             "axis_stage_values": {
                 axis_name: [dict(stage) for stage in stages]
                 for axis_name, stages in self.pipeline.axis_stage_values.items()
             },
+            "runtime_orchestrator_rebuild_count": self.runtime_orchestrator_rebuild_count,
+            "runtime_orchestrator_rebuild_reason": self.runtime_orchestrator_rebuild_reason,
             "output_intent_ready": bool(self.output_intent.axes),
             "output_backend": self.output.virtual_output_backend,
             "output_verification_status": self.output.output_verification_status,
@@ -433,14 +442,76 @@ class RuntimeOrchestrator:
             deterministic=self._config.deterministic_simulation,
             workspace=self._workspace,
         )
+        self.runtime_context_rebuild_count = 1
+        self.runtime_context_rebuild_reason = "startup"
+        self._context_signature = _runtime_context_signature(
+            workspace=self._workspace,
+            config=self._config,
+            runtime_status=self._runtime_status,
+            virtual_output_backend=self._virtual_output_backend,
+            virtual_output_verification=self._virtual_output_verification,
+            virtual_output_loop=self._virtual_output_loop,
+        )
+
+    def update_runtime_context(
+        self,
+        *,
+        workspace: WorkspaceConfig | None = None,
+        config: RuntimeOrchestratorConfig | None = None,
+        runtime_status: RuntimePreflightStatus | None = None,
+        physical_input_snapshot: PhysicalInputSnapshot | None = None,
+        virtual_output_backend: VirtualOutputBackend | None = None,
+        virtual_output_verification: VirtualOutputVerificationResult | None = None,
+        virtual_output_loop: VirtualOutputWriteLoop | None = None,
+        rebuild_reason: str | None = None,
+    ) -> None:
+        next_workspace = workspace or self._workspace
+        next_config = config or self._config
+        next_runtime_status = runtime_status or self._runtime_status
+        next_backend = virtual_output_backend or self._virtual_output_backend
+        next_verification = virtual_output_verification
+        next_loop = virtual_output_loop
+        next_signature = _runtime_context_signature(
+            workspace=next_workspace,
+            config=next_config,
+            runtime_status=next_runtime_status,
+            virtual_output_backend=next_backend,
+            virtual_output_verification=next_verification,
+            virtual_output_loop=next_loop,
+        )
+
+        changed = next_signature != self._context_signature
+        self._workspace = next_workspace
+        self._config = next_config
+        self._runtime_status = next_runtime_status
+        self._physical_input_snapshot = physical_input_snapshot
+        self._virtual_output_backend = next_backend
+        self._virtual_output_verification = next_verification
+        self._virtual_output_loop = next_loop
+
+        if changed:
+            self._pipeline = WorkspaceSignalPipeline(self._workspace)
+            self._pipeline_state = self._pipeline.initial_state()
+            self._simulation = SimulatedRuntime(
+                deterministic=self._config.deterministic_simulation,
+                workspace=self._workspace,
+            )
+            self.runtime_context_rebuild_count += 1
+            self.runtime_context_rebuild_reason = rebuild_reason or _runtime_context_change_reason(
+                self._context_signature,
+                next_signature,
+            )
+            self._context_signature = next_signature
 
     def build_frame(self) -> RuntimeFrame:
         now = self._now()
-        input_summary, raw_axes, _button_states, _hat_state, blocked_reason, fallback_reason = self._resolve_input(now)
+        input_summary, raw_axes, button_states, hat_state, blocked_reason, fallback_reason = self._resolve_input(now)
         return self._build_frame_from_raw_axes(
             now=now,
             input_summary=input_summary,
             raw_axes=raw_axes,
+            button_states=button_states,
+            hat_state=hat_state,
             blocked_reason=blocked_reason,
             fallback_reason=fallback_reason,
             runtime_status=self._runtime_status,
@@ -473,6 +544,8 @@ class RuntimeOrchestrator:
             now=now,
             input_summary=input_summary,
             raw_axes=dict(snapshot.raw_axis_values),
+            button_states=dict(snapshot.button_states),
+            hat_state=snapshot.hat_state,
             blocked_reason="",
             fallback_reason="",
             runtime_status=frame_runtime_status,
@@ -484,15 +557,19 @@ class RuntimeOrchestrator:
         now: datetime,
         input_summary: RuntimeInputSummary,
         raw_axes: Mapping[str, float],
+        button_states: Mapping[str, bool],
+        hat_state: str,
         blocked_reason: str,
         fallback_reason: str,
         runtime_status: RuntimePreflightStatus,
     ) -> RuntimeFrame:
         pipeline_blocked_reason = blocked_reason
         try:
+            mode_state = _mode_state_from_buttons(button_states, self._workspace.modes)
             pipeline_result = self._pipeline.process(
                 raw_axes,
-                mode_state=ModeState(),
+                mode_state=mode_state,
+                active_buttons=_active_button_numbers(button_states),
                 state=self._pipeline_state,
             )
             self._pipeline_state = pipeline_result.state
@@ -500,8 +577,11 @@ class RuntimeOrchestrator:
         except Exception as exc:  # pragma: no cover - exercised through injected pipeline tests
             pipeline_blocked_reason = "blocked_pipeline_error"
             pipeline_summary = _pipeline_error_summary(self._workspace, raw_axes, exc)
-        output_intent = build_recovered_virtual_output_intent(
+        output_intent = build_workspace_virtual_output_intent(
             pipeline_summary.final_output_values,
+            button_states=button_states,
+            hat_state=hat_state,
+            workspace=self._workspace,
             source=f"runtime_orchestrator_{input_summary.source.value}",
             timestamp=now,
         )
@@ -548,6 +628,8 @@ class RuntimeOrchestrator:
             proof=proof,
             safety=safety,
             readiness=readiness,
+            runtime_orchestrator_rebuild_count=self.runtime_context_rebuild_count,
+            runtime_orchestrator_rebuild_reason=self.runtime_context_rebuild_reason,
         )
 
     def _resolve_input(
@@ -1116,6 +1198,40 @@ def _buttons_from_physical_snapshot(snapshot: PhysicalInputSnapshot | None) -> d
     return values
 
 
+def _active_button_numbers(button_states: Mapping[str, bool]) -> tuple[int, ...]:
+    return tuple(button for button in range(1, 129) if _button_pressed(button_states, button))
+
+
+def _mode_state_from_buttons(button_states: Mapping[str, bool], mode_config) -> ModeState:
+    precision_active = any(_button_pressed(button_states, button) for button in mode_config.precision_hold_buttons)
+    trigger_active = any(_button_pressed(button_states, button) for button in mode_config.combat_trigger_buttons)
+    zoom_active = any(_button_pressed(button_states, button) for button in mode_config.combat_zoom_aim_buttons)
+    extra_active = any(_button_pressed(button_states, button) for button in mode_config.combat_extra_buttons)
+    return ModeState(
+        precision_active=precision_active,
+        combat_active=trigger_active or zoom_active or extra_active,
+        trigger_active=trigger_active,
+        zoom_active=zoom_active,
+        extra_active=extra_active,
+    )
+
+
+def _button_pressed(button_states: Mapping[str, bool], button: int) -> bool:
+    try:
+        number = int(button)
+    except (TypeError, ValueError):
+        return False
+    if number <= 0:
+        return False
+    direct = button_states.get(f"B{number}")
+    if direct is not None:
+        return bool(direct)
+    numeric_text = button_states.get(str(number))
+    if numeric_text is not None:
+        return bool(numeric_text)
+    return bool(button_states.get(number))  # type: ignore[arg-type]
+
+
 def _hat_from_physical_snapshot(snapshot: PhysicalInputSnapshot | None) -> str:
     if snapshot is None or not snapshot.hats:
         return HAT_CENTERED
@@ -1133,6 +1249,52 @@ def _ensure_aware(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value
+
+
+def _runtime_context_signature(
+    *,
+    workspace: WorkspaceConfig,
+    config: RuntimeOrchestratorConfig,
+    runtime_status: RuntimePreflightStatus,
+    virtual_output_backend: VirtualOutputBackend,
+    virtual_output_verification: VirtualOutputVerificationResult | None,
+    virtual_output_loop: VirtualOutputWriteLoop | None,
+) -> tuple[object, ...]:
+    verification_status = virtual_output_verification.status.value if virtual_output_verification is not None else None
+    return (
+        _workspace_signature(workspace),
+        config.preferred_input_source.value,
+        config.deterministic_simulation,
+        config.allow_simulation_fallback,
+        config.physical_sample_stale_after_seconds,
+        config.allow_output_loop_tick,
+        runtime_status.mode.value,
+        runtime_status.truth.value,
+        runtime_status.input.status.value,
+        runtime_status.output.status.value,
+        runtime_status.live_output_writes_verified,
+        id(virtual_output_backend),
+        id(virtual_output_loop),
+        verification_status,
+    )
+
+
+def _workspace_signature(workspace: WorkspaceConfig) -> str:
+    return json.dumps(to_plain(workspace), sort_keys=True, separators=(",", ":"))
+
+
+def _runtime_context_change_reason(previous: tuple[object, ...], current: tuple[object, ...]) -> str:
+    if previous and current and previous[0] != current[0]:
+        return "workspace_config_changed"
+    if previous[1:6] != current[1:6]:
+        return "runtime_config_changed"
+    if previous[6:11] != current[6:11]:
+        return "runtime_status_changed"
+    if previous[11:13] != current[11:13]:
+        return "output_backend_changed"
+    if previous[13:] != current[13:]:
+        return "output_verification_changed"
+    return "runtime_context_changed"
 
 
 def _unavailable_input_summary(requested_source: RuntimeFrameSource) -> RuntimeInputSummary:

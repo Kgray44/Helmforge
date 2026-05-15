@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Mapping
 
 from shared_core.models.runtime import OutputBackendDetection, OutputStatus
+from shared_core.models.workspace import WorkspaceConfig
 
 
 @dataclass(frozen=True)
@@ -1324,6 +1325,55 @@ def build_recovered_virtual_output_intent(
     )
 
 
+def build_workspace_virtual_output_intent(
+    final_axes: Mapping[str, float],
+    *,
+    button_states: Mapping[str, bool] | None = None,
+    hat_state: str = "Centered",
+    workspace: WorkspaceConfig | None = None,
+    source: str = "shared_core_pipeline",
+    timestamp: datetime | None = None,
+) -> VirtualOutputIntent:
+    if workspace is None:
+        return build_recovered_virtual_output_intent(final_axes, source=source, timestamp=timestamp)
+
+    axis_values = {axis: 0.0 for axis in _VJOY_AXIS_USAGE}
+    mapped_axes: list[str] = []
+    for route in workspace.mappings.axis_routes:
+        output_axis = _axis_label(route.runtime_vjoy_output or route.logical_output)
+        if output_axis not in axis_values:
+            continue
+        axis_values[output_axis] = _safe_float(final_axes.get(route.function_name), 0.0)
+        mapped_axes.append(f"{route.function_name}->{output_axis}")
+
+    output_buttons = {index: False for index in range(1, 21)}
+    for route in workspace.mappings.button_routes:
+        if not 1 <= int(route.output_button) <= 128:
+            continue
+        pressed = _button_pressed(button_states or {}, route.hotas_button)
+        if 1 <= int(route.output_button) <= 20:
+            output_buttons[int(route.output_button)] = output_buttons[int(route.output_button)] or pressed
+
+    normalized_hat_state = _normalize_hat_state(hat_state)
+    for route in workspace.mappings.hat_routes:
+        for output_button in _hat_button_targets(route, normalized_hat_state):
+            output_buttons[output_button] = True
+
+    return VirtualOutputIntent(
+        timestamp=timestamp or datetime.now(timezone.utc),
+        source=source,
+        axes=tuple(VirtualAxisOutput(axis, axis_values[axis]) for axis in ("X", "Y", "Z", "RX", "RY", "RZ")),
+        buttons=tuple(VirtualButtonOutput(f"Out{index}", output_buttons[index]) for index in range(1, 21)),
+        hats=(VirtualHatOutput("POV1", normalized_hat_state),),
+        warnings=(
+            "output intent is not output write proof",
+            "Workspace route intent: " + ", ".join(mapped_axes),
+        ),
+        output_enabled=False,
+        write_requested=False,
+    )
+
+
 def build_safe_vjoy_verification_intent(
     *,
     source: str = "guarded_verification",
@@ -1367,6 +1417,94 @@ def _bounded_loop_intent(output_intent: VirtualOutputIntent, *, timestamp: datet
         output_enabled=True,
         write_requested=True,
     )
+
+
+def _axis_label(runtime_vjoy_output: str) -> str:
+    text = str(runtime_vjoy_output or "").strip()
+    if "(" in text:
+        text = text.split("(", 1)[0]
+    return text.upper() or "X"
+
+
+def _button_pressed(button_states: Mapping[str, bool], hotas_button: int) -> bool:
+    direct = button_states.get(f"B{int(hotas_button)}")
+    if direct is not None:
+        return bool(direct)
+    numeric = button_states.get(str(int(hotas_button)))
+    if numeric is not None:
+        return bool(numeric)
+    return bool(button_states.get(int(hotas_button)))  # type: ignore[arg-type]
+
+
+_VALID_HAT_STATES = {
+    "centered": "Centered",
+    "center": "Centered",
+    "neutral": "Centered",
+    "north": "Up",
+    "up": "Up",
+    "northeast": "UpRight",
+    "north east": "UpRight",
+    "upright": "UpRight",
+    "up right": "UpRight",
+    "east": "Right",
+    "right": "Right",
+    "southeast": "DownRight",
+    "south east": "DownRight",
+    "downright": "DownRight",
+    "down right": "DownRight",
+    "south": "Down",
+    "down": "Down",
+    "southwest": "DownLeft",
+    "south west": "DownLeft",
+    "downleft": "DownLeft",
+    "down left": "DownLeft",
+    "west": "Left",
+    "left": "Left",
+    "northwest": "UpLeft",
+    "north west": "UpLeft",
+    "upleft": "UpLeft",
+    "up left": "UpLeft",
+}
+
+
+def _normalize_hat_state(hat_state: object) -> str:
+    text = str(hat_state or "Centered").strip()
+    normalized = text.replace("-", " ").replace("_", " ").casefold()
+    compact = normalized.replace(" ", "")
+    return _VALID_HAT_STATES.get(normalized) or _VALID_HAT_STATES.get(compact) or "Centered"
+
+
+def _hat_button_targets(route: object, normalized_hat_state: str) -> tuple[int, ...]:
+    directions = _hat_cardinal_directions(normalized_hat_state)
+    targets: list[int] = []
+    for direction in directions:
+        target = _safe_output_button(getattr(route, f"{direction}_button", None))
+        if target is not None:
+            targets.append(target)
+    return tuple(targets)
+
+
+def _hat_cardinal_directions(normalized_hat_state: str) -> tuple[str, ...]:
+    return {
+        "Up": ("up",),
+        "Right": ("right",),
+        "Down": ("down",),
+        "Left": ("left",),
+        "UpRight": ("up", "right"),
+        "DownRight": ("down", "right"),
+        "DownLeft": ("down", "left"),
+        "UpLeft": ("up", "left"),
+    }.get(normalized_hat_state, ())
+
+
+def _safe_output_button(value: object) -> int | None:
+    try:
+        number = int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    if 1 <= number <= 20:
+        return number
+    return None
 
 
 def build_virtual_output_diagnostics(

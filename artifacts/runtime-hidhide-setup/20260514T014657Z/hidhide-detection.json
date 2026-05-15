@@ -1,0 +1,27 @@
+{
+  "hidhide": {
+    "action": "ready",
+    "cli_path": "C:\\Program Files\\Nefarius Software Solutions\\HidHide\\x64\\HidHideCLI.exe",
+    "client_path": "C:\\Program Files\\Nefarius Software Solutions\\HidHide\\x64\\HidHideClient.exe",
+    "detection_notes": [],
+    "install_locations": [
+      "C:\\Program Files\\Nefarius Software Solutions\\HidHide\\x64"
+    ],
+    "installed": true,
+    "reboot_required": false,
+    "registry_display_name": "HidHide",
+    "registry_publisher": "Nefarius Software Solutions e.U.",
+    "version": "1.5.230",
+    "winget_available": true,
+    "winget_package_id": "Nefarius.HidHide",
+    "winget_publisher": "Nefarius"
+  },
+  "install_guidance": [
+    "HidHide appears installed; no install action is needed from this probe."
+  ],
+  "truth_boundaries": {
+    "driver_install": "never_silent",
+    "reboot": "never_silent",
+    "untrusted_downloads": "not_used"
+  }
+}
