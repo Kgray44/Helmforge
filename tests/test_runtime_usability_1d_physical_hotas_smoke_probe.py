@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 from scripts.runtime_physical_hotas_smoke_probe import (
     LiveProgressReporter,
@@ -14,10 +15,12 @@ from scripts.runtime_physical_hotas_smoke_probe import (
     run_button_step,
     run_hat_step,
     runtime_authority_violations,
+    selected_axis_steps,
+    should_run_non_axis_steps,
 )
 from shared_core.models.workspace import create_default_workspace
 from shared_core.runtime.hotas_input import PhysicalInputDeviceInfo
-from shared_core.runtime.vjoy_output import build_workspace_virtual_output_intent
+from shared_core.runtime.vjoy_output import VirtualOutputDeviceInfo, build_workspace_virtual_output_intent
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -132,6 +135,13 @@ def test_live_progress_reporter_records_raw_axis_deltas_while_waiting(tmp_path):
     assert current["largest_raw_axis_delta"]["axis"] == "Yaw"
 
 
+def test_axis_only_probe_mode_runs_just_the_requested_aux1_axis():
+    assert selected_axis_steps(SimpleNamespace(axis_only="Aux 1", full=True)) == ("Aux 1",)
+    assert selected_axis_steps(SimpleNamespace(axis_only="", full=False)) == ("Roll", "Pitch", "Throttle")
+    assert should_run_non_axis_steps(SimpleNamespace(axis_only="Aux 1")) is False
+    assert should_run_non_axis_steps(SimpleNamespace(axis_only="")) is True
+
+
 def test_physical_sampling_device_info_serializes_for_probe_summary():
     device = PhysicalInputDeviceInfo(
         device_id="joy:0",
@@ -161,6 +171,32 @@ def test_physical_sampling_device_info_serializes_for_probe_summary():
     assert payload["backend_name"] == "winmm"
     assert payload["is_supported"] is True
     assert payload["warnings"] == ["rawinput_unavailable"]
+
+
+def test_virtual_output_device_info_serializes_for_probe_summary():
+    device = VirtualOutputDeviceInfo(
+        device_id="vjoy:1",
+        display_name="vJoy Device 1",
+        backend_name="real_vjoy",
+        is_selected=True,
+        axis_support=("X", "Y", "Z", "RX", "RY", "RZ"),
+        button_count=20,
+        hat_support="POV1",
+        acquisition_status="owned",
+        warnings=("write-call proof only",),
+    )
+
+    payload = device.to_dict()
+
+    assert payload["device_id"] == "vjoy:1"
+    assert payload["display_name"] == "vJoy Device 1"
+    assert payload["backend_name"] == "real_vjoy"
+    assert payload["is_selected"] is True
+    assert payload["axis_support"] == ["X", "Y", "Z", "RX", "RY", "RZ"]
+    assert payload["button_count"] == 20
+    assert payload["hat_support"] == "POV1"
+    assert payload["acquisition_status"] == "owned"
+    assert payload["warnings"] == ["write-call proof only"]
 
 
 def test_button_step_detects_press_and_release():

@@ -108,7 +108,7 @@ def test_hf_lrdc_6a_fake_raw_input_report_decodes_to_physical_snapshot():
     assert snapshot.hats[0].normalized_direction == "East"
 
 
-def test_hf_lrdc_6a_backend_selector_prefers_active_raw_input_and_falls_back_to_winmm():
+def test_hf_lrdc_6a_backend_selector_prefers_winmm_over_uncalibrated_raw_input_and_falls_back():
     from shared_core.runtime.hotas_input import (
         FakePhysicalInputBackend,
         PhysicalInputBackendSelector,
@@ -132,14 +132,18 @@ def test_hf_lrdc_6a_backend_selector_prefers_active_raw_input_and_falls_back_to_
     )
 
     selected = PhysicalInputBackendSelector((winmm, raw)).select()
-    assert selected.backend is raw
-    assert selected.choice.selected_backend_kind == "windows_raw_input"
+    assert selected.backend is winmm
+    assert selected.choice.selected_backend_kind == "fake"
 
-    unavailable_raw = WindowsRawInputBackend(provider=FakeRawInputProvider(available=False))
-    fallback = PhysicalInputBackendSelector((unavailable_raw, winmm)).select()
-    assert fallback.backend is winmm
+    unavailable_winmm = FakePhysicalInputBackend(
+        backend_name="fake_winmm",
+        backend_available=False,
+        sample_frames=({"axes": {"Roll": 0.0}},),
+    )
+    fallback = PhysicalInputBackendSelector((raw, unavailable_winmm)).select()
+    assert fallback.backend is raw
     assert fallback.choice.fallback_used is True
-    assert "windows_raw_input" in fallback.choice.fallback_reason
+    assert "fake_winmm" in fallback.choice.fallback_reason
 
 
 def test_hf_lrdc_6a_telemetry_reports_raw_input_identity_without_readiness_overclaim(tmp_path):

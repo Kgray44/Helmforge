@@ -56,7 +56,7 @@ AXIS_INSTRUCTIONS = {
     "Pitch": "Move Pitch axis forward/back now.",
     "Throttle": "Move Throttle through its travel now.",
     "Yaw": "Twist or move Yaw now.",
-    "Aux 1": "Move Aux 1 now, if present.",
+    "Aux 1": "Move Aux 1 / rear throttle axis now, if present.",
     "Aux 2": "Move Aux 2 now, if present.",
 }
 
@@ -787,16 +787,17 @@ def run_live_probe(args: argparse.Namespace) -> dict[str, object]:
     try:
         axis_steps = _run_live_axis_steps(runner, workspace, args, progress)
         all_steps.extend(axis_steps)
-        button_steps = _run_live_button_steps(runner, workspace, args, progress)
-        all_steps.extend(button_steps)
-        hat_steps = _run_live_hat_steps(runner, workspace, args, progress)
-        all_steps.extend(hat_steps)
-        mode_steps = _run_live_mode_steps(runner, workspace, args, progress)
-        all_steps.extend(mode_steps)
-        if args.full:
-            all_steps.extend(_run_live_conditional_rule_steps(runner, rule_variant, args, progress))
-            all_steps.extend(_run_live_mapping_variant_steps(runner, workspace, mapping_variant, args, progress))
-            runner.set_workspace(workspace)
+        if should_run_non_axis_steps(args):
+            button_steps = _run_live_button_steps(runner, workspace, args, progress)
+            all_steps.extend(button_steps)
+            hat_steps = _run_live_hat_steps(runner, workspace, args, progress)
+            all_steps.extend(hat_steps)
+            mode_steps = _run_live_mode_steps(runner, workspace, args, progress)
+            all_steps.extend(mode_steps)
+            if args.full:
+                all_steps.extend(_run_live_conditional_rule_steps(runner, rule_variant, args, progress))
+                all_steps.extend(_run_live_mapping_variant_steps(runner, workspace, mapping_variant, args, progress))
+                runner.set_workspace(workspace)
     finally:
         runner.close()
 
@@ -841,7 +842,7 @@ def _run_live_axis_steps(
     args: argparse.Namespace,
     progress: LiveProgressReporter,
 ) -> list[StepResult]:
-    axes = AXIS_DISPLAY_NAMES if args.full else ("Roll", "Pitch", "Throttle")
+    axes = selected_axis_steps(args)
     results: list[StepResult] = []
     for index, axis_name in enumerate(axes, start=1):
         output_axis = _mapped_output_axis(workspace, axis_name)
@@ -863,6 +864,17 @@ def _run_live_axis_steps(
         if result.status != "passed" and not args.skip_on_timeout:
             break
     return results
+
+
+def selected_axis_steps(args: argparse.Namespace) -> tuple[str, ...]:
+    axis_only = str(getattr(args, "axis_only", "") or "").strip()
+    if axis_only:
+        return (axis_only,)
+    return AXIS_DISPLAY_NAMES if args.full else ("Roll", "Pitch", "Throttle")
+
+
+def should_run_non_axis_steps(args: argparse.Namespace) -> bool:
+    return not bool(str(getattr(args, "axis_only", "") or "").strip())
 
 
 def _run_live_button_steps(
@@ -1378,6 +1390,7 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, default=ARTIFACT_ROOT)
     parser.add_argument("--minimal", action="store_true")
     parser.add_argument("--full", action="store_true")
+    parser.add_argument("--axis-only", choices=AXIS_DISPLAY_NAMES, default="")
     parser.add_argument("--real-vjoy-writes", action="store_true")
     parser.add_argument("--no-real-vjoy-writes", action="store_true")
     parser.add_argument("--manual-game-checklist", action="store_true")

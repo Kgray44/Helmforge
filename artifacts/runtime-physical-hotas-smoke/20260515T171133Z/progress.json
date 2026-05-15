@@ -1,0 +1,184 @@
+{
+  "completed_steps": [
+    {
+      "detected_message": "Detected Aux 1 movement. Collecting 2.0 more seconds of stable samples...",
+      "elapsed_sec": 7.172,
+      "finished_at": "2026-05-15T17:11:46.698803+00:00",
+      "index": 1,
+      "instruction": "Move Aux 1 / rear throttle axis now, if present.",
+      "largest_raw_axis_delta": {
+        "axis": "Aux 1",
+        "delta": 1.000015
+      },
+      "latest_raw_axes": {
+        "Aux 1": 1.0,
+        "Aux 2": -1.5e-05,
+        "Pitch": -1.5e-05,
+        "Roll": -1.5e-05,
+        "Throttle": 0.499992,
+        "Yaw": -1.5e-05
+      },
+      "name": "Aux 1",
+      "raw_axis_deltas": {
+        "Aux 1": 1.000015,
+        "Aux 2": 0.0,
+        "Pitch": 0.0,
+        "Roll": 0.0,
+        "Throttle": 0.0,
+        "Yaw": 0.0
+      },
+      "result": {
+        "active_modes": [],
+        "active_rules": [],
+        "baseline_value": -1.5e-05,
+        "changed_value": 1.0,
+        "detected": true,
+        "diagonal_policy": "not_applicable",
+        "final_value": 1.0,
+        "mapped_buttons_true": [],
+        "max_value": 1.0,
+        "message": "Aux 1 changed raw input and mapped output RY.",
+        "metadata": {
+          "input_source": "physical",
+          "rebuild_count": 1,
+          "writer_status": "real_write_succeeded"
+        },
+        "min_value": 1.0,
+        "name": "Aux 1",
+        "output_false_observed": false,
+        "output_hat": "",
+        "output_target": "RY",
+        "output_true_observed": false,
+        "output_value": 1.0,
+        "press_observed": false,
+        "release_observed": false,
+        "settle_sample_count": 48,
+        "status": "passed",
+        "step_type": "axis",
+        "timeout": false,
+        "unrelated_true_outputs": [],
+        "writer_false_observed": false,
+        "writer_true_observed": false,
+        "writer_value": 1.0
+      },
+      "sample_count": 168,
+      "started_at": "2026-05-15T17:11:39.093145+00:00",
+      "status": "passed",
+      "step_type": "axis",
+      "total": 1,
+      "updated_at": "2026-05-15T17:11:46.269833+00:00"
+    }
+  ],
+  "current_step": null,
+  "event_count": 6,
+  "last_event": {
+    "event": "probe_finished",
+    "event_index": 6,
+    "payload": {
+      "status": "passed",
+      "summary": {
+        "artifact_dir": "artifacts\\runtime-physical-hotas-smoke\\20260515T171133Z",
+        "failures": [],
+        "generated_at": "2026-05-15T17:11:46.704805+00:00",
+        "hardware": {
+          "bridge_status": "HelmForge Bridge: lifecycle=LiveVerified truth=live_verified output_verified=True",
+          "discovery": {
+            "available": true,
+            "backend": "windows_pnp",
+            "checked_at": "2026-05-15T17:11:33.355546+00:00",
+            "device_name": "HID-compliant game controller HID\\VID_044F&PID_B68D\\8&39EC0CDD&0&0000",
+            "error": null,
+            "manufacturer": null,
+            "matched": true,
+            "product_id": "b68d",
+            "serial_number": null,
+            "status": "supported_device_detected",
+            "vendor_id": "044f",
+            "warnings": [
+              "Supported HOTAS detected; polling is not active in Phase 9H."
+            ]
+          },
+          "hotas_vid_pid": "VID_044F&PID_B68D",
+          "physical_backend_choice": {
+            "candidate_backends": [
+              "windows_raw_input_candidate:windows_raw_input_candidate",
+              "windows_winmm_joystick:windows_winmm"
+            ],
+            "errors": [],
+            "fallback_reason": "windows_raw_input_candidate unavailable",
+            "fallback_used": true,
+            "selected_backend_kind": "windows_winmm",
+            "selected_backend_name": "windows_winmm_joystick",
+            "selection_reason": "Selected highest-priority available physical input sampling backend.",
+            "warnings": [
+              "Windows joystick sampling is read-only and does not write vJoy."
+            ]
+          },
+          "physical_hotas_proof": "detected",
+          "physical_sampling_device": {
+            "axis_count": 6,
+            "backend_name": "windows_winmm_joystick",
+            "button_count": 15,
+            "device_id": "winmm:0",
+            "display_name": "Microsoft PC-joystick driver",
+            "hat_count": 1,
+            "is_supported": true,
+            "manufacturer": "",
+            "product_id": "b68d",
+            "serial_number": null,
+            "support_reason": "Supported Thrustmaster HOTAS One matched by VID 044f / PID b68d.",
+            "vendor_id": "044f",
+            "warnings": []
+          },
+          "runtime_setup_check": "HelmForge Runtime Setup Check\nProduct: HelmForge\nTechnical subtitle: HOTAS Control Panel V3\nKnown Thrustmaster target: Thrustmaster T-Flight HOTAS One / Thrustmaster T.Flight Hotas One\nDry run: True\nAdmin active: False\nLog path: C:\\Users\\kkids\\AppData\\Local\\Temp\\helmforge_runtime_setup_check.log\nChecked present PnP device names: 244\nInstalled runtime software: vJoy Device Driver 2.2.2.0 2.2.2.0 (Shaul Eizikovich)\nInstalled runtime software: T.Flight Hotas drivers 5.TFHT.2025 (Thrustmaster)\nHOTAS status: T-Flight HOTAS One Detected\n  HOTAS match: HID-compliant game controller HID\\VID_044F&PID_B68D\\8&39EC0CDD&0&0000\n  HOTAS match: USB Input Device USB\\VID_044F&PID_B68D\\7&18CB956B&0&3\nvJoy status: vJoy Detected\n  vJoy device match: vJoy Driver {D6E55CA0-1A2E-4234-AAF3-3852170B492F}\\VJOYRAWPDO\\1&2D595CA7&0&VJOYINSTANCE00\n  vJoy device match: vJoy Device ROOT\\HIDCLASS\\0000\n  vJoy file match: C:\\Program Files\\vJoy\\x64\\vJoyInterface.dll\nRuntime status: Simulation Mode Active unless physical input and output writes are both verified.\nFull Live Runtime Ready: governed by the Phase 16 proof gate; false unless fresh input, pipeline, real output verification, output-loop state, telemetry, and safety proof all pass.\nNo installers launched. Use -LaunchInstallers with explicit installer paths to request installer launch.\nDry run only. No installers launched.",
+          "vjoy_detected": true,
+          "vjoy_devices": [
+            {
+              "acquisition_status": "free",
+              "axis_support": [
+                "X",
+                "Y",
+                "Z",
+                "RX",
+                "RY",
+                "RZ"
+              ],
+              "backend_name": "Real vJoy",
+              "button_count": 32,
+              "device_id": "1",
+              "display_name": "vJoy Device 1",
+              "errors": [],
+              "hat_support": "POV1",
+              "is_selected": true,
+              "is_supported": true,
+              "warnings": []
+            }
+          ],
+          "vjoy_readback": "not_implemented",
+          "vjoy_write_call_proof": "passed",
+          "vjoy_write_records": 178
+        },
+        "overall_status": "passed",
+        "step_counts": {
+          "failed": 0,
+          "passed": 1,
+          "skipped": 0,
+          "timeout": 0,
+          "total": 1
+        },
+        "truth_boundaries": {
+          "device_hiding_filtering": "intentionally_deferred",
+          "game_level_verification": "manual_checklist_only",
+          "physical_hotas_sampling": "real_device_required",
+          "runtime_processing": "bridge_shared_runtime_path",
+          "vjoy_readback": "not_implemented",
+          "vjoy_write_call": "accepted_call_only"
+        }
+      }
+    },
+    "timestamp": "2026-05-15T17:11:46.720318+00:00"
+  },
+  "started_at": "2026-05-15T17:11:33.346546+00:00",
+  "status": "passed",
+  "updated_at": "2026-05-15T17:11:46.720318+00:00"
+}

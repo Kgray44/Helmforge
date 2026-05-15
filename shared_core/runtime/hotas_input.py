@@ -1247,7 +1247,7 @@ class WindowsRawInputBackend(PhysicalInputBackend):
             backend_available=provider_available and bool(devices),
             device_enumeration_available=provider_available,
             physical_sampling_available=provider_available and bool(devices),
-            backend_priority=120,
+            backend_priority=40,
             raw_axis_values_available=True,
             normalized_axis_values_available=True,
             axis_range_available=True,
@@ -1260,7 +1260,11 @@ class WindowsRawInputBackend(PhysicalInputBackend):
             optional_dependency_name="Windows Raw Input",
             optional_dependency_available=provider_available,
             packaging_risk="medium",
-            warnings=warnings + ("Raw Input is read-only here; it does not verify vJoy output.",),
+            warnings=warnings
+            + (
+                "Raw Input is read-only here; it does not verify vJoy output.",
+                "Raw Input HOTAS report decoding remains diagnostic until calibrated against live HID reports; WinMM is preferred for guided physical smoke tests.",
+            ),
             errors=errors,
         )
 
@@ -2211,8 +2215,8 @@ def _winmm_frame(info: _JOYINFOEX, caps: _JOYCAPSW) -> dict[str, object]:
         _winmm_axis("Y", "Pitch", info.dwYpos, caps.wYmin, caps.wYmax),
         _winmm_axis("Z", "Throttle", info.dwZpos, caps.wZmin, caps.wZmax, one_sided=True),
         _winmm_axis("R", "Yaw", info.dwRpos, caps.wRmin, caps.wRmax),
-        _winmm_axis("U", "Aux 1", info.dwUpos, caps.wUmin, caps.wUmax),
-        _winmm_axis("V", "Aux 2", info.dwVpos, caps.wVmin, caps.wVmax),
+        _winmm_axis("V", "Aux 1", info.dwVpos, caps.wVmin, caps.wVmax),
+        _winmm_axis("U", "Aux 2", info.dwUpos, caps.wUmin, caps.wUmax),
     )
     buttons = {index: bool(info.dwButtons & (1 << (index - 1))) for index in range(1, 16)}
     return {"axes": axes, "buttons": buttons, "hats": {1: _winmm_pov(info.dwPOV)}}

@@ -217,6 +217,21 @@ class VirtualOutputDeviceInfo:
     warnings: tuple[str, ...] = ()
     errors: tuple[str, ...] = ()
 
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "device_id": self.device_id,
+            "display_name": self.display_name,
+            "backend_name": self.backend_name,
+            "is_selected": self.is_selected,
+            "is_supported": self.is_supported,
+            "axis_support": list(self.axis_support),
+            "button_count": self.button_count,
+            "hat_support": self.hat_support,
+            "acquisition_status": self.acquisition_status,
+            "warnings": list(self.warnings),
+            "errors": list(self.errors),
+        }
+
 
 @dataclass(frozen=True)
 class VirtualOutputWriteResult:

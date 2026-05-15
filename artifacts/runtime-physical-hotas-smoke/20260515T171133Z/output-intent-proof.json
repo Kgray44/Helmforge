@@ -1,0 +1,36 @@
+[
+  {
+    "active_modes": [],
+    "active_rules": [],
+    "baseline_value": -1.5e-05,
+    "changed_value": 1.0,
+    "detected": true,
+    "diagonal_policy": "not_applicable",
+    "final_value": 1.0,
+    "mapped_buttons_true": [],
+    "max_value": 1.0,
+    "message": "Aux 1 changed raw input and mapped output RY.",
+    "metadata": {
+      "input_source": "physical",
+      "rebuild_count": 1,
+      "writer_status": "real_write_succeeded"
+    },
+    "min_value": 1.0,
+    "name": "Aux 1",
+    "output_false_observed": false,
+    "output_hat": "",
+    "output_target": "RY",
+    "output_true_observed": false,
+    "output_value": 1.0,
+    "press_observed": false,
+    "release_observed": false,
+    "settle_sample_count": 48,
+    "status": "passed",
+    "step_type": "axis",
+    "timeout": false,
+    "unrelated_true_outputs": [],
+    "writer_false_observed": false,
+    "writer_true_observed": false,
+    "writer_value": 1.0
+  }
+]
