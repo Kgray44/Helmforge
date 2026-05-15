@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from scripts.runtime_physical_hotas_smoke_probe import (
+    LiveProgressReporter,
     ProbeSample,
+    StepResult,
     build_game_readiness_checklist,
     build_mapping_variant_workspace,
     build_summary_payload,
@@ -80,6 +83,37 @@ def test_axis_step_times_out_after_60_seconds_without_change():
     assert result.timeout is True
     assert result.detected is False
     assert "not observed within 60.0 seconds" in result.message
+
+
+def test_live_progress_reporter_writes_current_step_and_completed_result(tmp_path):
+    reporter = LiveProgressReporter(tmp_path)
+
+    reporter.start_step(
+        step_type="axis",
+        name="Aux 2",
+        instruction="Move Aux 2 now, if present.",
+        index=6,
+        total=6,
+    )
+
+    current = json.loads((tmp_path / "current-step.json").read_text(encoding="utf-8"))
+    progress = json.loads((tmp_path / "progress.json").read_text(encoding="utf-8"))
+    assert current["name"] == "Aux 2"
+    assert current["status"] == "waiting"
+    assert progress["status"] == "running"
+    assert progress["current_step"]["instruction"] == "Move Aux 2 now, if present."
+
+    result = StepResult("axis", "Aux 2", "timeout", "Aux 2 was not observed.", timeout=True)
+    reporter.finish_step(result)
+    reporter.finish_probe({"overall_status": "failed"})
+
+    progress = json.loads((tmp_path / "progress.json").read_text(encoding="utf-8"))
+    log_text = (tmp_path / "progress.log").read_text(encoding="utf-8")
+    assert progress["status"] == "failed"
+    assert progress["current_step"] is None
+    assert progress["completed_steps"][0]["name"] == "Aux 2"
+    assert '"event": "step_started"' in log_text
+    assert '"event": "step_finished"' in log_text
 
 
 def test_button_step_detects_press_and_release():
