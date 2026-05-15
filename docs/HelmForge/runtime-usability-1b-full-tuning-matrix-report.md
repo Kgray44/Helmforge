@@ -1,14 +1,14 @@
 # Runtime Usability 1B Full Tuning Matrix Report
 
-Generated: `20260514T015148Z`
-Artifact directory: `artifacts\runtime-tuning-matrix\20260514T015148Z`
+Generated: `20260515T162543Z`
+Artifact directory: `artifacts\runtime-tuning-matrix\20260515T162543Z`
 Overall status: `passed`
 
 ## Executive Result
 - Matrix status: passed. No deterministic runtime matrix failures were detected.
 - Physical HOTAS proof: deferred/unplugged; this phase intentionally uses simulated/fake input.
 - Bridge status: `HelmForge Bridge: lifecycle=LiveVerified truth=live_verified output_verified=True`
-- vJoy optional write-call requested: `True`
+- vJoy optional write-call requested: `False`
 - vJoy optional write-call available: `True`
 - vJoy readback status: not implemented; accepted write calls are not readback proof.
 
@@ -42,7 +42,7 @@ Overall status: `passed`
 | `stage_telemetry_cases` | 6 |
 | `pairwise_cases` | 78 |
 | `seeded_fuzz_property_cases` | 252 |
-| `real_vjoy_optional_cases` | 3 |
+| `real_vjoy_optional_cases` | 0 |
 
 ## Coverage Summary
 | Family | Status |

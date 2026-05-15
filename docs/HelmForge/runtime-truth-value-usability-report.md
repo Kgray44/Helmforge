@@ -1,14 +1,14 @@
 # Runtime Truth Value Usability Report
 
-Generated: `2026-05-14T01:52:43.789926+00:00`
+Generated: `2026-05-15T16:25:59.438424+00:00`
 Overall status: `passed`
-Artifact directory: `artifacts\runtime-truth-value-usability\20260514T015149Z`
+Artifact directory: `artifacts\runtime-truth-value-usability\20260515T162543Z`
 
 ## Executive Findings
 - No value-truth failures were detected in this probe.
 
 ## Live Environment Truth
-- Bridge status: `HelmForge Bridge: lifecycle=LiveVerified truth=live_verified output_verified=True`
+- Bridge status: `HelmForge Bridge: lifecycle=LiveUnverified truth=detected_unverified output_verified=False`
 - Runtime setup HOTAS PID proof: `HOTAS match: HID-compliant game controller HID\VID_044F&PID_B68D\8&39EC0CDD&0&0000`
 - Real vJoy available: `True`
 - Real vJoy status: `backend_available`
@@ -105,116 +105,87 @@ Artifact directory: `artifacts\runtime-truth-value-usability\20260514T015149Z`
 ## Latency Summary
 | Scenario | Backend | Frames | Writes | Rebuilds | Avg total ms | Max total ms | Avg input ms | Avg pipeline ms | Avg output ms | Max final diff | Max output diff |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| `axis_sine_fake` | `fake` | 180 | 61 | 1.0 | 21.803 | 65.679 | 0.337 | 4.584 | 0.081 | 2.1e-05 | 2.1e-05 |
-| `axis_sharp_step_sine_fake` | `fake` | 180 | 61 | 1.0 | 22.135 | 68.495 | 0.34 | 4.181 | 0.075 | 2.6e-05 | 2.6e-05 |
-| `buttons_toggle_fake` | `fake` | 45 | 46 | 1.0 | 23.002 | 67.534 | 0.367 | 5.008 | 0.059 | 0.053974 | 0.053974 |
-| `math_stage_stress_fake` | `fake` | 96 | 97 | 1.0 | 19.879 | 41.247 | 0.256 | 3.696 | 0.068 | 1e-05 | 1e-05 |
-| `mapping_variant_fake` | `fake` | 2 | 3 | 1.0 | 23.745 | 30.416 | 0.173 | 2.324 | 0.044 | 1e-05 | 1e-05 |
-| `axis_sine_real_vjoy` | `real_vjoy` | 72 | 73 | 1.0 | 31.628 | 65.213 | 0.267 | 9.66 | 2.787 | 2e-05 | 2e-05 |
-| `buttons_toggle_real_vjoy` | `real_vjoy` | 45 | 46 | 1.0 | 33.443 | 94.478 | 0.305 | 11.237 | 4.076 | 0.053974 | 0.053974 |
+| `axis_sine_fake` | `fake` | 180 | 61 | 1.0 | 3.615 | 16.405 | 0.075 | 0.856 | 0.013 | 2.1e-05 | 2.1e-05 |
+| `axis_sharp_step_sine_fake` | `fake` | 180 | 61 | 1.0 | 3.905 | 7.47 | 0.083 | 0.858 | 0.014 | 2.6e-05 | 2.6e-05 |
+| `buttons_toggle_fake` | `fake` | 45 | 46 | 1.0 | 5.435 | 17.917 | 0.107 | 1.448 | 0.019 | 0.053974 | 0.053974 |
+| `math_stage_stress_fake` | `fake` | 96 | 97 | 1.0 | 4.511 | 7.417 | 0.096 | 1.022 | 0.016 | 1e-05 | 1e-05 |
+| `mapping_variant_fake` | `fake` | 2 | 3 | 1.0 | 5.062 | 5.128 | 0.073 | 1.382 | 0.029 | 1e-05 | 1e-05 |
 
 ## Axis Proof
 ### axis_sine_fake
 | Axis | Max final diff vs stateful intended | Max output diff vs mapped intended | Avg total latency ms | Writes observed |
 |---|---:|---:|---:|---:|
-| Roll | 2e-05 | 2e-05 | 21.803 | 60 |
-| Pitch | 2.1e-05 | 2.1e-05 | 21.803 | 60 |
-| Throttle | 8e-06 | 8e-06 | 21.803 | 60 |
-| Yaw | 2e-05 | 2e-05 | 21.803 | 60 |
-| Aux 1 | 1.7e-05 | 1.7e-05 | 21.803 | 60 |
-| Aux 2 | 1.6e-05 | 1.6e-05 | 21.803 | 60 |
+| Roll | 2e-05 | 2e-05 | 3.615 | 60 |
+| Pitch | 2.1e-05 | 2.1e-05 | 3.615 | 60 |
+| Throttle | 8e-06 | 8e-06 | 3.615 | 60 |
+| Yaw | 2e-05 | 2e-05 | 3.615 | 60 |
+| Aux 1 | 1.7e-05 | 1.7e-05 | 3.615 | 60 |
+| Aux 2 | 1.6e-05 | 1.6e-05 | 3.615 | 60 |
 ### axis_sharp_step_sine_fake
 | Axis | Max final diff vs stateful intended | Max output diff vs mapped intended | Avg total latency ms | Writes observed |
 |---|---:|---:|---:|---:|
-| Roll | 1.7e-05 | 1.7e-05 | 22.135 | 60 |
-| Pitch | 2.2e-05 | 2.2e-05 | 22.135 | 60 |
-| Throttle | 8e-06 | 8e-06 | 22.135 | 60 |
-| Yaw | 2.6e-05 | 2.6e-05 | 22.135 | 60 |
-| Aux 1 | 1.3e-05 | 1.3e-05 | 22.135 | 60 |
-| Aux 2 | 1.4e-05 | 1.4e-05 | 22.135 | 60 |
+| Roll | 1.7e-05 | 1.7e-05 | 3.905 | 60 |
+| Pitch | 2.2e-05 | 2.2e-05 | 3.905 | 60 |
+| Throttle | 8e-06 | 8e-06 | 3.905 | 60 |
+| Yaw | 2.6e-05 | 2.6e-05 | 3.905 | 60 |
+| Aux 1 | 1.3e-05 | 1.3e-05 | 3.905 | 60 |
+| Aux 2 | 1.4e-05 | 1.4e-05 | 3.905 | 60 |
 ### math_stage_stress_fake
 | Axis | Max final diff vs stateful intended | Max output diff vs mapped intended | Avg total latency ms | Writes observed |
 |---|---:|---:|---:|---:|
-| Roll | 1e-05 | 1e-05 | 19.879 | 96 |
-| Pitch | 1e-05 | 1e-05 | 19.879 | 96 |
-| Throttle | 6e-06 | 6e-06 | 19.879 | 96 |
-| Yaw | 9e-06 | 9e-06 | 19.879 | 96 |
-| Aux 1 | 1e-05 | 1e-05 | 19.879 | 96 |
-| Aux 2 | 1e-05 | 1e-05 | 19.879 | 96 |
+| Roll | 1e-05 | 1e-05 | 4.511 | 96 |
+| Pitch | 1e-05 | 1e-05 | 4.511 | 96 |
+| Throttle | 6e-06 | 6e-06 | 4.511 | 96 |
+| Yaw | 9e-06 | 9e-06 | 4.511 | 96 |
+| Aux 1 | 1e-05 | 1e-05 | 4.511 | 96 |
+| Aux 2 | 1e-05 | 1e-05 | 4.511 | 96 |
 ### mapping_variant_fake
 | Axis | Max final diff vs stateful intended | Max output diff vs mapped intended | Avg total latency ms | Writes observed |
 |---|---:|---:|---:|---:|
-| Roll | 9e-06 | 9e-06 | 23.745 | 2 |
-| Pitch | 4e-06 | 4e-06 | 23.745 | 2 |
-| Throttle | 4e-06 | 4e-06 | 23.745 | 2 |
-| Yaw | 1e-05 | 1e-05 | 23.745 | 2 |
-| Aux 1 | 3e-06 | 3e-06 | 23.745 | 2 |
-| Aux 2 | 5e-06 | 5e-06 | 23.745 | 2 |
-### axis_sine_real_vjoy
-| Axis | Max final diff vs stateful intended | Max output diff vs mapped intended | Avg total latency ms | Writes observed |
-|---|---:|---:|---:|---:|
-| Roll | 1.7e-05 | 1.7e-05 | 31.628 | 72 |
-| Pitch | 1.7e-05 | 1.7e-05 | 31.628 | 72 |
-| Throttle | 7e-06 | 7e-06 | 31.628 | 72 |
-| Yaw | 2e-05 | 2e-05 | 31.628 | 72 |
-| Aux 1 | 1.5e-05 | 1.5e-05 | 31.628 | 72 |
-| Aux 2 | 1.6e-05 | 1.6e-05 | 31.628 | 72 |
+| Roll | 9e-06 | 9e-06 | 5.062 | 2 |
+| Pitch | 4e-06 | 4e-06 | 5.062 | 2 |
+| Throttle | 4e-06 | 4e-06 | 5.062 | 2 |
+| Yaw | 1e-05 | 1e-05 | 5.062 | 2 |
+| Aux 1 | 3e-06 | 3e-06 | 5.062 | 2 |
+| Aux 2 | 5e-06 | 5e-06 | 5.062 | 2 |
 
 ## Button Proof
 ### buttons_toggle_fake
 | Button | Expected output button | Input true observed | Output true observed | Avg total latency ms | Writes observed |
 |---|---:|---:|---:|---:|---:|
-| B1 | Out1 | 1 | 1 | 23.002 | 45 |
-| B2 | Out2 | 1 | 1 | 23.002 | 45 |
-| B3 | Out3 | 1 | 1 | 23.002 | 45 |
-| B4 | Out4 | 1 | 1 | 23.002 | 45 |
-| B5 | Out5 | 1 | 1 | 23.002 | 45 |
-| B6 | Out6 | 1 | 1 | 23.002 | 45 |
-| B7 | Out7 | 1 | 1 | 23.002 | 45 |
-| B8 | Out8 | 1 | 1 | 23.002 | 45 |
-| B9 | Out9 | 1 | 1 | 23.002 | 45 |
-| B10 | Out10 | 1 | 1 | 23.002 | 45 |
-| B11 | Out11 | 1 | 1 | 23.002 | 45 |
-| B12 | Out12 | 1 | 1 | 23.002 | 45 |
-| B13 | Out13 | 1 | 1 | 23.002 | 45 |
-| B14 | Out14 | 1 | 1 | 23.002 | 45 |
-| B15 | Out15 | 1 | 1 | 23.002 | 45 |
+| B1 | Out1 | 1 | 1 | 5.435 | 45 |
+| B2 | Out2 | 1 | 1 | 5.435 | 45 |
+| B3 | Out3 | 1 | 1 | 5.435 | 45 |
+| B4 | Out4 | 1 | 1 | 5.435 | 45 |
+| B5 | Out5 | 1 | 1 | 5.435 | 45 |
+| B6 | Out6 | 1 | 1 | 5.435 | 45 |
+| B7 | Out7 | 1 | 1 | 5.435 | 45 |
+| B8 | Out8 | 1 | 1 | 5.435 | 45 |
+| B9 | Out9 | 1 | 1 | 5.435 | 45 |
+| B10 | Out10 | 1 | 1 | 5.435 | 45 |
+| B11 | Out11 | 1 | 1 | 5.435 | 45 |
+| B12 | Out12 | 1 | 1 | 5.435 | 45 |
+| B13 | Out13 | 1 | 1 | 5.435 | 45 |
+| B14 | Out14 | 1 | 1 | 5.435 | 45 |
+| B15 | Out15 | 1 | 1 | 5.435 | 45 |
 ### mapping_variant_fake
 | Button | Expected output button | Input true observed | Output true observed | Avg total latency ms | Writes observed |
 |---|---:|---:|---:|---:|---:|
-| B1 | Out2 | 1 | 1 | 23.745 | 2 |
-| B2 | Out1 | 0 | 0 | 23.745 | 2 |
-| B3 | Out3 | 0 | 0 | 23.745 | 2 |
-| B4 | Out4 | 0 | 0 | 23.745 | 2 |
-| B5 | Out5 | 0 | 0 | 23.745 | 2 |
-| B6 | Out6 | 0 | 0 | 23.745 | 2 |
-| B7 | Out7 | 0 | 0 | 23.745 | 2 |
-| B8 | Out8 | 0 | 0 | 23.745 | 2 |
-| B9 | Out9 | 0 | 0 | 23.745 | 2 |
-| B10 | Out10 | 0 | 0 | 23.745 | 2 |
-| B11 | Out11 | 0 | 0 | 23.745 | 2 |
-| B12 | Out12 | 0 | 0 | 23.745 | 2 |
-| B13 | Out13 | 0 | 0 | 23.745 | 2 |
-| B14 | Out14 | 0 | 0 | 23.745 | 2 |
-| B15 | Out15 | 0 | 0 | 23.745 | 2 |
-### buttons_toggle_real_vjoy
-| Button | Expected output button | Input true observed | Output true observed | Avg total latency ms | Writes observed |
-|---|---:|---:|---:|---:|---:|
-| B1 | Out1 | 1 | 1 | 33.443 | 45 |
-| B2 | Out2 | 1 | 1 | 33.443 | 45 |
-| B3 | Out3 | 1 | 1 | 33.443 | 45 |
-| B4 | Out4 | 1 | 1 | 33.443 | 45 |
-| B5 | Out5 | 1 | 1 | 33.443 | 45 |
-| B6 | Out6 | 1 | 1 | 33.443 | 45 |
-| B7 | Out7 | 1 | 1 | 33.443 | 45 |
-| B8 | Out8 | 1 | 1 | 33.443 | 45 |
-| B9 | Out9 | 1 | 1 | 33.443 | 45 |
-| B10 | Out10 | 1 | 1 | 33.443 | 45 |
-| B11 | Out11 | 1 | 1 | 33.443 | 45 |
-| B12 | Out12 | 1 | 1 | 33.443 | 45 |
-| B13 | Out13 | 1 | 1 | 33.443 | 45 |
-| B14 | Out14 | 1 | 1 | 33.443 | 45 |
-| B15 | Out15 | 1 | 1 | 33.443 | 45 |
+| B1 | Out2 | 1 | 1 | 5.062 | 2 |
+| B2 | Out1 | 0 | 0 | 5.062 | 2 |
+| B3 | Out3 | 0 | 0 | 5.062 | 2 |
+| B4 | Out4 | 0 | 0 | 5.062 | 2 |
+| B5 | Out5 | 0 | 0 | 5.062 | 2 |
+| B6 | Out6 | 0 | 0 | 5.062 | 2 |
+| B7 | Out7 | 0 | 0 | 5.062 | 2 |
+| B8 | Out8 | 0 | 0 | 5.062 | 2 |
+| B9 | Out9 | 0 | 0 | 5.062 | 2 |
+| B10 | Out10 | 0 | 0 | 5.062 | 2 |
+| B11 | Out11 | 0 | 0 | 5.062 | 2 |
+| B12 | Out12 | 0 | 0 | 5.062 | 2 |
+| B13 | Out13 | 0 | 0 | 5.062 | 2 |
+| B14 | Out14 | 0 | 0 | 5.062 | 2 |
+| B15 | Out15 | 0 | 0 | 5.062 | 2 |
 
 ## Graphs
 ![Sine measured vs intended](runtime-truth-value-usability-assets/axis-sine-measured-vs-intended.svg)
