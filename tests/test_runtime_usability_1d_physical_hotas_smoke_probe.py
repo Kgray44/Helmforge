@@ -116,6 +116,21 @@ def test_live_progress_reporter_writes_current_step_and_completed_result(tmp_pat
     assert '"event": "step_finished"' in log_text
 
 
+def test_live_progress_reporter_records_raw_axis_deltas_while_waiting(tmp_path):
+    reporter = LiveProgressReporter(tmp_path)
+
+    reporter.start_step(step_type="axis", name="Aux 1", instruction="Move Aux 1 now.", index=5, total=6)
+    reporter.heartbeat(elapsed_sec=0.0, sample_count=1, sample=_sample(0.0), force=True)
+    reporter.heartbeat(elapsed_sec=1.2, sample_count=20, sample=_sample(1.2, raw_axes={"Yaw": 0.42, "Aux 1": 0.0}), force=True)
+
+    current = json.loads((tmp_path / "current-step.json").read_text(encoding="utf-8"))
+    assert current["name"] == "Aux 1"
+    assert current["latest_raw_axes"]["Yaw"] == 0.42
+    assert current["raw_axis_deltas"]["Yaw"] == 0.42
+    assert current["raw_axis_deltas"]["Aux 1"] == 0.0
+    assert current["largest_raw_axis_delta"]["axis"] == "Yaw"
+
+
 def test_button_step_detects_press_and_release():
     samples = [
         _sample(0.0),

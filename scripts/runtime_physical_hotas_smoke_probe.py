@@ -143,6 +143,7 @@ class LiveProgressReporter:
         self.last_event: dict[str, object] | None = None
         self.event_count = 0
         self._last_heartbeat_at = 0.0
+        self._baseline_raw_axes: dict[str, float] | None = None
         self._record("probe_started", {"artifact_dir": str(self.artifact_dir)})
 
     def start_step(self, *, step_type: str, name: str, instruction: str, index: int | None = None, total: int | None = None) -> None:
@@ -157,16 +158,32 @@ class LiveProgressReporter:
             "elapsed_sec": 0.0,
             "sample_count": 0,
         }
+        self._baseline_raw_axes = None
         self._record("step_started", self.current_step)
 
-    def heartbeat(self, *, elapsed_sec: float, sample_count: int) -> None:
+    def heartbeat(self, *, elapsed_sec: float, sample_count: int, sample: ProbeSample | None = None, force: bool = False) -> None:
         now = time.monotonic()
-        if self.current_step is None or now - self._last_heartbeat_at < 1.0:
+        if self.current_step is None or (not force and now - self._last_heartbeat_at < 1.0):
             return
         self._last_heartbeat_at = now
         self.current_step["elapsed_sec"] = round(float(elapsed_sec), 3)
         self.current_step["sample_count"] = int(sample_count)
         self.current_step["updated_at"] = _utc_now()
+        if sample is not None:
+            latest = {axis: round(float(value), 6) for axis, value in sample.raw_axes.items()}
+            if self._baseline_raw_axes is None:
+                self._baseline_raw_axes = latest
+            deltas = {
+                axis: round(float(latest.get(axis, 0.0)) - float(self._baseline_raw_axes.get(axis, 0.0)), 6)
+                for axis in sorted(set(self._baseline_raw_axes) | set(latest))
+            }
+            largest_axis = max(deltas, key=lambda axis: abs(float(deltas[axis])), default="")
+            self.current_step["latest_raw_axes"] = latest
+            self.current_step["raw_axis_deltas"] = deltas
+            self.current_step["largest_raw_axis_delta"] = {
+                "axis": largest_axis,
+                "delta": deltas.get(largest_axis, 0.0) if largest_axis else 0.0,
+            }
         self._write_state()
 
     def detected(self, message: str, *, elapsed_sec: float | None = None, sample_count: int | None = None) -> None:
@@ -1024,9 +1041,10 @@ def _collect_until(
     detected_at: float | None = None
     while True:
         elapsed = time.monotonic() - start
-        samples.append(read_sample(elapsed))
+        sample = read_sample(elapsed)
+        samples.append(sample)
         if progress is not None:
-            progress.heartbeat(elapsed_sec=elapsed, sample_count=len(samples))
+            progress.heartbeat(elapsed_sec=elapsed, sample_count=len(samples), sample=sample)
         if detected_at is None and detector(samples):
             detected_at = elapsed
             print(detected_message)
@@ -1057,7 +1075,7 @@ def _collect_button_press_release(
         sample = read_sample(elapsed)
         samples.append(sample)
         if progress is not None:
-            progress.heartbeat(elapsed_sec=elapsed, sample_count=len(samples))
+            progress.heartbeat(elapsed_sec=elapsed, sample_count=len(samples), sample=sample)
         pressed = bool(sample.buttons.get(button_name, False))
         if press_at is None and pressed:
             press_at = elapsed
