@@ -48,6 +48,9 @@ class LiveOverlayWindow(QWidget):
         self.refresh_timer.setObjectName("liveOverlayRefreshTimer")
         self.refresh_timer.setInterval(_timer_interval(config.fps_cap))
         self.refresh_timer.timeout.connect(self._refresh_if_visible)
+        self.overlay_timer_tick_count = 0
+        self.overlay_update_count = 0
+        self.overlay_skipped_update_count = 0
 
     def show_overlay(self) -> None:
         self.apply_bottom_strip_placement()
@@ -133,7 +136,12 @@ class LiveOverlayWindow(QWidget):
         if not self.isVisible():
             self.refresh_timer.stop()
             return
-        self.renderer.update()
+        self.overlay_timer_tick_count += 1
+        if self.renderer.consume_dirty_for_paint():
+            self.overlay_update_count += 1
+            self.renderer.request_overlay_update()
+        else:
+            self.overlay_skipped_update_count += 1
 
 
 def _timer_interval(fps_cap: int) -> int:

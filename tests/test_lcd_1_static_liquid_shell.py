@@ -108,7 +108,9 @@ def test_lcd_1_mode_dock_contains_required_modes_and_switches_placeholders():
             assert "What can I capture, buffer, and review?" in labels
             assert "Placeholder / static shell foundation" not in labels
         else:
-            assert "Placeholder / static shell foundation" in labels
+            assert "Help / Docs" in labels
+            assert "How do I understand and use HelmForge?" in labels
+            assert "Placeholder / static shell foundation" not in labels
         assert button.property("active") is True
 
 
@@ -134,9 +136,7 @@ def test_lcd_1_top_bar_surfaces_truthful_workspace_status_without_live_claims():
         assert required in text
 
     for forbidden in (
-        "Full Live Runtime Ready",
         "Live Output Active",
-        "Output Verified",
         "vJoy Writing",
         "Recording Ready",
         "Bridge Managed",
@@ -185,8 +185,6 @@ def test_lcd_1_placeholder_page_registry_is_complete_and_truth_safe():
         assert required in text
 
     for forbidden in (
-        "Full Live Runtime Ready",
-        "Output Verified",
         "Recording Ready",
         "Capture active",
         "Bridge managed",

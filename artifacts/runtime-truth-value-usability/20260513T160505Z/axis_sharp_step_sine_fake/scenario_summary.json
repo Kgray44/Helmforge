@@ -1,0 +1,18 @@
+{
+  "avg_end_to_end_ms": 8.192,
+  "avg_input_read_ms": 0.131,
+  "avg_output_write_ms": 0.022,
+  "avg_pipeline_ms": 1.124,
+  "backend_kind": "fake",
+  "backend_name": "Fake output backend",
+  "button_expected_true_count": 0,
+  "button_true_output_count": 0,
+  "frame_count": 180,
+  "max_end_to_end_ms": 34.626,
+  "max_final_abs_diff": 0.548801,
+  "max_output_abs_diff": 0.548801,
+  "name": "axis_sharp_step_sine_fake",
+  "orchestrator_rebuild_count": 181.0,
+  "write_count": 61,
+  "write_success_count": 61
+}

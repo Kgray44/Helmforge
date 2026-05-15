@@ -15,6 +15,7 @@ from shared_core.runtime.vjoy_output import (
 )
 from v3_app.services.app_state import AppState
 from v3_app.services.bridge_client import RuntimeFrameTelemetryPayload
+from v3_app.services.live_ui_scheduler import BoundedTimingSeries, JankBucketCounter
 
 
 DEFAULT_MANUAL_BRIDGE_COMMAND = "python -m bridge_app.main --run-for-ms 250"
@@ -36,26 +37,63 @@ class PerfMetricSummary:
 @dataclass
 class DiagnosticsCollector:
     collect_live_timings: bool = True
-    _timings: dict[str, list[float]] = field(default_factory=dict)
+    max_timing_samples: int = 300
+    _timings: dict[str, BoundedTimingSeries] = field(default_factory=dict)
+    _jank_buckets: dict[str, JankBucketCounter] = field(default_factory=dict)
     _hidden_skips: dict[str, int] = field(default_factory=dict)
     _last_hidden_skip_at: dict[str, datetime] = field(default_factory=dict)
 
     def record_timing(self, name: str, elapsed_ms: float) -> None:
         if not self.collect_live_timings:
             return
-        self._timings.setdefault(name, []).append(max(0.0, float(elapsed_ms)))
+        value = max(0.0, float(elapsed_ms))
+        self._timings.setdefault(name, BoundedTimingSeries(max_samples=self.max_timing_samples)).append(value)
+        self._jank_buckets.setdefault(name, JankBucketCounter()).observe(value)
 
     def summary(self, name: str) -> PerfMetricSummary:
-        values = self._timings.get(name, ())
-        if not values:
+        series = self._timings.get(name)
+        if series is None:
+            return PerfMetricSummary(name=name)
+        summary = series.summary(name)
+        if not summary.available:
             return PerfMetricSummary(name=name)
         return PerfMetricSummary(
-            name=name,
-            count=len(values),
-            average_ms=round(sum(values) / len(values), 1),
-            max_ms=round(max(values), 1),
-            last_ms=round(values[-1], 1),
+            name=summary.name,
+            count=summary.count,
+            average_ms=summary.average_ms,
+            max_ms=summary.max_ms,
+            last_ms=summary.last_ms,
         )
+
+    def jank_buckets(self, name: str) -> dict[str, int]:
+        counter = self._jank_buckets.get(name)
+        if counter is None:
+            return JankBucketCounter().snapshot()
+        return counter.snapshot()
+
+    def all_timing_summaries(self) -> dict[str, PerfMetricSummary]:
+        names = {
+            "page_switch",
+            "heartbeat",
+            "graph",
+            "startup",
+            "telemetry_read",
+            "json_read",
+            "stream_read",
+            "embedded_read",
+            "values_update",
+            "graph_update",
+            "diagnostics_update",
+            "overlay_trace_build",
+            "overlay_paint",
+            "effective_stack_compute",
+            "effective_stack_static_graph",
+            "effective_stack_marker",
+            "stage_card_update",
+            "shell_chrome_update",
+        }
+        names.update(self._timings)
+        return {name: self.summary(name) for name in sorted(names)}
 
     def record_hidden_skip(self, page_name: str) -> None:
         self._hidden_skips[page_name] = self._hidden_skips.get(page_name, 0) + 1
@@ -66,6 +104,7 @@ class DiagnosticsCollector:
 
     def clear(self) -> None:
         self._timings.clear()
+        self._jank_buckets.clear()
         self._hidden_skips.clear()
         self._last_hidden_skip_at.clear()
 
@@ -217,12 +256,7 @@ def build_diagnostics_snapshot(
         last_command_request_id=last_command_request_id,
         runtime_preflight_status=_preflight_summary(runtime_status),
         diagnostics_collection_state="Collecting" if collector.collect_live_timings else "Paused",
-        timing_summaries={
-            "page_switch": collector.summary("page_switch"),
-            "heartbeat": collector.summary("heartbeat"),
-            "graph": collector.summary("graph"),
-            "startup": collector.summary("startup"),
-        },
+        timing_summaries=collector.all_timing_summaries(),
         hidden_page_skips=collector.hidden_skip_counts(),
         physical_input_backend=physical_input.physical_input_backend,
         physical_input_source=physical_input.input_source,

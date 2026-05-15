@@ -1,0 +1,346 @@
+{
+  "current_mapping": {
+    "axis_routes": [
+      {
+        "function_name": "Roll",
+        "invert": false,
+        "logical_output": "X",
+        "output_axis": "X",
+        "raw_axis_channel": "Axis 1",
+        "runtime_vjoy_output": "X(axis1)"
+      },
+      {
+        "function_name": "Pitch",
+        "invert": false,
+        "logical_output": "Y",
+        "output_axis": "Y",
+        "raw_axis_channel": "Axis 2",
+        "runtime_vjoy_output": "Y(axis2)"
+      },
+      {
+        "function_name": "Throttle",
+        "invert": false,
+        "logical_output": "Z",
+        "output_axis": "Z",
+        "raw_axis_channel": "Axis 3",
+        "runtime_vjoy_output": "Z(axis3)"
+      },
+      {
+        "function_name": "Yaw",
+        "invert": false,
+        "logical_output": "RZ",
+        "output_axis": "RX",
+        "raw_axis_channel": "Axis 6",
+        "runtime_vjoy_output": "RX(axis4)"
+      },
+      {
+        "function_name": "Aux 1",
+        "invert": false,
+        "logical_output": "SL0",
+        "output_axis": "RY",
+        "raw_axis_channel": "Axis 7",
+        "runtime_vjoy_output": "RY(axis5)"
+      },
+      {
+        "function_name": "Aux 2",
+        "invert": false,
+        "logical_output": "RX",
+        "output_axis": "RZ",
+        "raw_axis_channel": "Axis 8",
+        "runtime_vjoy_output": "RZ(axis6)"
+      }
+    ],
+    "button_routes": [
+      {
+        "hotas_button": 1,
+        "output_button": 1
+      },
+      {
+        "hotas_button": 2,
+        "output_button": 2
+      },
+      {
+        "hotas_button": 3,
+        "output_button": 3
+      },
+      {
+        "hotas_button": 4,
+        "output_button": 4
+      },
+      {
+        "hotas_button": 5,
+        "output_button": 5
+      },
+      {
+        "hotas_button": 6,
+        "output_button": 6
+      },
+      {
+        "hotas_button": 7,
+        "output_button": 7
+      },
+      {
+        "hotas_button": 8,
+        "output_button": 8
+      },
+      {
+        "hotas_button": 9,
+        "output_button": 9
+      },
+      {
+        "hotas_button": 10,
+        "output_button": 10
+      },
+      {
+        "hotas_button": 11,
+        "output_button": 11
+      },
+      {
+        "hotas_button": 12,
+        "output_button": 12
+      },
+      {
+        "hotas_button": 13,
+        "output_button": 13
+      },
+      {
+        "hotas_button": 14,
+        "output_button": 14
+      },
+      {
+        "hotas_button": 15,
+        "output_button": 15
+      }
+    ],
+    "hat_routes": [
+      {
+        "down_button": 19,
+        "hotas_hat": 1,
+        "left_button": 0,
+        "right_button": 18,
+        "up_button": 7,
+        "vjoy_pov": 1
+      }
+    ]
+  },
+  "failures": [
+    "workspace_mapping_not_applied_to_output_intent",
+    "button_mapping_not_applied_to_output_intent",
+    "bridge_step_response_does_not_match_stateful_filter_intent"
+  ],
+  "generated_at": "2026-05-13T15:57:52.655477+00:00",
+  "graphs": {
+    "Sharp-step sine measured vs intended": "docs\\HelmForge\\runtime-truth-value-usability-assets\\axis-sharp-step-measured-vs-intended.svg",
+    "Sine measured vs intended": "docs\\HelmForge\\runtime-truth-value-usability-assets\\axis-sine-measured-vs-intended.svg"
+  },
+  "live_probe": {
+    "bridge_status": "HelmForge Bridge: lifecycle=LiveVerified truth=live_verified output_verified=True",
+    "bridge_status_exit": 0,
+    "hotas_pid_proof": "HOTAS match: HID-compliant game controller HID\\VID_044F&PID_B68D\\8&39EC0CDD&0&0000",
+    "real_vjoy_available": true,
+    "real_vjoy_devices": [
+      "vJoy Device 1"
+    ],
+    "real_vjoy_status": "backend_available",
+    "runtime_setup_exit": 0
+  },
+  "overall_status": "failures_detected",
+  "scenarios": [
+    {
+      "avg_end_to_end_ms": 5.086,
+      "avg_input_read_ms": 0.089,
+      "avg_output_write_ms": 0.015,
+      "avg_pipeline_ms": 0.695,
+      "backend_kind": "fake",
+      "backend_name": "Fake output backend",
+      "button_expected_true_count": 0,
+      "button_true_output_count": 0,
+      "frame_count": 180,
+      "max_end_to_end_ms": 20.342,
+      "max_final_abs_diff": 0.388807,
+      "max_output_abs_diff": 0.388807,
+      "name": "axis_sine_fake",
+      "orchestrator_rebuild_count": 181.0,
+      "write_count": 61,
+      "write_success_count": 61
+    },
+    {
+      "avg_end_to_end_ms": 5.633,
+      "avg_input_read_ms": 0.09,
+      "avg_output_write_ms": 0.015,
+      "avg_pipeline_ms": 0.699,
+      "backend_kind": "fake",
+      "backend_name": "Fake output backend",
+      "button_expected_true_count": 0,
+      "button_true_output_count": 0,
+      "frame_count": 180,
+      "max_end_to_end_ms": 23.004,
+      "max_final_abs_diff": 0.548801,
+      "max_output_abs_diff": 0.548801,
+      "name": "axis_sharp_step_sine_fake",
+      "orchestrator_rebuild_count": 181.0,
+      "write_count": 61,
+      "write_success_count": 61
+    },
+    {
+      "avg_end_to_end_ms": 6.43,
+      "avg_input_read_ms": 0.097,
+      "avg_output_write_ms": 0.015,
+      "avg_pipeline_ms": 0.791,
+      "backend_kind": "fake",
+      "backend_name": "Fake output backend",
+      "button_expected_true_count": 15,
+      "button_true_output_count": 0,
+      "frame_count": 45,
+      "max_end_to_end_ms": 35.19,
+      "max_final_abs_diff": 0.152445,
+      "max_output_abs_diff": 0.152445,
+      "name": "buttons_toggle_fake",
+      "orchestrator_rebuild_count": 46.0,
+      "write_count": 46,
+      "write_success_count": 46
+    },
+    {
+      "avg_end_to_end_ms": 5.891,
+      "avg_input_read_ms": 0.104,
+      "avg_output_write_ms": 0.022,
+      "avg_pipeline_ms": 0.831,
+      "backend_kind": "fake",
+      "backend_name": "Fake output backend",
+      "button_expected_true_count": 1,
+      "button_true_output_count": 0,
+      "frame_count": 2,
+      "max_end_to_end_ms": 7.148,
+      "max_final_abs_diff": 0.182346,
+      "max_output_abs_diff": 0.234595,
+      "name": "mapping_variant_fake",
+      "orchestrator_rebuild_count": 3.0,
+      "write_count": 3,
+      "write_success_count": 3
+    }
+  ],
+  "variant_mapping": {
+    "axis_routes": [
+      {
+        "function_name": "Roll",
+        "invert": false,
+        "logical_output": "Y",
+        "output_axis": "Y",
+        "raw_axis_channel": "Axis 1",
+        "runtime_vjoy_output": "Y(axis2)"
+      },
+      {
+        "function_name": "Pitch",
+        "invert": false,
+        "logical_output": "X",
+        "output_axis": "X",
+        "raw_axis_channel": "Axis 2",
+        "runtime_vjoy_output": "X(axis1)"
+      },
+      {
+        "function_name": "Throttle",
+        "invert": false,
+        "logical_output": "Z",
+        "output_axis": "Z",
+        "raw_axis_channel": "Axis 3",
+        "runtime_vjoy_output": "Z(axis3)"
+      },
+      {
+        "function_name": "Yaw",
+        "invert": false,
+        "logical_output": "RZ",
+        "output_axis": "RX",
+        "raw_axis_channel": "Axis 6",
+        "runtime_vjoy_output": "RX(axis4)"
+      },
+      {
+        "function_name": "Aux 1",
+        "invert": false,
+        "logical_output": "SL0",
+        "output_axis": "RY",
+        "raw_axis_channel": "Axis 7",
+        "runtime_vjoy_output": "RY(axis5)"
+      },
+      {
+        "function_name": "Aux 2",
+        "invert": false,
+        "logical_output": "RX",
+        "output_axis": "RZ",
+        "raw_axis_channel": "Axis 8",
+        "runtime_vjoy_output": "RZ(axis6)"
+      }
+    ],
+    "button_routes": [
+      {
+        "hotas_button": 1,
+        "output_button": 2
+      },
+      {
+        "hotas_button": 2,
+        "output_button": 1
+      },
+      {
+        "hotas_button": 3,
+        "output_button": 3
+      },
+      {
+        "hotas_button": 4,
+        "output_button": 4
+      },
+      {
+        "hotas_button": 5,
+        "output_button": 5
+      },
+      {
+        "hotas_button": 6,
+        "output_button": 6
+      },
+      {
+        "hotas_button": 7,
+        "output_button": 7
+      },
+      {
+        "hotas_button": 8,
+        "output_button": 8
+      },
+      {
+        "hotas_button": 9,
+        "output_button": 9
+      },
+      {
+        "hotas_button": 10,
+        "output_button": 10
+      },
+      {
+        "hotas_button": 11,
+        "output_button": 11
+      },
+      {
+        "hotas_button": 12,
+        "output_button": 12
+      },
+      {
+        "hotas_button": 13,
+        "output_button": 13
+      },
+      {
+        "hotas_button": 14,
+        "output_button": 14
+      },
+      {
+        "hotas_button": 15,
+        "output_button": 15
+      }
+    ],
+    "hat_routes": [
+      {
+        "down_button": 19,
+        "hotas_hat": 1,
+        "left_button": 0,
+        "right_button": 18,
+        "up_button": 7,
+        "vjoy_pov": 1
+      }
+    ]
+  }
+}

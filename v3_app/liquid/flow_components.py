@@ -5,6 +5,7 @@ from collections.abc import Iterable
 from PySide6.QtWidgets import QFrame, QLabel
 
 from v3_app.liquid.layout import horizontal_layout, vertical_layout
+from v3_app.liquid.motion import FocusRole, HoverRole, MicrointeractionRole, apply_motion_property, apply_route_signal_motion
 from v3_app.liquid.status_components import StatusChip, StatusLight, status_tone_for_role
 
 
@@ -15,12 +16,33 @@ def _label(text: str, object_name: str, *, wrap: bool = False) -> QLabel:
     return label
 
 
-def _set_flow_props(widget, *, component_role: str, state_role: str, liquid_role: str) -> None:
+def _set_flow_props(
+    widget,
+    *,
+    component_role: str,
+    state_role: str,
+    liquid_role: str,
+    focusable: bool = False,
+    selectable: bool = False,
+) -> None:
     widget.setProperty("componentRole", component_role)
     widget.setProperty("liquidRole", liquid_role)
     widget.setProperty("statusRole", state_role)
     widget.setProperty("toneRole", status_tone_for_role(state_role))
     widget.setProperty("liquidComponent", True)
+    if focusable or selectable:
+        apply_motion_property(
+            widget,
+            MicrointeractionRole.SELECTABLE_CARD if selectable else MicrointeractionRole.INTERACTIVE_CARD,
+            hover_role=HoverRole.ROUTE_ROW if component_role == "RouteFlowRow" else HoverRole.CARD,
+            focus_role=FocusRole.RING,
+            interactive=False,
+        )
+    if component_role in {"RouteFlowRow", "SignalPipelineStage"}:
+        apply_route_signal_motion(
+            widget,
+            role="route_flow" if component_role == "RouteFlowRow" else "response_stack",
+        )
 
 
 def _output_intent_label(target_label: str) -> str:
@@ -47,6 +69,7 @@ class RouteFlowRow(QFrame):
             component_role="RouteFlowRow",
             state_role=status_role,
             liquid_role="route_flow_row",
+            focusable=True,
         )
         layout = vertical_layout(self, margins=(14, 12, 14, 12), spacing=8)
         row = horizontal_layout(spacing=10)
@@ -83,6 +106,7 @@ class SignalPipelineStage(QFrame):
             component_role="SignalPipelineStage",
             state_role=status_role,
             liquid_role="signal_pipeline_stage",
+            selectable=True,
         )
         layout = vertical_layout(self, margins=(14, 12, 14, 12), spacing=7)
         header = horizontal_layout(spacing=8)
@@ -113,6 +137,7 @@ class SignalPipelineStage(QFrame):
             component_role="SignalPipelineStage",
             state_role=status_role,
             liquid_role="signal_pipeline_stage",
+            selectable=True,
         )
         self._summary_label.setText(stage_summary)
         if self._value_chip is not None:

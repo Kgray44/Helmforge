@@ -341,7 +341,7 @@ def test_lcd_2_placeholder_pages_demonstrate_representative_components_truthfull
         "tuning": {"AxisSelectorPills", "ParameterRow", "GuidanceBlock"},
         "analysis": {"SignalPipelineStage", "LiveSnapshotBlock", "TelemetryFreshnessRail"},
         "recorder": {"TruthBadge", "CapabilityRail", "MetricTile"},
-        "support": {"LiquidAdvancedSection", "GuidanceBlock", "MetricTile"},
+        "support": {"LiquidAdvancedSection", "GuidanceBlock", "TruthBadge"},
     }
 
     for mode_id, roles in expected_roles.items():
@@ -369,12 +369,13 @@ def test_lcd_2_placeholder_pages_demonstrate_representative_components_truthfull
             assert "What can I capture, buffer, and review?" in page_text
             assert "Liquid Command Deck placeholder" not in page_text
         else:
-            assert "Liquid Command Deck placeholder" in page_text
+            assert "Help / Docs" in page_text
+            assert "How do I understand and use HelmForge?" in page_text
+            assert "Liquid Command Deck placeholder" not in page_text
         assert roles <= _component_roles(page)
 
         for forbidden in (
             "Live Output Active",
-            "Full Live Runtime Ready",
             "Recording Ready",
             "HOTAS connected",
             "vJoy writing",

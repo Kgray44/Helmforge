@@ -63,6 +63,10 @@ def step_filter(
     diagnostics: dict[str, float | str | bool] = {
         "alpha": alpha,
         "alpha_region": region,
+        "center_alpha": settings.center_alpha,
+        "edge_alpha": settings.edge_alpha,
+        "same_slew_limit": settings.same_slew_limit,
+        "reverse_slew_limit": settings.reverse_slew_limit,
         "slew_path": "reverse-direction" if reverse else "same-direction",
         "slew_limit": limit,
         "slew_limited": slew_limited,
@@ -71,4 +75,3 @@ def step_filter(
         "previous_output": previous,
     }
     return FilterStepResult(output=output, state=FilterState(previous_output=output), diagnostics=diagnostics)
-

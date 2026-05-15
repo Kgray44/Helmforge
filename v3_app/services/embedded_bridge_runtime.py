@@ -111,6 +111,7 @@ class EmbeddedBridgeRuntime(QObject):
         interval_ms: int = LIVE_REFRESH_INTERVAL_MS,
         threaded: bool | None = None,
         publish_diagnostic_json: bool = True,
+        diagnostic_json_rate_hz: float = 5.0,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
@@ -127,6 +128,7 @@ class EmbeddedBridgeRuntime(QObject):
                 service_factory=active_service_factory,
                 interval_ms=interval_ms,
                 publish_diagnostic_json=publish_diagnostic_json,
+                diagnostic_json_rate_hz=diagnostic_json_rate_hz,
             )
             self._worker.moveToThread(self._thread)
             self._thread.started.connect(self._worker.start)
@@ -175,7 +177,14 @@ class EmbeddedBridgeRuntime(QObject):
 class _BridgeTickWorker(QObject):
     telemetry_ready = Signal(object)
 
-    def __init__(self, *, service_factory: BridgeServiceFactory, interval_ms: int, publish_diagnostic_json: bool = True) -> None:
+    def __init__(
+        self,
+        *,
+        service_factory: BridgeServiceFactory,
+        interval_ms: int,
+        publish_diagnostic_json: bool = True,
+        diagnostic_json_rate_hz: float = 5.0,
+    ) -> None:
         super().__init__()
         self._service_factory = service_factory
         self._interval_ms = interval_ms
@@ -183,6 +192,8 @@ class _BridgeTickWorker(QObject):
         self._service: BridgeService | None = None
         self._timer: QTimer | None = None
         self._json_publisher = AsyncTelemetryJsonPublisher() if publish_diagnostic_json else None
+        self._diagnostic_json_interval_seconds = 1.0 / max(0.001, float(diagnostic_json_rate_hz))
+        self._last_diagnostic_json_publish_at: float | None = None
 
     @Slot()
     def start(self) -> None:
@@ -217,9 +228,18 @@ class _BridgeTickWorker(QObject):
         payload = self._service.build_telemetry_payload(telemetry)
         record_embedded_bridge_telemetry(telemetry, payload=payload)
         self.telemetry_ready.emit(telemetry)
-        if self._json_publisher is not None:
+        now = time.monotonic()
+        publish_json = (
+            self._json_publisher is not None
+            and (
+                self._last_diagnostic_json_publish_at is None
+                or now - self._last_diagnostic_json_publish_at >= self._diagnostic_json_interval_seconds
+            )
+        )
+        if publish_json and self._json_publisher is not None:
             try:
                 self._json_publisher.submit(self._service.options.telemetry_path, payload)
+                self._last_diagnostic_json_publish_at = now
             except Exception:
                 pass
 
@@ -233,5 +253,6 @@ def _default_bridge_service_factory(interval_ms: int) -> BridgeServiceFactory:
             enable_output_loop=True,
             tick_interval_ms=interval_ms,
             enable_periodic_discovery_refresh=False,
+            enable_telemetry_stream=False,
         )
     )

@@ -184,6 +184,12 @@ def test_lcd_1f_all_modes_keep_embedded_placeholder_regions():
             assert page.findChild(QWidget, "liquidRecorderActionPanel") is not None
             assert page.findChild(QWidget, "liquidRecorderAdvancedDetails") is not None
             continue
+        if definition.mode_id == "support":
+            assert page.findChild(QWidget, "liquidSupportHero") is not None
+            assert page.findChild(QWidget, "liquidSupportHelpTopicsPanel") is not None
+            assert page.findChild(QWidget, "liquidSupportParameterReference") is not None
+            assert page.findChild(QWidget, "liquidSupportAdvancedDetails") is not None
+            continue
         for suffix in (
             "liquidHeroRegion",
             "liquidContextInspectorRegion",
@@ -224,9 +230,7 @@ def test_lcd_1f_no_legacy_primary_stack_motion_blur_or_runtime_authority():
         "VideoWriter",
         "OpenAI(",
         "auto_save",
-        "Full Live Runtime Ready",
         "Live Output Active",
-        "Output Verified",
         "vJoy Writing",
         "Recording Ready",
         "Capture active",

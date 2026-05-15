@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass
 from typing import Mapping
 
@@ -16,7 +17,10 @@ class OverlayTelemetrySample:
 class OverlayTelemetryBuffer:
     def __init__(self, *, history_seconds: float) -> None:
         self.history_seconds = max(0.5, float(history_seconds))
-        self._samples: list[OverlayTelemetrySample] = []
+        self._samples: deque[OverlayTelemetrySample] = deque()
+        self._samples_cache: tuple[OverlayTelemetrySample, ...] = ()
+        self._version = 0
+        self._cache_version = -1
 
     def append(self, sample: OverlayTelemetrySample) -> None:
         normalized = OverlayTelemetrySample(
@@ -25,14 +29,23 @@ class OverlayTelemetryBuffer:
             source=sample.source,
         )
         self._samples.append(normalized)
+        self._version += 1
         self.trim(now=normalized.timestamp)
 
     def trim(self, *, now: float) -> None:
         cutoff = float(now) - self.history_seconds
-        self._samples = [sample for sample in self._samples if sample.timestamp >= cutoff]
+        changed = False
+        while self._samples and self._samples[0].timestamp < cutoff:
+            self._samples.popleft()
+            changed = True
+        if changed:
+            self._version += 1
 
     def samples(self) -> tuple[OverlayTelemetrySample, ...]:
-        return tuple(self._samples)
+        if self._cache_version != self._version:
+            self._samples_cache = tuple(self._samples)
+            self._cache_version = self._version
+        return self._samples_cache
 
 
 def _clamp(value: object) -> float:

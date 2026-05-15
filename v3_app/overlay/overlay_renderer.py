@@ -21,16 +21,28 @@ class OverlayRenderer(QWidget):
         self._output_verified = False
         self._full_live_runtime_ready = False
         self._source = config.source
+        self._dirty = True
+        self.update_request_count = 0
+        self.paint_event_count = 0
+        self.trace_set_update_count = 0
+        self.runtime_truth_update_count = 0
+        self.config_update_count = 0
 
     def set_config(self, config: LiveOverlayConfig) -> None:
+        if config == self.config:
+            return
         self.config = config
         self._source = self._trace_set.source or config.source
-        self.update()
+        self.config_update_count += 1
+        self.mark_dirty()
 
     def set_trace_set(self, trace_set: OverlayTraceSet) -> None:
+        if trace_set == self._trace_set:
+            return
         self._trace_set = trace_set
         self._source = trace_set.source or self.config.source
-        self.update()
+        self.trace_set_update_count += 1
+        self.mark_dirty()
 
     def set_runtime_truth(
         self,
@@ -40,11 +52,38 @@ class OverlayRenderer(QWidget):
         full_live_runtime_ready: bool,
         source: str | None = None,
     ) -> None:
-        self._runtime_truth = runtime_truth
-        self._output_verified = bool(output_verified)
-        self._full_live_runtime_ready = bool(full_live_runtime_ready)
-        if source:
-            self._source = source
+        next_state = (
+            str(runtime_truth),
+            bool(output_verified),
+            bool(full_live_runtime_ready),
+            str(source or self._source),
+        )
+        current = (
+            self._runtime_truth,
+            self._output_verified,
+            self._full_live_runtime_ready,
+            self._source,
+        )
+        if next_state == current:
+            return
+        self._runtime_truth = next_state[0]
+        self._output_verified = next_state[1]
+        self._full_live_runtime_ready = next_state[2]
+        self._source = next_state[3]
+        self.runtime_truth_update_count += 1
+        self.mark_dirty()
+
+    def mark_dirty(self) -> None:
+        self._dirty = True
+
+    def consume_dirty_for_paint(self) -> bool:
+        if not self._dirty:
+            return False
+        self._dirty = False
+        return True
+
+    def request_overlay_update(self) -> None:
+        self.update_request_count += 1
         self.update()
 
     def included_axes(self) -> tuple[str, ...]:
@@ -68,6 +107,7 @@ class OverlayRenderer(QWidget):
         )
 
     def paintEvent(self, event) -> None:  # noqa: N802
+        self.paint_event_count += 1
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         self._paint_background(painter)

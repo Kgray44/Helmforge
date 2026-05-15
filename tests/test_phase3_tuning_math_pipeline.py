@@ -97,6 +97,29 @@ def test_filtering_same_direction_and_reverse_slew_limits():
     assert reverse.diagnostics["slew_path"] == "reverse-direction"
 
 
+def test_filtering_stage_metadata_exposes_configured_response_parameters():
+    result = process_axis_stack(
+        0.75,
+        tuning=AxisTuning(axis="Roll"),
+        filtering=AxisFiltering(
+            "Roll",
+            center_alpha=0.21,
+            edge_alpha=0.82,
+            same_slew_limit=0.31,
+            reverse_slew_limit=0.47,
+        ),
+        combat=AxisCombatProfile(axis="Roll"),
+        mode_config=default_mode_config(),
+        mode_state=ModeState(),
+    )
+
+    metadata = result.stage_by_name("Filtering").metadata
+    assert metadata["center_alpha"] == pytest.approx(0.21)
+    assert metadata["edge_alpha"] == pytest.approx(0.82)
+    assert metadata["same_slew_limit"] == pytest.approx(0.31)
+    assert metadata["reverse_slew_limit"] == pytest.approx(0.47)
+
+
 def test_filtering_uses_center_vs_edge_alpha_behavior():
     settings = AxisFiltering("Roll", center_alpha=0.20, edge_alpha=0.80, same_slew_limit=1.0, reverse_slew_limit=1.0)
 

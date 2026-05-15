@@ -20,10 +20,8 @@ from bridge_app.telemetry_stream import (
     TelemetryStreamServer,
 )
 from shared_core.math.pipeline import WorkspaceSignalPipeline
-from shared_core.math.stack import ModeState
 from shared_core.models.runtime import RuntimePreflightStatus
 from shared_core.models.runtime import InputDeviceDetection, InputStatus, OutputBackendDetection, OutputStatus, RuntimeMode, RuntimeTruth
-from shared_core.rules.evaluator import status_counts
 from shared_core.runtime.bridge_contracts import BridgeCommandRequest, BridgeCommandType
 from shared_core.runtime.bridge_lifecycle import BridgeLifecycleState
 from shared_core.runtime.device_discovery import build_runtime_preflight_status
@@ -74,7 +72,7 @@ class BridgeServiceOptions:
     enable_live_input: bool = True
     enable_output_verification: bool = True
     enable_output_loop: bool = True
-    enable_telemetry_stream: bool = False
+    enable_telemetry_stream: bool = True
     telemetry_stream_host: str = DEFAULT_TELEMETRY_STREAM_HOST
     telemetry_stream_port: int = DEFAULT_TELEMETRY_STREAM_PORT
     telemetry_stream_rate_hz: float = DEFAULT_TELEMETRY_STREAM_RATE_HZ
@@ -117,6 +115,8 @@ class BridgeTimingStats:
     device_enumeration_skipped_cached_count: int = 0
     fast_loop_status: str = "starting"
     slow_lane_status: str = "not_checked"
+    runtime_orchestrator_rebuild_count: int = 0
+    last_runtime_orchestrator_rebuild_reason: str = "startup"
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -154,6 +154,8 @@ class BridgeTimingStats:
             "device_enumeration_skipped_cached_count": self.device_enumeration_skipped_cached_count,
             "fast_loop_status": self.fast_loop_status,
             "slow_lane_status": self.slow_lane_status,
+            "runtime_orchestrator_rebuild_count": self.runtime_orchestrator_rebuild_count,
+            "last_runtime_orchestrator_rebuild_reason": self.last_runtime_orchestrator_rebuild_reason,
         }
 
 
@@ -173,6 +175,7 @@ class BridgeService:
             runtime_status=self.runtime_status,
             config=RuntimeOrchestratorConfig(deterministic_simulation=False),
         )
+        self._runtime_orchestrator_signature: tuple[object, ...] | None = None
         self.pipeline = WorkspaceSignalPipeline(self.config.workspace)
         self.pipeline_state = self.pipeline.initial_state()
         if self.options.physical_input_backend is not None:
@@ -248,6 +251,7 @@ class BridgeService:
         self.simulation = SimulatedRuntime(deterministic=False, workspace=self.config.workspace)
         self.pipeline = WorkspaceSignalPipeline(self.config.workspace)
         self.pipeline_state = self.pipeline.initial_state()
+        self._runtime_orchestrator_signature = None
         self.state = self.state.with_messages(warnings=self.config.warnings, errors=self.config.errors)
         return self.config
 
@@ -546,6 +550,25 @@ class BridgeService:
             physical_snapshot=latest_snapshot,
             output_verification=self.virtual_output_verification,
         )
+        self._ensure_runtime_orchestrator(latest_snapshot=latest_snapshot, output_allowed=output_allowed)
+        self.timing.last_runtime_io_duration_ms = _elapsed_ms(runtime_started)
+
+    def _ensure_runtime_orchestrator(self, *, latest_snapshot, output_allowed: bool) -> None:
+        signature = (
+            id(self.config.workspace),
+            self.runtime_status.truth.value,
+            self.runtime_status.input.status.value,
+            self.runtime_status.output.status.value,
+            bool(self.runtime_status.live_output_writes_verified),
+            _snapshot_signature(latest_snapshot),
+            bool(output_allowed),
+            id(self.virtual_output_backend),
+            id(self.virtual_output_loop),
+            bool(self.virtual_output_verification and self.virtual_output_verification.real_output_verified),
+        )
+        if signature == self._runtime_orchestrator_signature:
+            self.timing.last_runtime_orchestrator_rebuild_reason = "unchanged"
+            return
         self.runtime_orchestrator = RuntimeOrchestrator(
             workspace=self.config.workspace,
             runtime_status=self.runtime_status,
@@ -561,7 +584,11 @@ class BridgeService:
             ),
             clock=self.options.clock,
         )
-        self.timing.last_runtime_io_duration_ms = _elapsed_ms(runtime_started)
+        self._runtime_orchestrator_signature = signature
+        self.timing.runtime_orchestrator_rebuild_count += 1
+        self.timing.last_runtime_orchestrator_rebuild_reason = (
+            "startup" if self.timing.runtime_orchestrator_rebuild_count == 1 else "runtime_context_changed"
+        )
 
     def _select_physical_device_id(self) -> str | None:
         if self.options.simulate or not self.options.enable_live_input:
@@ -687,17 +714,11 @@ class BridgeService:
         hat_state = "Centered"
         if self.physical_sampler is not None and self.physical_sampler.latest_snapshot is not None and self.physical_sampler.latest_snapshot.hats:
             hat_state = self.physical_sampler.latest_snapshot.hats[0].normalized_direction
-        pipeline_result = self.pipeline.process(
-            raw_axes,
-            mode_state=ModeState(),
-            state=self.pipeline_state,
-        )
-        self.pipeline_state = pipeline_result.state
-        counts = status_counts(pipeline_result.rule_evaluations)
+        counts = frame.pipeline.rule_status_counts
         rule_summary = RuleStateSummary(
-            active_count=counts["active"],
-            blocked_count=counts["blocked"],
-            disabled_count=counts["disabled"],
+            active_count=int(counts.get("active", frame.pipeline.active_rules_count)),
+            blocked_count=int(counts.get("blocked", 0)),
+            disabled_count=int(counts.get("disabled", 0)),
         )
         return BridgeTelemetrySnapshot(
             runtime_truth=self.runtime_status.truth,
@@ -848,6 +869,19 @@ def _runtime_status_for_live_chain(
 
 def _elapsed_ms(started: float) -> float:
     return round(max(0.0, (time.perf_counter() - started) * 1000.0), 3)
+
+
+def _snapshot_signature(snapshot) -> tuple[object, ...]:
+    if snapshot is None:
+        return ("none",)
+    axes = tuple(getattr(snapshot, "axes", ()) or ())
+    return (
+        getattr(snapshot, "device_id", ""),
+        getattr(snapshot, "sequence", None),
+        getattr(snapshot, "sampled_at", None),
+        getattr(snapshot, "sampling_active", None),
+        tuple((axis.logical_name, axis.normalized_value) for axis in axes[:6]),
+    )
 
 
 def _clock_now(clock: object | None) -> datetime:

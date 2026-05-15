@@ -8,6 +8,7 @@ from shared_core.models.workspace import WorkspaceConfig, create_default_workspa
 from v3_app.liquid.components import LiquidFloatingPanel, LiquidHeroPanel
 from v3_app.liquid.glass import action_button, glass_panel
 from v3_app.liquid.layout import horizontal_layout, vertical_layout
+from v3_app.liquid.motion import apply_interactive_card_motion
 from v3_app.liquid.models.helm_command_model import (
     HelmApplyResult,
     HelmCommandModel,
@@ -48,6 +49,9 @@ class HelmAssistantDeck(LiquidFloatingPanel):
         self.setProperty("helmSurface", True)
         self.setProperty("liquidRole", "liquid_helm_assistant_deck")
         self.setProperty("lcdPhase", "LCD-8")
+        self.setProperty("helmMotionStatus", "local_draft_only")
+        self.setProperty("helmMotionAddsCloudAi", False)
+        self.setProperty("helmMotionAutoApply", False)
         self.setMinimumWidth(560)
         self.setMaximumWidth(720)
         self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Expanding)
@@ -147,6 +151,7 @@ class HelmAssistantDeck(LiquidFloatingPanel):
         for change in self.model.proposed_changes:
             card = glass_panel(f"liquidHelmChange_{change.change_id}", role="liquid_helm_change_card")
             card.setProperty("helmProposedChangeCard", True)
+            apply_interactive_card_motion(card, selectable=True, selected=change.selected)
             card_layout = vertical_layout(card, margins=(12, 10, 12, 10), spacing=6)
             check = QCheckBox(f"{change.title} - {change.value_text}")
             check.setObjectName(f"liquidHelmChangeCheck_{change.change_id}")
@@ -245,6 +250,7 @@ def _findings_panel(model: HelmCommandModel) -> QFrame:
     for finding in model.findings[:5]:
         card = glass_panel(f"liquidHelmFinding_{_safe(finding.title)}", role="liquid_helm_finding_card")
         card.setProperty("helmFindingCard", True)
+        apply_interactive_card_motion(card)
         card_layout = vertical_layout(card, margins=(12, 9, 12, 9), spacing=5)
         card_layout.addWidget(StatusChip(finding.title, state_role=finding.state_role))
         card_layout.addWidget(_body(finding.body))

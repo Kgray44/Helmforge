@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+from v3_app.services.live_ui_scheduler import JankBucketCounter
+
 
 @dataclass(frozen=True)
 class UiStallSnapshot:
@@ -14,6 +16,7 @@ class UiStallSnapshot:
     live_frame_gap_count: int
     last_live_frame_gap_ms: float | None
     max_live_frame_gap_ms: float | None
+    jank_buckets: dict[str, int]
 
 
 class UiStallMonitor:
@@ -26,12 +29,14 @@ class UiStallMonitor:
         self.last_ui_stall_duration_ms: float | None = None
         self.last_ui_stall_at: datetime | None = None
         self.max_live_frame_gap_ms: float | None = None
+        self._jank_buckets = JankBucketCounter()
 
     def observe(self) -> UiStallSnapshot:
         now = _aware(self._clock())
         if self._last_tick_at is not None:
             delta_ms = max(0.0, (now - self._last_tick_at).total_seconds() * 1000.0)
             self.last_ui_frame_delta_ms = delta_ms
+            self._jank_buckets.observe(delta_ms)
             if delta_ms > self.threshold_ms:
                 self.ui_stall_count += 1
                 self.last_ui_stall_duration_ms = delta_ms
@@ -54,6 +59,7 @@ class UiStallMonitor:
             live_frame_gap_count=self.ui_stall_count,
             last_live_frame_gap_ms=self.last_ui_stall_duration_ms,
             max_live_frame_gap_ms=self.max_live_frame_gap_ms,
+            jank_buckets=self._jank_buckets.snapshot(),
         )
 
 

@@ -93,7 +93,7 @@ def test_phase12a_axis_colors_and_config_defaults_are_stable():
     assert config.always_on_top is True
     assert config.click_through is False
     assert config.click_through_supported == "unknown"
-    assert config.fps_cap == 60
+    assert config.fps_cap == 30
     assert config.toggle_hotkey == "Ctrl+Shift+F9"
     assert config.hotkey_registered is False
     assert tuple(config.axes) == ("Roll", "Pitch", "Throttle", "Yaw", "Aux 1", "Aux 2")

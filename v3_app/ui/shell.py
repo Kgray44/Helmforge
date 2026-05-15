@@ -36,6 +36,7 @@ from v3_app.helm.helm_overlay import HelmOverlay
 from v3_app.services.app_state import AppState, build_initial_app_state
 from v3_app.services.bridge_commands import BridgeCommandClient
 from v3_app.services.bridge_client import BridgeTelemetryClient
+from v3_app.services.live_ui_scheduler import MultiCadenceScheduler
 from v3_app.services.perf_diagnostics import DiagnosticsCollector
 from v3_app.ui.footer import Footer
 from v3_app.ui.header import Header
@@ -69,6 +70,11 @@ class HelmForgeShell(QWidget):
         self.page_widgets: dict[str, QScrollArea] = {}
         self.helm_overlay: HelmOverlay | None = None
         self.diagnostics_collector = diagnostics_collector or DiagnosticsCollector()
+        self._shell_scheduler = MultiCadenceScheduler()
+        self._latest_bridge_telemetry: BridgeTelemetrySnapshot | None = None
+        self._last_shell_chrome_signature: tuple[object, ...] | None = None
+        self.shell_chrome_update_count = 0
+        self.shell_chrome_skip_count = 0
 
         root = QHBoxLayout(self)
         root.setContentsMargins(18, 18, 18, 18)
@@ -220,15 +226,26 @@ class HelmForgeShell(QWidget):
         self.footer.update_state(self.state, page_definition_by_id(self.active_page_id))
 
     def apply_bridge_telemetry(self, telemetry: BridgeTelemetrySnapshot) -> None:
+        self._latest_bridge_telemetry = telemetry
         self.runtime_status = _runtime_status_from_bridge_telemetry(telemetry)
         self.state.runtime = AppState.from_runtime_status(
             self.runtime_status,
             driver_detected=self.state.runtime.driver_detected,
         ).runtime
         self.state.active_profile = telemetry.active_profile
-        self.header.update_state(self.state)
-        self.sidebar.update_runtime(self.state)
-        self.footer.update_state(self.state, page_definition_by_id(self.active_page_id))
+        signature = _shell_chrome_signature(self.state, self.runtime_status, self.active_page_id)
+        chrome_changed = signature != self._last_shell_chrome_signature
+        cadence_due = self._shell_scheduler.run("shell_chrome")
+        if chrome_changed or cadence_due:
+            started_at = time.perf_counter()
+            self.header.update_state(self.state)
+            self.sidebar.update_runtime(self.state)
+            self.footer.update_state(self.state, page_definition_by_id(self.active_page_id))
+            self._last_shell_chrome_signature = signature
+            self.shell_chrome_update_count += 1
+            self.diagnostics_collector.record_timing("shell_chrome_update", (time.perf_counter() - started_at) * 1000.0)
+        else:
+            self.shell_chrome_skip_count += 1
         scroll = self.page_widgets.get(self.active_page_id)
         content = scroll.widget() if scroll is not None else None
         if hasattr(content, "update_runtime_status"):
@@ -355,6 +372,19 @@ def _runtime_status_from_bridge_telemetry(telemetry: BridgeTelemetrySnapshot) ->
         ),
         warnings=telemetry.warnings,
         errors=telemetry.errors,
+    )
+
+
+def _shell_chrome_signature(state: AppState, runtime_status: RuntimePreflightStatus, active_page_id: str) -> tuple[object, ...]:
+    return (
+        runtime_status.truth.value,
+        runtime_status.input.status.value,
+        runtime_status.output.status.value,
+        bool(runtime_status.live_output_writes_verified),
+        state.active_profile,
+        bool(state.saved),
+        state.status_message,
+        active_page_id,
     )
 
 

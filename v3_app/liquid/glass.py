@@ -3,6 +3,14 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QSizePolicy
 
+from v3_app.liquid.motion import (
+    MotionSettings,
+    apply_button_motion,
+    apply_status_motion,
+    pulse_role_for_status,
+    refresh_motion_style,
+)
+
 
 def glass_panel(object_name: str, *, role: str | None = None) -> QFrame:
     panel = QFrame()
@@ -13,10 +21,34 @@ def glass_panel(object_name: str, *, role: str | None = None) -> QFrame:
     return panel
 
 
-def status_chip(text: str, *, tone: str = "neutral", object_name: str | None = None) -> QLabel:
+def _state_role_for_tone(tone: str) -> str:
+    normalized = tone.strip().casefold()
+    if normalized == "success":
+        return "saved"
+    if normalized in {"warning", "caution"}:
+        return "unsaved"
+    if normalized == "danger":
+        return "error"
+    if normalized == "disabled":
+        return "disabled"
+    return "info"
+
+
+def status_chip(
+    text: str,
+    *,
+    tone: str = "neutral",
+    object_name: str | None = None,
+    state_role: str | None = None,
+    motion_settings: MotionSettings | None = None,
+) -> QLabel:
     chip = QLabel(text)
     chip.setProperty("uiRole", "liquidStatusChip")
     chip.setProperty("chipTone", tone)
+    role = state_role or _state_role_for_tone(tone)
+    chip.setProperty("statusRole", role)
+    chip.setProperty("pulseRole", pulse_role_for_status(role).value)
+    chip.setProperty("draftEmphasis", role == "unsaved")
     chip.setWordWrap(True)
     chip.setCursor(Qt.CursorShape.ArrowCursor)
     chip.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -25,6 +57,13 @@ def status_chip(text: str, *, tone: str = "neutral", object_name: str | None = N
     chip.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
     if object_name is not None:
         chip.setObjectName(object_name)
+    apply_status_motion(
+        chip,
+        state_role=role,
+        component_role="status_chip",
+        motion_settings=motion_settings,
+        hover_role="chip",
+    )
     return chip
 
 
@@ -48,6 +87,12 @@ def configure_command_action(
             button.setStatusTip(disabled_reason)
         if not button.accessibleDescription():
             button.setAccessibleDescription(disabled_reason)
+    apply_button_motion(
+        button,
+        action_kind=action_kind,
+        enabled=button.isEnabled(),
+        navigation=action_kind == "navigation",
+    )
     return button
 
 
@@ -83,6 +128,4 @@ def action_button(
 
 
 def refresh_style(widget) -> None:
-    widget.style().unpolish(widget)
-    widget.style().polish(widget)
-    widget.update()
+    refresh_motion_style(widget)

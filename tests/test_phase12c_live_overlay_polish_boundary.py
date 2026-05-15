@@ -131,7 +131,7 @@ def test_phase12c_configuration_dialog_copy_and_draft_rules_are_finalized(tmp_pa
         "2.80",
         "Show legend",
         "Show live values",
-        "60 fps",
+            "30 fps",
         "Ctrl+Shift+F9",
         "Hotkey status\nNot registered",
         "Click-through support\nNot verified",

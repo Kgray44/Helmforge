@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QButtonGroup, QComboBox, QFrame, QLabel, QLineEdit
 
 from v3_app.liquid.glass import configure_command_action, refresh_style
 from v3_app.liquid.layout import horizontal_layout, vertical_layout
+from v3_app.liquid.motion import FocusRole, HoverRole, MicrointeractionRole, apply_motion_property
 from v3_app.liquid.status_components import StatusChip, status_tone_for_role
 
 
@@ -206,6 +207,15 @@ class ParameterRow(QFrame):
             state_role="unsaved" if changed else "info",
             liquid_role="parameter_row",
         )
+        apply_motion_property(
+            self,
+            MicrointeractionRole.SELECTABLE_CARD if changed else MicrointeractionRole.INTERACTIVE_CARD,
+            hover_role=HoverRole.CARD,
+            focus_role=FocusRole.RING,
+            pulse_role="draft" if changed else "none",
+            interactive=False,
+        )
+        self.setProperty("draftEmphasis", changed)
         layout = horizontal_layout(self, margins=(12, 9, 12, 9), spacing=10)
         layout.addWidget(ParameterLabelWithInfo(label, help_text=help_text), 1)
         layout.addWidget(control, 1)

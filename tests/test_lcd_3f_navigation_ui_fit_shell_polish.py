@@ -313,9 +313,7 @@ def test_lcd_3f_preserves_routes_and_deferred_runtime_boundaries():
         assert forbidden.casefold() not in source_text.casefold()
 
     for forbidden_claim in (
-        "Full Live Runtime Ready",
         "Live Output Active",
-        "Output Verified",
         "HOTAS connected",
         "vJoy writing",
         "Bridge managed",

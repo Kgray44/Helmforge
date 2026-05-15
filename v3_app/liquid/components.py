@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QFrame, QLabel, QSizePolicy, QWidget
 
 from v3_app.liquid.glass import glass_panel
 from v3_app.liquid.layout import horizontal_layout, vertical_layout
+from v3_app.liquid.motion import apply_panel_motion_hint
 
 
 def _label(text: str, object_name: str, *, wrap: bool = False) -> QLabel:
@@ -34,7 +35,7 @@ def _set_component_properties(
         widget.setProperty("statusRole", state_role)
 
 
-def _replace_slot(slot: QFrame, widget: QWidget) -> None:
+def _replace_slot(slot: QFrame, widget: QWidget, *, motion_role: str = "panel", order: int = 0) -> None:
     layout = slot.layout()
     if layout is None:
         return
@@ -43,6 +44,7 @@ def _replace_slot(slot: QFrame, widget: QWidget) -> None:
         child = item.widget()
         if child is not None:
             child.setParent(None)
+    apply_panel_motion_hint(widget, role=motion_role, order=order)
     layout.addWidget(widget)
 
 
@@ -90,22 +92,22 @@ class LiquidPage(QFrame):
         self.set_header(LiquidPageHeader(title, subtitle, helper_text))
 
     def set_header(self, widget: QWidget) -> None:
-        _replace_slot(self._header_slot, widget)
+        _replace_slot(self._header_slot, widget, motion_role="header", order=0)
 
     def set_hero(self, widget: QWidget) -> None:
-        _replace_slot(self._hero_slot, widget)
+        _replace_slot(self._hero_slot, widget, motion_role="hero", order=1)
 
     def set_inspector(self, widget: QWidget) -> None:
-        _replace_slot(self._inspector_slot, widget)
+        _replace_slot(self._inspector_slot, widget, motion_role="inspector", order=2)
 
     def set_detail(self, widget: QWidget) -> None:
-        _replace_slot(self._detail_slot, widget)
+        _replace_slot(self._detail_slot, widget, motion_role="detail", order=3)
 
     def set_advanced(self, widget: QWidget) -> None:
-        _replace_slot(self._advanced_slot, widget)
+        _replace_slot(self._advanced_slot, widget, motion_role="advanced", order=4)
 
     def set_status_rail(self, widget: QWidget) -> None:
-        _replace_slot(self._status_slot, widget)
+        _replace_slot(self._status_slot, widget, motion_role="status", order=0)
 
 
 class LiquidPageHeader(QFrame):

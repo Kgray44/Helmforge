@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import RLock
@@ -8,6 +8,7 @@ from typing import Mapping
 
 from shared_core.runtime.telemetry import BridgeTelemetrySnapshot
 from v3_app.services.bridge_client import (
+    BridgeTelemetryPayload,
     BridgeTelemetryReadResult,
     BridgeTelemetryStatus,
     parse_bridge_telemetry_payload,
@@ -65,7 +66,18 @@ def read_embedded_bridge_telemetry(
 
     age_seconds = max(0.0, (now - latest.recorded_at).total_seconds())
     try:
-        telemetry = parse_bridge_telemetry_payload(path, latest.payload or latest.telemetry.to_dict())
+        if latest.payload is None and isinstance(latest.telemetry, BridgeTelemetryPayload):
+            telemetry = latest.telemetry
+        else:
+            payload = latest.payload
+            if payload is None:
+                if hasattr(latest.telemetry, "to_dict"):
+                    payload = latest.telemetry.to_dict()
+                elif is_dataclass(latest.telemetry):
+                    payload = asdict(latest.telemetry)
+                else:
+                    payload = dict(latest.telemetry)  # type: ignore[arg-type]
+            telemetry = parse_bridge_telemetry_payload(path, payload)
     except (TypeError, ValueError) as exc:
         return BridgeTelemetryReadResult(
             status=BridgeTelemetryStatus.INVALID,

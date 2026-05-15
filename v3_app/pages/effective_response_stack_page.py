@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 
 from shared_core.math.pipeline import WorkspaceSignalPipeline, WorkspaceSignalPipelineResult
 from shared_core.math.stack import EXPECTED_STAGE_NAMES, ModeState, StageResult
-from shared_core.models.axes import AXIS_DISPLAY_NAMES
+from shared_core.models.axes import AXIS_DISPLAY_NAMES, axis_by_name
 from shared_core.models.runtime import AXIS_NAMES, RuntimePreflightStatus
 from shared_core.models.workspace import WorkspaceConfig, create_default_workspace
 from shared_core.runtime.device_discovery import build_runtime_preflight_status
@@ -33,7 +33,15 @@ from v3_app.pages.page_helpers import add_card_to_grid, card, card_header, card_
 from v3_app.services.app_state import AppState
 from v3_app.services.perf_diagnostics import DiagnosticsCollector
 from v3_app.services.live_refresh import LIVE_REFRESH_INTERVAL_MS
+from v3_app.services.live_ui_scheduler import MultiCadenceScheduler
 from v3_app.services.physical_input_ui import build_input_source_status, raw_axes_from_physical_snapshot
+from v3_app.services.ui_dirty import (
+    repolish_if_changed,
+    set_bar_value_if_changed,
+    set_chip_text_and_tone_if_changed,
+    set_label_text_if_changed,
+    set_widget_property_if_changed,
+)
 from v3_app.ui.status_chips import action_button, status_chip
 
 
@@ -46,6 +54,9 @@ class StageCard(QFrame):
         self.setProperty("cardRole", "pageCard")
         self.setProperty("selected", False)
         self.setFrameShape(QFrame.Shape.NoFrame)
+        self.update_count = 0
+        self.repolish_count = 0
+        self._last_signature: tuple[object, ...] | None = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 16, 18, 18)
@@ -88,23 +99,27 @@ class StageCard(QFrame):
         super().mousePressEvent(event)
 
     def update_from_stage(self, stage: StageResult) -> None:
-        self.input_label.setText(signed(stage.input_value))
-        self.output_label.setText(signed(stage.output_value))
-        self.delta_label.setText(signed(stage.delta))
-        self.input_bar.setValue(_bar_value(stage.input_value))
-        self.output_bar.setValue(_bar_value(stage.output_value))
-        self.explanation.setText(stage.explanation)
+        signature = _stage_signature(stage)
+        if signature == self._last_signature:
+            return
+        self._last_signature = signature
+        self.update_count += 1
+        set_label_text_if_changed(self.input_label, signed(stage.input_value))
+        set_label_text_if_changed(self.output_label, signed(stage.output_value))
+        set_label_text_if_changed(self.delta_label, signed(stage.delta))
+        set_bar_value_if_changed(self.input_bar, _bar_value(stage.input_value))
+        set_bar_value_if_changed(self.output_bar, _bar_value(stage.output_value))
+        set_label_text_if_changed(self.explanation, stage.explanation)
         status_text, tone = _stage_status(stage)
-        self.status.setText(status_text)
-        self.status.setProperty("chipTone", tone)
-        self.status.style().unpolish(self.status)
-        self.status.style().polish(self.status)
-        self.rule_label.setText(_stage_rule_text(stage))
+        if set_chip_text_and_tone_if_changed(self.status, status_text, tone):
+            self.repolish_count += 1
+        set_label_text_if_changed(self.rule_label, _stage_rule_text(stage))
 
     def set_selected(self, selected: bool) -> None:
-        self.setProperty("selected", selected)
-        self.style().unpolish(self)
-        self.style().polish(self)
+        changed = set_widget_property_if_changed(self, "selected", selected)
+        if changed:
+            self.repolish_count += 1
+        repolish_if_changed(self, changed)
 
 
 class EffectiveResponseStackPage(QWidget):
@@ -146,6 +161,28 @@ class EffectiveResponseStackPage(QWidget):
         self._frozen_raw_values: dict[str, float] | None = None
         self._current_raw_values: dict[str, float] = {axis: 0.0 for axis in AXIS_NAMES}
         self._current_result: WorkspaceSignalPipelineResult | None = None
+        self._pipeline = WorkspaceSignalPipeline(self._workspace)
+        self._pipeline_state = self._pipeline.initial_state()
+        self._runtime_bridge = RuntimeBridge(
+            preflight_status=self._runtime_status,
+            deterministic_simulation=False,
+        )
+        self._scheduler = MultiCadenceScheduler()
+        self._last_compute_signature: tuple[object, ...] | None = None
+        self._last_render_signature: tuple[object, ...] | None = None
+        self._last_static_graph_signature: tuple[object, ...] | None = None
+        self._last_marker_signature: tuple[object, ...] | None = None
+        self._last_selected_stage_signature: tuple[object, ...] | None = None
+        self._last_most_impactful_stage: str | None = None
+        self.tick_count = 0
+        self.input_sample_count = 0
+        self.pipeline_compute_count = 0
+        self.full_render_count = 0
+        self.static_graph_rebuild_count = 0
+        self.marker_update_count = 0
+        self.stage_card_update_count = 0
+        self.selected_stage_update_count = 0
+        self.skipped_repeated_frame_count = 0
         self.stage_widgets: dict[str, StageCard] = {}
         self._stage_by_name: dict[str, StageResult] = {}
         self._total_change_labels: dict[str, QLabel] = {}
@@ -332,6 +369,7 @@ class EffectiveResponseStackPage(QWidget):
         return frame
 
     def _tick(self) -> None:
+        self.tick_count += 1
         if self.frozen:
             return
         if not self.isVisible():
@@ -356,12 +394,16 @@ class EffectiveResponseStackPage(QWidget):
         if self.axis_selector.currentText() != axis_name:
             self.axis_selector.setCurrentText(axis_name)
         self._state.selected_axis = axis_name
+        self._last_static_graph_signature = None
+        self._last_marker_signature = None
         self.refresh_snapshot(raw_axis_values=self._current_raw_values)
 
     def refresh_snapshot(self, *, force_new: bool = False, raw_axis_values: dict[str, float] | None = None) -> None:
         if self.frozen and self._frozen_result is not None:
-            self._render(self._frozen_result, self._frozen_raw_values or self._current_raw_values)
+            self._render(self._frozen_result, self._frozen_raw_values or self._current_raw_values, force=force_new)
             return
+        if force_new:
+            self._scheduler.force_all()
 
         self._refresh_physical_input_source_status()
         if raw_axis_values is not None:
@@ -369,18 +411,27 @@ class EffectiveResponseStackPage(QWidget):
         elif self._physical_input_snapshot is not None and self._input_source_status.is_fresh_physical_sample:
             current_raw = raw_axes_from_physical_snapshot(self._physical_input_snapshot)
         else:
-            deterministic = not force_new
-            snapshot = RuntimeBridge(
-                preflight_status=self._runtime_status,
-                deterministic_simulation=deterministic,
-            ).snapshot()
+            snapshot = self._runtime_bridge.snapshot()
             current_raw = {axis: float(snapshot.raw_axis_values[axis]) for axis in AXIS_NAMES}
+        self.input_sample_count += 1
+        compute_signature = _raw_signature(current_raw)
+        compute_due = raw_axis_values is not None or force_new or self._current_result is None
+        compute_due = compute_due or self._scheduler.run("effective_stack_compute")
+        if not compute_due and self._current_result is not None:
+            self.skipped_repeated_frame_count += 1
+            self._current_raw_values = current_raw
+            self._update_graph(current_raw, result=self._current_result, marker_only=True)
+            return
 
-        pipeline = WorkspaceSignalPipeline(self._workspace)
-        result = pipeline.process(current_raw, mode_state=ModeState(), state=pipeline.initial_state())
+        started_at = time.perf_counter()
+        result = self._pipeline.process(current_raw, mode_state=ModeState(), state=self._pipeline_state)
+        self._pipeline_state = result.state
+        self.pipeline_compute_count += 1
+        self._record_timing("effective_stack_compute", started_at)
+        self._last_compute_signature = compute_signature
         self._current_raw_values = current_raw
         self._current_result = result
-        self._render(result, current_raw)
+        self._render(result, current_raw, force=force_new)
 
     def toggle_freeze(self) -> None:
         if self.frozen:
@@ -401,9 +452,12 @@ class EffectiveResponseStackPage(QWidget):
         if stage_name not in EXPECTED_STAGE_NAMES:
             return
         self.selected_stage = stage_name
+        self._apply_selected_stage(force=True)
+
+    def _apply_selected_stage(self, *, force: bool = False) -> None:
         for name, widget in self.stage_widgets.items():
-            widget.set_selected(name == stage_name)
-        self._update_selected_stage_panel()
+            widget.set_selected(name == self.selected_stage)
+        self._update_selected_stage_panel(force=force)
 
     def copy_snapshot(self) -> None:
         result = self._current_result
@@ -419,19 +473,32 @@ class EffectiveResponseStackPage(QWidget):
             lines.append(f"{stage.stage_name}: IN {signed(stage.input_value)} OUT {signed(stage.output_value)} DELTA {signed(stage.delta)}")
         QApplication.clipboard().setText("\n".join(lines))
 
-    def _render(self, result: WorkspaceSignalPipelineResult, raw_axis_values: dict[str, float]) -> None:
+    def _render(self, result: WorkspaceSignalPipelineResult, raw_axis_values: dict[str, float], *, force: bool = False) -> None:
         axis_result = result.axis_results[self.selected_axis]
+        render_signature = (
+            self.selected_axis,
+            tuple(_stage_signature(stage) for stage in axis_result.stages),
+            tuple((getattr(rule, "rule_title", ""), rule.status.value) for rule in result.rule_evaluations),
+        )
+        if render_signature == self._last_render_signature and not force:
+            self._update_graph(raw_axis_values, result=result, marker_only=True)
+            return
+        self._last_render_signature = render_signature
+        self.full_render_count += 1
         self._stage_by_name = {stage.stage_name: stage for stage in axis_result.stages}
         for stage in axis_result.stages:
+            before = self.stage_widgets[stage.stage_name].update_count
             self.stage_widgets[stage.stage_name].update_from_stage(stage)
-        self.select_stage(self.selected_stage)
-        self._update_graph(raw_axis_values)
+            if self.stage_widgets[stage.stage_name].update_count != before:
+                self.stage_card_update_count += 1
+        self._apply_selected_stage(force=force)
+        self._update_graph(raw_axis_values, result=result, force=force)
         self._update_mode_state()
         self._update_summary(result)
         self._update_total_change(result)
         self._update_rule_driver_values(result)
         if not self.frozen:
-            self.runtime_chip.setText(self._state.runtime.header_truth_label)
+            set_chip_text_and_tone_if_changed(self.runtime_chip, self._state.runtime.header_truth_label, self._state.runtime.tone)
 
     def _physical_input_now(self) -> datetime | None:
         if self._physical_input_clock is not None:
@@ -449,7 +516,35 @@ class EffectiveResponseStackPage(QWidget):
             stale_after_seconds=self._physical_sample_stale_after_seconds,
         )
 
-    def _update_graph(self, raw_axis_values: dict[str, float]) -> None:
+    def _update_graph(
+        self,
+        raw_axis_values: dict[str, float],
+        *,
+        result: WorkspaceSignalPipelineResult | None = None,
+        force: bool = False,
+        marker_only: bool = False,
+    ) -> None:
+        raw = float(raw_axis_values.get(self.selected_axis, 0.0))
+        marker_result = result or self._current_result
+        final = raw
+        if marker_result is not None:
+            final = float(marker_result.final_output_values.get(self.selected_axis, raw))
+        marker = (raw, final)
+        static_signature = (
+            self.selected_axis,
+            id(self._workspace),
+            _settings_signature(self._workspace, self.selected_axis),
+        )
+        if marker_only or static_signature == self._last_static_graph_signature:
+            marker_signature = (self.selected_axis, round(marker[0], 5), round(marker[1], 5))
+            if (force or marker_signature != self._last_marker_signature) and self._scheduler.run("effective_stack_marker", force=force):
+                self.graph.update_marker(marker)
+                self._last_marker_signature = marker_signature
+                self.marker_update_count += 1
+                self._record_timing("effective_stack_marker", time.perf_counter())
+            return
+        if not force and not self._scheduler.run("effective_stack_static_graph"):
+            return
         started_at = time.perf_counter()
         data = effective_response_stack_graph_data(
             self._workspace,
@@ -463,12 +558,18 @@ class EffectiveResponseStackPage(QWidget):
             ),
             marker=data.live_marker,
         )
+        self._last_static_graph_signature = static_signature
+        self._last_marker_signature = (self.selected_axis, round(data.live_marker[0], 5), round(data.live_marker[1], 5))
+        self.static_graph_rebuild_count += 1
+        self.marker_update_count += 1
+        self._record_timing("effective_stack_static_graph", started_at)
         self._record_timing("graph", started_at)
 
     def _update_mode_state(self) -> None:
-        self.mode_state.setText(
+        set_label_text_if_changed(
+            self.mode_state,
             "Precision off | Combat off | Trigger off | Zoom off | Extra off | "
-            f"Stack {self._workspace.modes.precision_combat_stack_mode.value}"
+            f"Stack {self._workspace.modes.precision_combat_stack_mode.value}",
         )
 
     def _update_summary(self, result: WorkspaceSignalPipelineResult) -> None:
@@ -481,16 +582,18 @@ class EffectiveResponseStackPage(QWidget):
             if self._input_source_status.is_fresh_physical_sample
             else f"Stack preview is using simulation/fallback input; diagnostic only. {self._input_source_status.fallback_behavior}"
         )
-        self.input_source_summary.setText(
+        set_label_text_if_changed(
+            self.input_source_summary,
             f"Input source: {self._input_source_status.source_label}. "
             f"{source_note} Output verified: {str(self._runtime_status.live_output_writes_verified).lower()}. "
         )
-        self.summary.setText(
+        set_label_text_if_changed(
+            self.summary,
             f"{self.selected_axis}: raw {signed(result.raw_axis_values[self.selected_axis])}, "
             f"final {signed(result.final_output_values[self.selected_axis])}. "
             f"{largest.stage_name} is the largest live modifier right now. "
             f"Active rules: {active_rules}. Output writes verified: "
-            f"{str(self._runtime_status.live_output_writes_verified).lower()}."
+            f"{str(self._runtime_status.live_output_writes_verified).lower()}.",
         )
 
     def _update_total_change(self, result: WorkspaceSignalPipelineResult) -> None:
@@ -508,31 +611,36 @@ class EffectiveResponseStackPage(QWidget):
         for object_name, text in values.items():
             label = self._total_change_labels.get(object_name)
             if label is not None:
-                label.setText(text)
+                set_label_text_if_changed(label, text)
         impact = self._total_change_labels.get("stackMostImpactfulStage")
         if impact is not None:
-            impact.setProperty("impactSource", "stage-delta" if largest is not None else "unavailable")
+            set_widget_property_if_changed(impact, "impactSource", "stage-delta" if largest is not None else "unavailable")
 
     def _mark_most_impactful_stage(self, stage_name: str) -> None:
+        if self._last_most_impactful_stage == stage_name:
+            return
+        self._last_most_impactful_stage = stage_name
         for name, widget in self.stage_widgets.items():
-            widget.setProperty("mostImpactful", name == stage_name)
-            widget.style().unpolish(widget)
-            widget.style().polish(widget)
+            changed = set_widget_property_if_changed(widget, "mostImpactful", name == stage_name)
+            repolish_if_changed(widget, changed)
 
-    def _update_selected_stage_panel(self) -> None:
+    def _update_selected_stage_panel(self, *, force: bool = False) -> None:
         stage = self._stage_by_name.get(self.selected_stage)
         if stage is None:
             return
+        signature = (self.selected_stage, _stage_signature(stage))
+        if signature == self._last_selected_stage_signature and not force:
+            return
+        self._last_selected_stage_signature = signature
+        self.selected_stage_update_count += 1
         status_text, tone = _stage_status(stage)
-        self.selected_stage_status.setText(status_text)
-        self.selected_stage_status.setProperty("chipTone", tone)
-        self.selected_stage_status.style().unpolish(self.selected_stage_status)
-        self.selected_stage_status.style().polish(self.selected_stage_status)
-        self.selected_stage_title.setText(stage.stage_name)
-        self.selected_stage_body.setText(
-            f"{stage.explanation}\nInput {signed(stage.input_value)} | Output {signed(stage.output_value)} | Delta {signed(stage.delta)}"
+        set_chip_text_and_tone_if_changed(self.selected_stage_status, status_text, tone)
+        set_label_text_if_changed(self.selected_stage_title, stage.stage_name)
+        set_label_text_if_changed(
+            self.selected_stage_body,
+            f"{stage.explanation}\nInput {signed(stage.input_value)} | Output {signed(stage.output_value)} | Delta {signed(stage.delta)}",
         )
-        self.selected_stage_metadata.setText(_metadata_text(stage.metadata))
+        set_label_text_if_changed(self.selected_stage_metadata, _metadata_text(stage.metadata))
 
     def _update_rule_driver_values(self, result: WorkspaceSignalPipelineResult) -> None:
         relevant = [
@@ -540,7 +648,7 @@ class EffectiveResponseStackPage(QWidget):
             if rule.target_axis == self.selected_axis or rule.status is RuleStatus.ACTIVE
         ]
         if not relevant:
-            self.rule_drivers.setText("No active rule drivers for the selected axis right now.")
+            set_label_text_if_changed(self.rule_drivers, "No active rule drivers for the selected axis right now.")
             return
         lines: list[str] = []
         for rule in relevant:
@@ -552,7 +660,7 @@ class EffectiveResponseStackPage(QWidget):
                 f"{rule.rule_title}: {rule.status.value}. Reference {signed(float(reference or 0.0))}; "
                 f"measured {signed(float(measured or 0.0))}; condition {comparator} {float(threshold or 0.0):.2f}."
             )
-        self.rule_drivers.setText("\n".join(lines))
+        set_label_text_if_changed(self.rule_drivers, "\n".join(lines))
 
 
 def _value_pair(layout: QGridLayout, column: int, label: str, object_name: str) -> QLabel:
@@ -577,6 +685,37 @@ def _bar(label: str) -> QProgressBar:
 
 def _bar_value(value: float) -> int:
     return max(0, min(100, int(round((float(value) + 1.0) * 50.0))))
+
+
+def _raw_signature(raw_axis_values: dict[str, float]) -> tuple[tuple[str, float], ...]:
+    return tuple((axis, round(float(raw_axis_values.get(axis, 0.0)), 5)) for axis in AXIS_NAMES)
+
+
+def _stage_signature(stage: StageResult) -> tuple[object, ...]:
+    return (
+        stage.stage_name,
+        round(float(stage.input_value), 5),
+        round(float(stage.output_value), 5),
+        round(float(stage.delta), 5),
+        bool(stage.active),
+        stage.explanation,
+        _stage_status(stage),
+        _stage_rule_text(stage),
+    )
+
+
+def _settings_signature(workspace: WorkspaceConfig, axis_name: str) -> tuple[object, ...]:
+    axis_id = axis_by_name(axis_name).axis_id.value
+    tuning = workspace.tuning.axes[axis_id]
+    filtering = workspace.filtering.axes[axis_id]
+    combat = workspace.combat.axes[axis_id]
+    return (
+        tuning,
+        filtering,
+        combat,
+        workspace.modes.precision_combat_stack_mode.value,
+        tuple(getattr(rule, "rule_id", str(index)) for index, rule in enumerate(workspace.rules.rules)),
+    )
 
 
 def _key(value: str) -> str:

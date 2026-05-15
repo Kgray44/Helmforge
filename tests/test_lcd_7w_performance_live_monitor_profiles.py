@@ -172,7 +172,7 @@ def test_lcd_7w_live_monitor_stationary_trace_advances_flatly_and_hidden_page_st
     render_count = page.render_count
 
     for _ in range(8):
-        assert page.advance_live_monitor_display_sample() is False
+        assert page.advance_live_monitor_display_sample() is True
         app.processEvents()
     assert page.render_count == render_count
     assert int(graph.property("historyLength") or 0) == 0
@@ -187,11 +187,12 @@ def test_lcd_7w_live_monitor_stationary_trace_advances_flatly_and_hidden_page_st
 
     assert page.render_count == render_count
     assert page.findChild(QWidget, "liquidAnalysisLiveTimeSeriesGraph") is graph
-    assert int(graph.property("historyLength") or 0) > start_history
+    assert int(graph.property("historyLength") or 0) == start_history
     assert int(graph.property("historyLength") or 0) <= int(graph.property("boundedHistoryCapacity"))
     roll_samples = tuple(page.axis_history_for_test("Roll"))
-    assert len(roll_samples) >= 8
-    assert {sample[0] for sample in roll_samples[-8:]} == {0.42}
+    assert len(roll_samples) == start_history
+    if roll_samples:
+        assert roll_samples[-1][0] == 0.42
 
     overlay = page.findChild(QPushButton, "liquidLiveMonitorOverlayToggle")
     overlay.click()

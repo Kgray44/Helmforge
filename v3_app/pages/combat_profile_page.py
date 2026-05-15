@@ -39,7 +39,9 @@ from v3_app.pages.page_helpers import (
 from v3_app.services.app_state import AppState
 from v3_app.services.live_input_source import LiveAxisSampleSource
 from v3_app.services.live_refresh import LIVE_REFRESH_INTERVAL_MS
+from v3_app.services.live_ui_scheduler import MultiCadenceScheduler
 from v3_app.services.parameter_metadata import PARAMETER_HELP
+from v3_app.services.ui_dirty import repolish_if_changed, set_label_text_if_changed, set_widget_property_if_changed
 
 
 OnWorkspaceChanged = Callable[[WorkspaceConfig, str], None]
@@ -84,6 +86,11 @@ class CombatProfilePage(QWidget):
         self._guidance_rows: dict[str, QLabel] = {}
         self._validation_message: QLabel | None = None
         self._graph: GraphPreview | None = None
+        self._live_scheduler = MultiCadenceScheduler()
+        self.tick_count = 0
+        self.live_source_read_count = 0
+        self.marker_update_count = 0
+        self.static_graph_rebuild_count = 0
 
         root.addWidget(
             page_intro(
@@ -275,9 +282,11 @@ class CombatProfilePage(QWidget):
         return frame
 
     def _tick(self) -> None:
+        self.tick_count += 1
         if not self.isVisible():
             return
-        self._refresh_live_sample()
+        if self._live_scheduler.run("tuning_live_marker"):
+            self._refresh_live_sample()
 
     def set_selected_axis(self, axis_name: str) -> None:
         if axis_name not in AXIS_DISPLAY_NAMES:
@@ -291,7 +300,7 @@ class CombatProfilePage(QWidget):
         self._sync_parameter_fields()
         self._update_graph_series()
         self._update_guidance()
-        self._refresh_live_sample(raw_axis_values=self._latest_raw_values)
+        self._refresh_live_sample(raw_axis_values=self._latest_raw_values, force=True)
 
     def _commit_numeric(self, attribute: str, field: QLineEdit, metadata_id: str) -> None:
         metadata = PARAMETER_HELP.require(metadata_id)
@@ -328,7 +337,7 @@ class CombatProfilePage(QWidget):
         self._publish_workspace(message)
         self._update_graph_series()
         self._update_guidance()
-        self._refresh_live_sample(raw_axis_values=self._latest_raw_values)
+        self._refresh_live_sample(raw_axis_values=self._latest_raw_values, force=True)
 
     def _publish_workspace(self, message: str) -> None:
         if self._on_workspace_changed is not None:
@@ -339,10 +348,9 @@ class CombatProfilePage(QWidget):
     def _sync_axis_buttons(self) -> None:
         for axis_name, button in self._axis_buttons.items():
             active = axis_name == self._axis_name
-            button.setProperty("active", active)
+            changed = set_widget_property_if_changed(button, "active", active)
             button.setChecked(active)
-            button.style().unpolish(button)
-            button.style().polish(button)
+            repolish_if_changed(button, changed)
 
     def _sync_parameter_fields(self) -> None:
         values = {
@@ -371,28 +379,32 @@ class CombatProfilePage(QWidget):
             markers=self._marker_points(),
             marker_colors=LIVE_MARKER_COLORS,
         )
+        self.static_graph_rebuild_count += 1
 
-    def _refresh_live_sample(self, *, raw_axis_values: dict[str, float] | None = None) -> None:
+    def _refresh_live_sample(self, *, raw_axis_values: dict[str, float] | None = None, force: bool = False) -> None:
         if raw_axis_values is None:
             raw_axis_values = self._live_axis_source.raw_axes()
+            self.live_source_read_count += 1
         self._latest_raw_values = {
             axis: float(raw_axis_values.get(axis, 0.0)) for axis in AXIS_DISPLAY_NAMES
         }
         raw = self._latest_raw_values[self._axis_name]
         output = combat_adjusted_value(self._tuning, self._combat, raw)
-        if self._snapshot_value is not None:
-            self._snapshot_value.setText(signed(output))
-        self._set_snapshot_row("Input Source", self._live_axis_source.last_source_label)
-        self._set_snapshot_row("Selected Axis", self._axis_name)
-        self._set_snapshot_row("Raw Value", signed(raw))
-        self._set_snapshot_row("Output Intent", signed(output))
-        self._set_snapshot_row("Runtime Truth", self._live_axis_source.last_runtime_truth)
-        self._set_snapshot_row(
-            "Output Verification",
-            f"Output writes verified: {str(self._live_axis_source.last_output_verified).lower()}",
-        )
+        if force or self._live_scheduler.run("tuning_snapshot_text"):
+            if self._snapshot_value is not None:
+                set_label_text_if_changed(self._snapshot_value, signed(output))
+            self._set_snapshot_row("Input Source", self._live_axis_source.last_source_label)
+            self._set_snapshot_row("Selected Axis", self._axis_name)
+            self._set_snapshot_row("Raw Value", signed(raw))
+            self._set_snapshot_row("Output Intent", signed(output))
+            self._set_snapshot_row("Runtime Truth", self._live_axis_source.last_runtime_truth)
+            self._set_snapshot_row(
+                "Output Verification",
+                f"Output writes verified: {str(self._live_axis_source.last_output_verified).lower()}",
+            )
         if self._graph is not None:
             self._graph.update_markers(self._marker_points(), marker_colors=LIVE_MARKER_COLORS)
+            self.marker_update_count += 1
 
     def _marker_points(self) -> dict[str, tuple[float, float]]:
         raw = self._latest_raw_values.get(self._axis_name, 0.0)
@@ -405,7 +417,7 @@ class CombatProfilePage(QWidget):
     def _set_snapshot_row(self, label: str, value: str) -> None:
         row = self._snapshot_rows.get(label)
         if row is not None:
-            row.setText(value)
+            set_label_text_if_changed(row, value)
 
     def _update_guidance(self) -> None:
         self._set_guidance_row(
@@ -433,8 +445,8 @@ class CombatProfilePage(QWidget):
     def _set_guidance_row(self, label: str, value: str) -> None:
         row = self._guidance_rows.get(label)
         if row is not None:
-            row.setText(value)
+            set_label_text_if_changed(row, value)
 
     def _set_validation_message(self, message: str) -> None:
         if self._validation_message is not None:
-            self._validation_message.setText(message)
+            set_label_text_if_changed(self._validation_message, message)

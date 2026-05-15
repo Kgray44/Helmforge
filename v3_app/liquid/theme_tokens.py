@@ -22,6 +22,13 @@ class LiquidColors:
     status_red = "#ff7171"
     status_cyan = "#76d9ff"
     shadow = "rgba(0, 0, 0, 120)"
+    hover_border = "rgba(118, 217, 255, 178)"
+    pressed_fill = "rgba(4, 16, 26, 238)"
+    selected_rim = "rgba(126, 224, 166, 188)"
+    focus_ring = "rgba(247, 251, 255, 210)"
+    subtle_glow = "rgba(118, 217, 255, 86)"
+    draft_glow = "rgba(242, 198, 109, 132)"
+    disabled_muted = "#25384a"
 
 
 class LiquidLayout:
@@ -91,6 +98,40 @@ def liquid_qss() -> str:
         border-radius: 26px;
     }}
 
+    QFrame#liquid_command_surface[atmosphereEnabled="true"] {{
+        border-color: rgba(118, 217, 255, 112);
+    }}
+
+    QFrame#liquid_command_surface[modeAccent="preflight"] {{
+        background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 1, stop: 0 rgba(242, 198, 109, 30), stop: 0.42 rgba(8, 24, 38, 222), stop: 1 rgba(3, 9, 15, 238));
+        border-color: rgba(242, 198, 109, 118);
+    }}
+
+    QFrame#liquid_command_surface[modeAccent="mapping"] {{
+        background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 1, stop: 0 rgba(118, 217, 255, 30), stop: 0.42 rgba(8, 24, 38, 222), stop: 1 rgba(3, 9, 15, 238));
+        border-color: rgba(118, 217, 255, 120);
+    }}
+
+    QFrame#liquid_command_surface[modeAccent="tuning"] {{
+        background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 1, stop: 0 rgba(104, 220, 194, 28), stop: 0.44 rgba(8, 24, 38, 222), stop: 1 rgba(3, 9, 15, 238));
+        border-color: rgba(104, 220, 194, 112);
+    }}
+
+    QFrame#liquid_command_surface[modeAccent="analysis"] {{
+        background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 1, stop: 0 rgba(126, 224, 166, 30), stop: 0.44 rgba(8, 24, 38, 222), stop: 1 rgba(3, 9, 15, 238));
+        border-color: rgba(126, 224, 166, 118);
+    }}
+
+    QFrame#liquid_command_surface[modeAccent="recorder"] {{
+        background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 1, stop: 0 rgba(255, 113, 113, 28), stop: 0.44 rgba(8, 24, 38, 222), stop: 1 rgba(3, 9, 15, 238));
+        border-color: rgba(242, 198, 109, 108);
+    }}
+
+    QFrame#liquid_command_surface[modeAccent="support"] {{
+        background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 1, stop: 0 rgba(132, 160, 188, 24), stop: 0.44 rgba(8, 24, 38, 222), stop: 1 rgba(3, 9, 15, 238));
+        border-color: rgba(132, 160, 188, 104);
+    }}
+
     QFrame#liquid_surface_glass_field {{
         background: qlineargradient(
             x1: 0, y1: 0, x2: 1, y2: 1,
@@ -100,6 +141,73 @@ def liquid_qss() -> str:
         );
         border: 1px solid rgba(118, 217, 255, 42);
         border-radius: 22px;
+    }}
+
+    QFrame#liquid_surface_glass_field[atmosphereEnabled="true"] {{
+        border-color: rgba(118, 217, 255, 56);
+    }}
+
+    QFrame#liquid_surface_glass_field[atmosphereMode="slow_drift"] {{
+        background: qlineargradient(
+            x1: 0, y1: 0, x2: 1, y2: 1,
+            stop: 0 rgba(126, 224, 166, 18),
+            stop: 0.35 rgba(80, 190, 255, 18),
+            stop: 1 rgba(4, 12, 20, 30)
+        );
+    }}
+
+    QFrame#liquidQuickSwitchWheel {{
+        background: qlineargradient(
+            x1: 0, y1: 0, x2: 1, y2: 1,
+            stop: 0 rgba(22, 58, 78, 238),
+            stop: 0.48 rgba(7, 20, 33, 244),
+            stop: 1 rgba(3, 9, 15, 248)
+        );
+        border: 1px solid rgba(126, 224, 166, 150);
+        border-radius: 24px;
+        min-width: 430px;
+        max-width: 520px;
+    }}
+
+    QLabel#liquidQuickWheelTitle {{
+        color: {colors.primary_text};
+        font-size: 15px;
+        font-weight: 900;
+        letter-spacing: 0px;
+    }}
+
+    QLabel#liquidQuickWheelActiveMode,
+    QLabel#liquidQuickWheelHint {{
+        color: {colors.status_cyan};
+        font-size: 11px;
+        font-weight: 800;
+    }}
+
+    QPushButton[uiRole="liquidQuickWheelButton"] {{
+        background: rgba(7, 20, 33, 218);
+        border: 1px solid rgba(118, 217, 255, 96);
+        border-radius: 14px;
+        color: {colors.primary_text};
+        font-size: 13px;
+        font-weight: 850;
+        min-height: 46px;
+        padding: 8px 12px;
+    }}
+
+    QPushButton[uiRole="liquidQuickWheelButton"]:hover {{
+        background: rgba(18, 46, 64, 226);
+        border-color: {colors.hover_border};
+    }}
+
+    QPushButton[uiRole="liquidQuickWheelButton"]:checked,
+    QPushButton[uiRole="liquidQuickWheelButton"][active="true"] {{
+        background: rgba(26, 75, 70, 232);
+        border-color: {colors.selected_rim};
+        color: #ffffff;
+    }}
+
+    QPushButton[uiRole="liquidQuickWheelButton"]:focus {{
+        border-color: {colors.focus_ring};
     }}
 
     QFrame#liquid_footer_clearance {{
@@ -313,6 +421,26 @@ def liquid_qss() -> str:
         font-weight: 700;
     }}
 
+    QLabel[uiRole="liquidStatusChip"][hoverEffectsEnabled="true"]:hover {{
+        border-color: {colors.hover_border};
+        background: rgba(12, 31, 48, 232);
+    }}
+
+    QLabel[uiRole="liquidStatusChip"][focusRingEnabled="true"]:focus {{
+        border-color: {colors.focus_ring};
+    }}
+
+    QLabel[uiRole="liquidStatusChip"][pulseEnabled="true"] {{
+        background: rgba(9, 25, 38, 232);
+    }}
+
+    QLabel[uiRole="liquidStatusChip"][draftEmphasis="true"],
+    QLabel[uiRole="liquidStatusChip"][pulseRole="draft"] {{
+        border-color: {colors.status_amber};
+        color: {colors.status_amber};
+        background: rgba(37, 25, 8, 218);
+    }}
+
     QLabel[uiRole="liquidStatusChip"][chipTone="success"] {{
         border-color: {colors.status_green};
         color: {colors.status_green};
@@ -380,18 +508,126 @@ def liquid_qss() -> str:
         padding: 8px 12px;
     }}
 
+    QPushButton[uiRole="liquidActionButton"][buttonTone="primary"] {{
+        border-color: rgba(126, 224, 166, 136);
+        background: rgba(13, 42, 36, 224);
+    }}
+
+    QPushButton[uiRole="liquidActionButton"][buttonTone="secondary"] {{
+        border-color: rgba(118, 217, 255, 104);
+    }}
+
+    QPushButton[uiRole="liquidActionButton"][buttonTone="caution"] {{
+        border-color: rgba(242, 198, 109, 142);
+        background: rgba(36, 25, 9, 218);
+        color: #ffe6ab;
+    }}
+
     QPushButton[uiRole="liquidModeDockButton"]:hover {{
-        border-color: {colors.status_cyan};
+        border-color: {colors.hover_border};
         background: rgba(18, 46, 64, 220);
     }}
 
     QPushButton[uiRole="liquidActionButton"]:hover {{
-        border-color: {colors.status_cyan};
+        border-color: {colors.hover_border};
         background: rgba(13, 35, 55, 232);
     }}
 
+    QPushButton[uiRole="liquidActionButton"][buttonTone="primary"]:hover {{
+        border-color: {colors.selected_rim};
+        background: rgba(17, 58, 48, 232);
+    }}
+
+    QPushButton[uiRole="liquidActionButton"][buttonTone="caution"]:hover {{
+        border-color: {colors.status_amber};
+        background: rgba(48, 32, 9, 232);
+    }}
+
+    QPushButton[uiRole="liquidActionButton"]:pressed {{
+        border-color: {colors.focus_ring};
+        background: {colors.pressed_fill};
+    }}
+
+    QPushButton[motionCoordinatorDriven="true"][hoverGlowStep="1"],
+    QPushButton[motionCoordinatorDriven="true"][hoverGlowStep="2"],
+    QPushButton[motionCoordinatorDriven="true"][hoverGlowStep="3"] {{
+        border-color: rgba(118, 217, 255, 138);
+        background: rgba(12, 32, 49, 224);
+    }}
+
+    QPushButton[motionCoordinatorDriven="true"][hoverGlowStep="4"],
+    QPushButton[motionCoordinatorDriven="true"][hoverGlowStep="5"],
+    QPushButton[motionCoordinatorDriven="true"][hoverGlowStep="6"] {{
+        border-color: rgba(126, 224, 255, 176);
+        background: rgba(15, 40, 60, 232);
+    }}
+
+    QPushButton[motionCoordinatorDriven="true"][hoverGlowStep="7"],
+    QPushButton[motionCoordinatorDriven="true"][hoverGlowStep="8"] {{
+        border-color: rgba(188, 244, 255, 212);
+        background: rgba(19, 50, 72, 238);
+    }}
+
+    QPushButton[motionCoordinatorDriven="true"][pressMotionStep="1"],
+    QPushButton[motionCoordinatorDriven="true"][pressMotionStep="2"],
+    QPushButton[motionCoordinatorDriven="true"][pressMotionStep="3"],
+    QPushButton[motionCoordinatorDriven="true"][pressMotionStep="4"],
+    QPushButton[motionCoordinatorDriven="true"][pressMotionStep="5"],
+    QPushButton[motionCoordinatorDriven="true"][pressMotionStep="6"],
+    QPushButton[motionCoordinatorDriven="true"][pressMotionStep="7"],
+    QPushButton[motionCoordinatorDriven="true"][pressMotionStep="8"] {{
+        border-color: {colors.focus_ring};
+        background: rgba(6, 17, 27, 238);
+        padding-top: 9px;
+        padding-bottom: 7px;
+    }}
+
+    QPushButton[motionCoordinatorDriven="true"][selectionMotionStep="1"],
+    QPushButton[motionCoordinatorDriven="true"][selectionMotionStep="2"],
+    QPushButton[motionCoordinatorDriven="true"][selectionMotionStep="3"],
+    QPushButton[motionCoordinatorDriven="true"][selectionMotionStep="4"] {{
+        border-color: rgba(126, 224, 166, 144);
+        background: rgba(18, 54, 57, 226);
+    }}
+
+    QPushButton[motionCoordinatorDriven="true"][selectionMotionStep="5"],
+    QPushButton[motionCoordinatorDriven="true"][selectionMotionStep="6"],
+    QPushButton[motionCoordinatorDriven="true"][selectionMotionStep="7"],
+    QPushButton[motionCoordinatorDriven="true"][selectionMotionStep="8"] {{
+        border-color: {colors.selected_rim};
+        background: rgba(24, 70, 70, 236);
+        color: #ffffff;
+    }}
+
+    QPushButton[motionCoordinatorDriven="true"][stateChangeMotionStep="1"],
+    QPushButton[motionCoordinatorDriven="true"][stateChangeMotionStep="2"],
+    QPushButton[motionCoordinatorDriven="true"][stateChangeMotionStep="3"],
+    QPushButton[motionCoordinatorDriven="true"][stateChangeMotionStep="4"],
+    QPushButton[motionCoordinatorDriven="true"][stateChangeMotionStep="5"],
+    QPushButton[motionCoordinatorDriven="true"][stateChangeMotionStep="6"],
+    QPushButton[motionCoordinatorDriven="true"][stateChangeMotionStep="7"],
+    QPushButton[motionCoordinatorDriven="true"][stateChangeMotionStep="8"] {{
+        border-color: rgba(242, 198, 109, 174);
+        background: rgba(42, 32, 16, 230);
+    }}
+
+    QPushButton[uiRole="liquidActionButton"]:checked {{
+        border-color: {colors.selected_rim};
+        background: rgba(24, 70, 70, 230);
+        color: #ffffff;
+    }}
+
+    QPushButton[uiRole="liquidActionButton"][focusRingEnabled="true"]:focus,
+    QPushButton[uiRole="liquidModeDockButton"][focusRingEnabled="true"]:focus,
+    QPushButton[uiRole="liquidSubpageSelectorButton"][focusRingEnabled="true"]:focus,
+    QPushButton[uiRole="liquidAxisPill"][focusRingEnabled="true"]:focus,
+    QPushButton[uiRole="liquidMappingMarker"][focusRingEnabled="true"]:focus,
+    QPushButton[uiRole="liquidQuickWheelButton"]:focus {{
+        border-color: {colors.focus_ring};
+    }}
+
     QPushButton[uiRole="liquidSubpageSelectorButton"]:hover {{
-        border-color: {colors.status_cyan};
+        border-color: {colors.hover_border};
         background: rgba(18, 46, 64, 220);
     }}
 
@@ -438,6 +674,22 @@ def liquid_qss() -> str:
         background: rgba(8, 15, 24, 188);
         border-color: #1d3448;
         color: {colors.dim_text};
+    }}
+
+    QPushButton[uiRole="liquidActionButton"][draftEmphasis="true"]:disabled {{
+        border-color: rgba(242, 198, 109, 104);
+        color: #9c875f;
+        background: rgba(18, 17, 18, 188);
+    }}
+
+    QFrame#liquid_floating_footer_strip[draftEmphasis="true"] {{
+        border-color: rgba(242, 198, 109, 134);
+        background: qlineargradient(
+            x1: 0, y1: 0, x2: 1, y2: 0,
+            stop: 0 rgba(21, 17, 13, 220),
+            stop: 0.52 rgba(33, 28, 19, 232),
+            stop: 1 rgba(21, 17, 13, 220)
+        );
     }}
 
     QFrame[liquidComponent="true"] {{
@@ -569,6 +821,145 @@ def liquid_qss() -> str:
         border-radius: 5px;
     }}
 
+    QFrame[componentRole="StatusLight"][toneRole="success"],
+    QFrame[componentRole="StatusLight"][pulseRole="verified"] {{
+        background: rgba(126, 224, 166, 204);
+        border-color: rgba(223, 255, 235, 130);
+    }}
+
+    QFrame[componentRole="StatusLight"][toneRole="warning"],
+    QFrame[componentRole="StatusLight"][pulseRole="attention"],
+    QFrame[componentRole="StatusLight"][pulseRole="draft"] {{
+        background: rgba(242, 198, 109, 210);
+        border-color: rgba(255, 237, 191, 130);
+    }}
+
+    QFrame[componentRole="StatusLight"][toneRole="danger"],
+    QFrame[componentRole="StatusLight"][pulseRole="error"] {{
+        background: rgba(255, 113, 113, 218);
+        border-color: rgba(255, 218, 218, 150);
+    }}
+
+    QFrame[componentRole="StatusLight"][toneRole="disabled"] {{
+        background: rgba(102, 135, 159, 132);
+        border-color: rgba(102, 135, 159, 84);
+    }}
+
+    QFrame[componentRole="StatusLight"][pulseEnabled="true"][pulsePhase="1"] {{
+        border-color: rgba(247, 251, 255, 210);
+    }}
+
+    QFrame[microinteractionRole="interactive_card"][hoverEffectsEnabled="true"]:hover,
+    QFrame[microinteractionRole="selectable_card"][hoverEffectsEnabled="true"]:hover,
+    QFrame[microinteractionRole="status_card"][hoverEffectsEnabled="true"]:hover {{
+        border-color: {colors.hover_border};
+        background: rgba(10, 28, 43, 220);
+    }}
+
+    QFrame[motionCoordinatorDriven="true"][hoverGlowStep="1"],
+    QFrame[motionCoordinatorDriven="true"][hoverGlowStep="2"],
+    QFrame[motionCoordinatorDriven="true"][hoverGlowStep="3"] {{
+        border-color: rgba(118, 217, 255, 132);
+        background: rgba(9, 26, 40, 214);
+    }}
+
+    QFrame[motionCoordinatorDriven="true"][hoverGlowStep="4"],
+    QFrame[motionCoordinatorDriven="true"][hoverGlowStep="5"],
+    QFrame[motionCoordinatorDriven="true"][hoverGlowStep="6"] {{
+        border-color: rgba(126, 224, 255, 168);
+        background: rgba(11, 32, 47, 222);
+    }}
+
+    QFrame[motionCoordinatorDriven="true"][hoverGlowStep="7"],
+    QFrame[motionCoordinatorDriven="true"][hoverGlowStep="8"] {{
+        border-color: rgba(188, 244, 255, 202);
+        background: rgba(13, 38, 54, 228);
+    }}
+
+    QFrame[motionCoordinatorDriven="true"][selectionMotionStep="1"],
+    QFrame[motionCoordinatorDriven="true"][selectionMotionStep="2"],
+    QFrame[motionCoordinatorDriven="true"][selectionMotionStep="3"],
+    QFrame[motionCoordinatorDriven="true"][selectionMotionStep="4"] {{
+        border-color: rgba(126, 224, 166, 136);
+        background: rgba(13, 34, 39, 218);
+    }}
+
+    QFrame[motionCoordinatorDriven="true"][selectionMotionStep="5"],
+    QFrame[motionCoordinatorDriven="true"][selectionMotionStep="6"],
+    QFrame[motionCoordinatorDriven="true"][selectionMotionStep="7"],
+    QFrame[motionCoordinatorDriven="true"][selectionMotionStep="8"] {{
+        border-color: {colors.selected_rim};
+        background: rgba(14, 42, 45, 228);
+    }}
+
+    QFrame[motionCoordinatorDriven="true"][stateChangeMotionStep="1"],
+    QFrame[motionCoordinatorDriven="true"][stateChangeMotionStep="2"],
+    QFrame[motionCoordinatorDriven="true"][stateChangeMotionStep="3"],
+    QFrame[motionCoordinatorDriven="true"][stateChangeMotionStep="4"],
+    QFrame[motionCoordinatorDriven="true"][stateChangeMotionStep="5"],
+    QFrame[motionCoordinatorDriven="true"][stateChangeMotionStep="6"],
+    QFrame[motionCoordinatorDriven="true"][stateChangeMotionStep="7"],
+    QFrame[motionCoordinatorDriven="true"][stateChangeMotionStep="8"] {{
+        border-color: rgba(242, 198, 109, 168);
+        background: rgba(35, 29, 18, 224);
+    }}
+
+    QFrame[motionCoordinatorDriven="true"][glintMotionStep="4"],
+    QFrame[motionCoordinatorDriven="true"][glintMotionStep="5"],
+    QFrame[motionCoordinatorDriven="true"][glintMotionStep="6"],
+    QFrame[motionCoordinatorDriven="true"][glintMotionStep="7"],
+    QFrame[motionCoordinatorDriven="true"][glintMotionStep="8"] {{
+        border-color: rgba(218, 251, 255, 210);
+    }}
+
+    QFrame[microinteractionRole="interactive_card"][focusRingEnabled="true"]:focus,
+    QFrame[microinteractionRole="selectable_card"][focusRingEnabled="true"]:focus,
+    QFrame[microinteractionRole="status_card"][focusRingEnabled="true"]:focus {{
+        border-color: {colors.focus_ring};
+    }}
+
+    QFrame[microinteractionRole="selectable_card"][selected="true"],
+    QFrame[componentRole="ReadinessGate"][gateEmphasis="active"],
+    QFrame[componentRole="ParameterRow"][draftEmphasis="true"],
+    QFrame[componentRole="DraftStateIndicator"][draftEmphasis="true"] {{
+        border-color: {colors.draft_glow};
+        background: rgba(26, 24, 18, 218);
+    }}
+
+    QFrame[microinteractionRole="selectable_card"][selected="true"] {{
+        border-color: {colors.selected_rim};
+    }}
+
+    QFrame[microinteractionRole="raw_diagnostic"],
+    QFrame[rawDiagnosticSurface="true"] {{
+        border-color: rgba(72, 112, 140, 58);
+    }}
+
+    QStackedWidget#liquid_page_host[pageMotionActive="true"] {{
+        border: 1px solid rgba(118, 217, 255, 120);
+        background: rgba(118, 217, 255, 12);
+    }}
+
+    QFrame[panelSettleEnabled="true"][panelSettleRole="hero"] {{
+        border-color: rgba(118, 217, 255, 112);
+    }}
+
+    QFrame[panelSettleEnabled="true"][panelSettleRole="inspector"],
+    QFrame[panelSettleEnabled="true"][panelSettleRole="detail"] {{
+        border-color: rgba(126, 224, 166, 84);
+    }}
+
+    QFrame[signalPathMotionEnabled="true"] {{
+        border-color: rgba(118, 217, 255, 138);
+    }}
+
+    QFrame[componentRole="AxisBar"][staleMotionFrozen="true"],
+    QFrame[componentRole="AxisBarPair"][staleMotionFrozen="true"],
+    QFrame[componentRole="LiveAxisTimeSeriesGraph"][staleMotionFrozen="true"] {{
+        border-color: rgba(242, 198, 109, 112);
+        background: rgba(18, 20, 21, 190);
+    }}
+
     QFrame[componentRole="ResponseCurveGraph"],
     QFrame[componentRole="LiveAxisTimeSeriesGraph"] {{
         background: rgba(5, 15, 25, 120);
@@ -685,6 +1076,16 @@ def liquid_qss() -> str:
         padding: 4px 7px;
     }}
 
+    QPushButton[uiRole="liquidMappingMarker"]:hover {{
+        border-color: {colors.hover_border};
+        background: rgba(17, 42, 58, 226);
+    }}
+
+    QPushButton[uiRole="liquidMappingMarker"]:pressed {{
+        border-color: {colors.focus_ring};
+        background: {colors.pressed_fill};
+    }}
+
     QPushButton[uiRole="liquidMappingMarker"][mappedState="unmapped"],
     QPushButton[uiRole="liquidMappingMarker"][statusRole="warning"] {{
         border-color: rgba(242, 198, 109, 138);
@@ -797,6 +1198,12 @@ def liquid_qss() -> str:
         padding: 7px 9px;
     }}
 
+    QLineEdit[componentRole="NumericParameterControl"]:focus,
+    QComboBox[componentRole="DropdownParameterControl"]:focus {{
+        border-color: {colors.focus_ring};
+        background: rgba(8, 24, 38, 238);
+    }}
+
     QLineEdit[validationState="invalid"] {{
         border-color: {colors.status_red};
         color: {colors.status_red};
@@ -809,6 +1216,16 @@ def liquid_qss() -> str:
         color: {colors.primary_text};
         font-weight: 750;
         padding: 7px 10px;
+    }}
+
+    QPushButton[uiRole="liquidAxisPill"]:hover {{
+        border-color: {colors.hover_border};
+        background: rgba(18, 46, 64, 220);
+    }}
+
+    QPushButton[uiRole="liquidAxisPill"]:pressed {{
+        border-color: {colors.focus_ring};
+        background: {colors.pressed_fill};
     }}
 
     QPushButton[uiRole="liquidAxisPill"][active="true"],
@@ -829,5 +1246,107 @@ def liquid_qss() -> str:
     QProgressBar#liquidAxisBarValue::chunk {{
         background: rgba(118, 217, 255, 150);
         border-radius: 8px;
+    }}
+
+    QFrame#liquidVisibleAtmosphereLayer,
+    QFrame#liquidPageTransitionOverlay {{
+        background: transparent;
+        border: none;
+    }}
+
+    QFrame#liquidMotionModeCluster {{
+        background: rgba(6, 16, 28, 206);
+        border: 1px solid rgba(118, 217, 255, 72);
+        border-radius: 12px;
+    }}
+
+    QLabel#liquidMotionModeLabel,
+    QLabel#liquidMotionProofTitle {{
+        color: {colors.status_cyan};
+        font-size: 11px;
+        font-weight: 850;
+    }}
+
+    QComboBox#liquidMotionModeControl {{
+        background: rgba(4, 12, 20, 232);
+        border: 1px solid rgba(118, 217, 255, 92);
+        border-radius: 8px;
+        color: {colors.primary_text};
+        padding: 4px 7px;
+        font-weight: 750;
+    }}
+
+    QComboBox#liquidMotionModeControl:focus {{
+        border-color: {colors.focus_ring};
+        background: rgba(8, 24, 38, 238);
+    }}
+
+    QFrame#liquidMotionProofPanel {{
+        background: rgba(5, 16, 28, 222);
+        border: 1px solid rgba(126, 224, 255, 112);
+        border-radius: 12px;
+    }}
+
+    QLabel#liquidMotionProofSummary {{
+        color: {colors.muted_text};
+        font-size: 11px;
+    }}
+
+    QFrame#liquidMotionProofRail {{
+        background: rgba(2, 8, 14, 156);
+        border: 1px solid rgba(72, 112, 140, 90);
+        border-radius: 10px;
+    }}
+
+    QLabel[statusBreathActive="true"][statusBreathStep="1"],
+    QFrame[statusBreathActive="true"][statusBreathStep="1"] {{
+        border-color: rgba(126, 224, 255, 168);
+        background: rgba(14, 42, 58, 218);
+    }}
+
+    QLabel[statusBreathActive="true"][statusBreathStep="2"],
+    QFrame[statusBreathActive="true"][statusBreathStep="2"] {{
+        border-color: rgba(126, 224, 255, 210);
+        background: rgba(18, 52, 70, 228);
+    }}
+
+    QLabel[statusBreathActive="true"][statusBreathStep="3"],
+    QFrame[statusBreathActive="true"][statusBreathStep="3"] {{
+        border-color: rgba(106, 226, 168, 178);
+        background: rgba(10, 38, 44, 218);
+    }}
+
+    QFrame#liquidStatusLight[statusBreathActive="true"],
+    QFrame#liquidStatusLight[pulsePhase="1"] {{
+        border: 1px solid rgba(255, 255, 255, 160);
+        background: rgba(126, 224, 255, 226);
+    }}
+
+    QFrame[signalSweepActive="true"][signalSweepStep="1"],
+    QFrame[signalSweepActive="true"][signalSweepStep="2"] {{
+        border-color: rgba(126, 224, 255, 164);
+        background: rgba(12, 38, 54, 218);
+    }}
+
+    QFrame[signalSweepActive="true"][signalSweepStep="3"],
+    QFrame[signalSweepActive="true"][signalSweepStep="4"] {{
+        border-color: rgba(106, 226, 168, 174);
+        background: rgba(9, 34, 42, 220);
+    }}
+
+    QPushButton[uiRole="liquidQuickWheelButton"][quickWheelSegmentActive="false"] {{
+        color: {colors.dim_text};
+        border-color: rgba(72, 112, 140, 58);
+        background: rgba(4, 12, 20, 154);
+    }}
+
+    QPushButton[uiRole="liquidQuickWheelButton"][quickWheelSegmentActive="true"] {{
+        border-color: rgba(126, 224, 255, 132);
+        background: rgba(12, 34, 48, 218);
+    }}
+
+    QFrame#liquidPageTransitionOverlay[pageTransitionOverlayActive="true"] {{
+        border: 1px solid rgba(126, 224, 255, 70);
+        border-radius: 18px;
     }}
     """

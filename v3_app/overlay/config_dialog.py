@@ -34,7 +34,7 @@ _OVERLAY_PRESETS: dict[str, dict[str, object]] = {
         "line_thickness": 2.8,
         "show_legend": True,
         "show_live_values": True,
-        "fps_cap": 60,
+        "fps_cap": 30,
     },
     "Compact": {
         "history_seconds": 7.0,
@@ -44,7 +44,7 @@ _OVERLAY_PRESETS: dict[str, dict[str, object]] = {
         "line_thickness": 2.4,
         "show_legend": False,
         "show_live_values": True,
-        "fps_cap": 60,
+        "fps_cap": 30,
     },
     "High Contrast": {
         "history_seconds": 7.0,
@@ -249,7 +249,7 @@ class LiveOverlayConfigDialog(QDialog):
             ("Auto-hide when target loses focus", self.auto_hide, "false", "live_overlay.auto_hide"),
             ("Always on top", self.always_on_top, "true", "live_overlay.always_on_top"),
             ("Click-through", self.click_through, "false", "live_overlay.click_through"),
-            ("FPS cap", self.fps_cap, "60 fps", "live_overlay.fps_cap"),
+            ("FPS cap", self.fps_cap, "30 fps default; raise only when needed", "live_overlay.fps_cap"),
             ("Toggle hotkey", QLabel(self._draft.toggle_hotkey), self._draft.toggle_hotkey, "live_overlay.toggle_hotkey"),
             ("Hotkey status", QLabel("Not registered"), "Not registered", None),
             ("Click-through support", QLabel("Not verified"), "Not verified", None),

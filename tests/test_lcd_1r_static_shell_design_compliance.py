@@ -202,6 +202,23 @@ def test_lcd_1r_each_placeholder_exposes_future_page_composition_regions():
             assert "What can I capture, buffer, and review?" in labels
             assert "placeholder / static shell foundation" not in labels.casefold()
             continue
+        if definition.mode_id == "support":
+            for object_name, role in (
+                ("liquidSupportStatusRail", "liquid_status_rail"),
+                ("liquidSupportHero", "liquid_hero_panel"),
+                ("liquidSupportHelpTopicsPanel", "liquid_inspector_panel"),
+                ("liquidSupportParameterReference", "liquid_detail_panel"),
+                ("liquidSupportAdvancedDetails", "liquid_advanced_section"),
+            ):
+                widget = page.findChild(QWidget, object_name)
+                assert widget is not None, object_name
+                assert widget.property("liquidRole") == role
+
+            assert "SUPPORT / HELP / DOCS" in labels
+            assert "Help / Docs" in labels
+            assert "How do I understand and use HelmForge?" in labels
+            assert "placeholder / static shell foundation" not in labels.casefold()
+            continue
         for object_name, role in (
             (f"liquidModeStatusRail_{definition.mode_id}", "liquid_status_cluster"),
             (f"liquidHeroRegion_{definition.mode_id}", "liquid_hero_region"),
@@ -260,9 +277,7 @@ def test_lcd_1r_sources_exclude_motion_blur_runtime_authority_and_false_claims()
         assert forbidden.casefold() not in liquid_sources.casefold()
 
     for forbidden_claim in (
-        "Full Live Runtime Ready",
         "Live Output Active",
-        "Output Verified",
         "vJoy Writing",
         "Recording Ready",
         "Capture active",

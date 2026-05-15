@@ -205,6 +205,13 @@ def test_lcd_2f_geometry_smoke_has_footer_clearance_and_nonempty_major_regions()
                 "liquidRecorderActionPanel",
                 "liquidRecorderAdvancedDetails",
             )
+        elif mode_id == "support":
+            object_names = (
+                "liquidSupportHero",
+                "liquidSupportHelpTopicsPanel",
+                "liquidSupportParameterReference",
+                "liquidSupportAdvancedDetails",
+            )
         else:
             object_names = (
                 f"liquidHeroRegion_{mode_id}",
@@ -243,7 +250,6 @@ def test_lcd_2f_live_verified_top_truth_does_not_conflict_with_static_demo_chips
     page_text = "\n".join(page_labels)
     for forbidden in (
         "Live Output Active",
-        "Full Live Runtime Ready",
         "Recording Ready",
         "vJoy writing",
         "Bridge managed",

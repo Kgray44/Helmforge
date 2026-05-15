@@ -58,7 +58,7 @@ from v3_app.overlay.config_dialog import LiveOverlayConfigDialog
 from v3_app.overlay.live_overlay_window import LiveOverlayWindow
 from v3_app.overlay.overlay_config import LiveOverlayConfig
 from v3_app.overlay.telemetry_buffer import OverlayTelemetryBuffer, OverlayTelemetrySample
-from v3_app.overlay.trace_builder import build_overlay_traces
+from v3_app.overlay.trace_builder import OverlayTraceBuilderCache
 from v3_app.pages.page_helpers import add_card_to_grid, card, card_header, card_layout, page_intro, signed, truth_notice
 from v3_app.services.app_state import AppState
 from v3_app.services.bridge_client import (
@@ -83,6 +83,7 @@ from v3_app.services.bridge_presence import (
     compose_bridge_lifecycle_diagnostics,
 )
 from v3_app.services.live_refresh import LIVE_REFRESH_INTERVAL_MS, LIVE_TRACE_HISTORY_SECONDS, LIVE_TRACE_SAMPLE_RATE_HZ
+from v3_app.services.live_ui_scheduler import DirtyValueCache, MultiCadenceScheduler
 from v3_app.services.perf_diagnostics import DiagnosticsCollector
 from v3_app.services.physical_input_ui import (
     buttons_from_physical_snapshot,
@@ -91,6 +92,13 @@ from v3_app.services.physical_input_ui import (
     raw_axes_from_physical_snapshot,
 )
 from v3_app.services.live_stall_diagnostics import UiStallMonitor
+from v3_app.services.ui_dirty import (
+    repolish_if_changed,
+    set_bar_value_if_changed,
+    set_chip_text_and_tone_if_changed,
+    set_label_text_if_changed,
+    set_widget_property_if_changed,
+)
 from v3_app.ui.status_chips import action_button, status_chip
 
 
@@ -107,7 +115,7 @@ class LiveMonitorPage(QWidget):
         command_clock: Callable[[], datetime] | None = None,
         bridge_clock: Callable[[], datetime] | None = None,
         bridge_stale_after_seconds: float = 5.0,
-        telemetry_stream_enabled: bool = False,
+        telemetry_stream_enabled: bool = True,
         telemetry_stream_host: str = "127.0.0.1",
         telemetry_stream_port: int = 8765,
         process_presence_provider: BridgeProcessPresenceProvider | None = None,
@@ -178,6 +186,28 @@ class LiveMonitorPage(QWidget):
         self.telemetry_source_status = "Missing"
         self._live_source_selector = LiveTelemetrySourceSelector(clock=bridge_clock)
         self._ui_stall_monitor = UiStallMonitor(clock=bridge_clock)
+        self._scheduler = MultiCadenceScheduler()
+        self._dirty_cache = DirtyValueCache()
+        self._last_json_result: BridgeTelemetryReadResult | None = None
+        self._latest_sample: TelemetrySample | None = None
+        self._latest_telemetry = None
+        self._latest_bridge_result: BridgeTelemetryReadResult | None = None
+        self._graph_data_dirty = True
+        self._overlay_trace_cache = OverlayTraceBuilderCache()
+        self.tick_count = 0
+        self.telemetry_poll_count = 0
+        self.embedded_read_count = 0
+        self.stream_read_count = 0
+        self.json_read_count = 0
+        self.json_cache_reuse_count = 0
+        self.accepted_frame_count = 0
+        self.repeated_frame_skip_count = 0
+        self.history_append_count = 0
+        self.value_update_count = 0
+        self.button_hat_update_count = 0
+        self.graph_update_count = 0
+        self.diagnostics_update_count = 0
+        self.overlay_sync_count = 0
         self.last_ui_frame_delta_ms: float | None = None
         self.ui_stall_count = 0
         self.last_ui_stall_duration_ms: float | None = None
@@ -273,6 +303,23 @@ class LiveMonitorPage(QWidget):
         self._timer.start()
 
         self.refresh_snapshot(force_new=True)
+        self._reset_perf_counters()
+
+    def _reset_perf_counters(self) -> None:
+        self.tick_count = 0
+        self.telemetry_poll_count = 0
+        self.embedded_read_count = 0
+        self.stream_read_count = 0
+        self.json_read_count = 0
+        self.json_cache_reuse_count = 0
+        self.accepted_frame_count = 0
+        self.repeated_frame_skip_count = 0
+        self.history_append_count = 0
+        self.value_update_count = 0
+        self.button_hat_update_count = 0
+        self.graph_update_count = 0
+        self.diagnostics_update_count = 0
+        self.overlay_sync_count = 0
 
     def _build_controls_card(self) -> QWidget:
         frame = card("liveMonitorControlsCard")
@@ -626,6 +673,7 @@ class LiveMonitorPage(QWidget):
         return frame
 
     def _tick(self) -> None:
+        self.tick_count += 1
         stall_snapshot = self._ui_stall_monitor.observe()
         self.last_ui_frame_delta_ms = stall_snapshot.last_ui_frame_delta_ms
         self.ui_stall_count = stall_snapshot.ui_stall_count
@@ -635,7 +683,7 @@ class LiveMonitorPage(QWidget):
             self._record_hidden_skip()
             return
         started_at = time.perf_counter()
-        self.refresh_snapshot(force_new=True)
+        self.refresh_snapshot()
         self._record_timing("heartbeat", started_at)
 
     def should_skip_timer_refresh(self) -> bool:
@@ -654,13 +702,15 @@ class LiveMonitorPage(QWidget):
             return
         self.selected_axis = axis_name
         self._state.selected_axis = axis_name
-        self.raw_trace_title.setText(f"Raw Input Trace · {axis_name}")
-        self.overlay_title.setText(f"Raw vs Final Overlay · {axis_name}")
-        self._update_graphs()
+        set_label_text_if_changed(self.raw_trace_title, f"Raw Input Trace · {axis_name}")
+        set_label_text_if_changed(self.overlay_title, f"Raw vs Final Overlay · {axis_name}")
+        self._graph_data_dirty = True
+        self._update_graphs(force=True)
 
     def set_overlay_visible(self, checked: bool) -> None:
         self.show_raw_and_output_together = bool(checked)
-        self._update_graphs()
+        self._graph_data_dirty = True
+        self._update_graphs(force=True)
 
     def create_live_overlay_config_dialog(self) -> LiveOverlayConfigDialog:
         return LiveOverlayConfigDialog(
@@ -675,9 +725,10 @@ class LiveMonitorPage(QWidget):
     def apply_live_overlay_config(self, config: LiveOverlayConfig) -> None:
         self.overlay_config = config
         self.overlay_buffer.history_seconds = config.history_seconds
+        self._overlay_trace_cache.invalidate()
         if self.live_overlay_window is not None:
             self.live_overlay_window.apply_config(config)
-            self._sync_live_overlay_window()
+            self._sync_live_overlay_window(force=True)
         self._update_live_overlay_card()
 
     def toggle_live_overlay(self) -> None:
@@ -688,7 +739,7 @@ class LiveMonitorPage(QWidget):
 
     def show_live_overlay(self) -> None:
         window = self._ensure_live_overlay_window()
-        self._sync_live_overlay_window()
+        self._sync_live_overlay_window(force=True)
         window.show_overlay()
         self._update_live_overlay_card()
 
@@ -712,16 +763,24 @@ class LiveMonitorPage(QWidget):
     def _handle_live_overlay_visibility_changed(self, _visible: bool) -> None:
         self._update_live_overlay_card()
 
-    def _sync_live_overlay_window(self) -> None:
+    def _sync_live_overlay_window(self, *, force: bool = False) -> None:
         if self.live_overlay_window is None:
             return
+        overlay_active = self.live_overlay_window.is_overlay_active()
+        if not force and not overlay_active:
+            return
+        if not force and not self._scheduler.run("overlay_trace_build"):
+            return
+        started_at = time.perf_counter()
         self.live_overlay_window.set_runtime_truth(
             runtime_truth=self._runtime_status.truth.value,
             output_verified=self._runtime_status.live_output_writes_verified,
             full_live_runtime_ready=_full_live_runtime_ready(self._runtime_status),
         )
-        traces = build_overlay_traces(self.overlay_config, self.overlay_buffer.samples())
+        traces = self._overlay_trace_cache.build(self.overlay_config, self.overlay_buffer.samples())
         self.live_overlay_window.set_trace_set(traces)
+        self.overlay_sync_count += 1
+        self._record_timing("overlay_trace_build", started_at)
 
     def _update_live_overlay_card(self) -> None:
         config = self.overlay_config
@@ -748,7 +807,7 @@ class LiveMonitorPage(QWidget):
         }
         for label, value in row_values.items():
             if label in self._live_overlay_rows:
-                self._live_overlay_rows[label].setText(value)
+                set_label_text_if_changed(self._live_overlay_rows[label], value)
 
     def request_bridge_command(self, command: BridgeCommandType, label: str | None = None) -> BridgeCommandWriteResult:
         if command is BridgeCommandType.RELOAD_CONFIG:
@@ -771,9 +830,11 @@ class LiveMonitorPage(QWidget):
 
     def refresh_snapshot(self, *, force_new: bool = False) -> None:
         self._sample_index += 1
+        if force_new:
+            self._scheduler.force_all()
         self._refresh_physical_input_source_status()
         bridge_result = self._read_bridge_telemetry()
-        append_history = True
+        append_history = False
         if bridge_result.status is BridgeTelemetryStatus.CONNECTED and bridge_result.telemetry is not None:
             sample = telemetry_sample_from_bridge_payload(bridge_result.telemetry, index=self._sample_index)
             telemetry = bridge_result.telemetry
@@ -783,6 +844,10 @@ class LiveMonitorPage(QWidget):
                 received_at=bridge_result.last_read_at,
             )
             append_history = tracker_result.is_new_frame
+            if tracker_result.is_new_frame:
+                self.accepted_frame_count += 1
+            else:
+                self.repeated_frame_skip_count += 1
             self.last_bridge_frame_identity = frame_identity
             self.last_bridge_frame_received_at = self._bridge_frame_tracker.last_bridge_frame_received_at
             self.repeated_bridge_frame_count = tracker_result.repeated_frame_count
@@ -799,15 +864,25 @@ class LiveMonitorPage(QWidget):
                 active_profile=self._state.active_profile,
                 rule_summary=self._rule_summary(snapshot.raw_axis_values),
             )
+            append_history = True
+            self.accepted_frame_count += 1
             self.latest_bridge_frame_state = bridge_result.status.value.lower()
             self._update_manual_validation_from_telemetry(telemetry, bridge_result)
         sample = self._physical_sample_override(sample)
         if append_history:
             self.history.append(sample)
             self._append_overlay_sample(sample)
-        self._update_from_sample(sample, telemetry, bridge_result)
-        self._update_graphs()
-        self._sync_live_overlay_window()
+            self.history_append_count += 1
+            self._graph_data_dirty = True
+            self._overlay_trace_cache.invalidate()
+        self._latest_sample = sample
+        self._latest_telemetry = telemetry
+        self._latest_bridge_result = bridge_result
+        self._update_axis_values_if_due(sample, force=force_new)
+        self._update_button_hat_values_if_due(sample, force=force_new)
+        self._update_diagnostics_if_due(sample, telemetry, bridge_result, force=force_new)
+        self._update_graphs(force=force_new)
+        self._sync_live_overlay_window(force=force_new)
 
     def _update_live_telemetry_truth_state(self, telemetry, bridge_result: BridgeTelemetryReadResult) -> None:
         timing = getattr(telemetry, "bridge_timing", None)
@@ -856,17 +931,54 @@ class LiveMonitorPage(QWidget):
         self.latest_output_loop_runtime = output_loop_runtime if isinstance(output_loop_runtime, Mapping) else None
 
     def _read_bridge_telemetry(self) -> BridgeTelemetryReadResult:
+        self.telemetry_poll_count += 1
+        now = self._scheduler.now()
+        self.embedded_read_count += 1
         embedded_result = read_embedded_bridge_telemetry(stale_after_seconds=1.0, clock=self._bridge_clock)
         if embedded_result.status is BridgeTelemetryStatus.CONNECTED and embedded_result.telemetry is not None:
             self.json_read_skipped_due_to_embedded_fresh = True
             self.json_read_skipped_due_to_embedded_fresh_count += 1
             self.json_read_duration_ms = 0.0
             return self._live_source_selector.select(embedded_result=embedded_result)
-        stream_result = self._bridge_stream_client.read_latest() if self._bridge_stream_client is not None else None
+        stream_result = None
+        if self._bridge_stream_client is not None and self._scheduler.run("telemetry_stream", now=now):
+            stream_started = time.perf_counter()
+            self.stream_read_count += 1
+            stream_result = self._bridge_stream_client.read_latest()
+            self._record_timing("stream_read", stream_started)
+            stream_connected = (
+                stream_result.telemetry is not None
+                and (
+                    stream_result.status is BridgeTelemetryStatus.CONNECTED
+                    or str(stream_result.status).casefold() == "connected"
+                )
+            )
+            if stream_connected:
+                self.json_read_skipped_due_to_embedded_fresh = False
+                self.json_read_duration_ms = 0.0
+                if isinstance(stream_result, BridgeTelemetryReadResult):
+                    return replace(
+                        stream_result,
+                        source_label=stream_result.source_label or "Bridge Stream",
+                        reason=stream_result.reason or "Embedded Bridge unavailable/stale; using Bridge Stream.",
+                    )
+                return self._live_source_selector.select(
+                    embedded_result=None,
+                    stream_result=stream_result,
+                )
         self.json_read_skipped_due_to_embedded_fresh = False
-        json_started = time.perf_counter()
-        json_result = self._bridge_client.read()
-        self.json_read_duration_ms = (time.perf_counter() - json_started) * 1000.0
+        json_result = self._last_json_result
+        if self._scheduler.run("telemetry_json", now=now) or json_result is None:
+            json_started = time.perf_counter()
+            json_result = self._bridge_client.read()
+            self.json_read_count += 1
+            self.json_read_duration_ms = (time.perf_counter() - json_started) * 1000.0
+            self._last_json_result = json_result
+            self._record_timing("json_read", json_started)
+        else:
+            self.json_cache_reuse_count += 1
+            json_result = self._refresh_cached_json_result(json_result)
+            self.json_read_duration_ms = 0.0
         selected = self._live_source_selector.select(
             embedded_result=embedded_result,
             stream_result=stream_result,
@@ -877,6 +989,25 @@ class LiveMonitorPage(QWidget):
         if selected.source_label == "Bridge JSON Snapshot" and selected.telemetry is not None:
             return replace(selected, reason="Embedded Bridge/stream unavailable or stale; using fresh JSON snapshot.")
         return selected
+
+    def _refresh_cached_json_result(self, result: BridgeTelemetryReadResult) -> BridgeTelemetryReadResult:
+        if result.telemetry_generated_at is None:
+            return result
+        now = self._bridge_clock() if self._bridge_clock is not None else datetime.now(result.telemetry_generated_at.tzinfo)
+        generated_at = result.telemetry_generated_at
+        if generated_at.tzinfo is not None and now.tzinfo is None:
+            now = now.replace(tzinfo=generated_at.tzinfo)
+        if generated_at.tzinfo is None and now.tzinfo is not None:
+            generated_at = generated_at.replace(tzinfo=now.tzinfo)
+        age_seconds = max(0.0, (now - generated_at).total_seconds())
+        status = result.status
+        reason = result.reason
+        message = result.message
+        if age_seconds > result.stale_threshold_seconds:
+            status = BridgeTelemetryStatus.STALE
+            reason = f"Bridge telemetry is stale: {age_seconds:.1f}s old."
+            message = reason
+        return replace(result, status=status, age_seconds=age_seconds, message=message, reason=reason, last_read_at=now)
 
     def _append_overlay_sample(self, sample) -> None:
         axes = sample.final_axes if self.overlay_config.source == "Final output" else sample.raw_axes
@@ -900,25 +1031,42 @@ class LiveMonitorPage(QWidget):
             disabled_count=counts["disabled"],
         )
 
-    def _update_from_sample(self, sample, telemetry, bridge_result: BridgeTelemetryReadResult) -> None:
+    def _update_axis_values_if_due(self, sample, *, force: bool = False) -> None:
+        if not self._scheduler.run("values", force=force):
+            return
+        started_at = time.perf_counter()
         for axis_name in AXIS_NAMES:
             raw_value = sample.raw_axes.get(axis_name, 0.0)
             final_value = sample.final_axes.get(axis_name, 0.0)
             raw_label, final_label = self._axis_value_labels[axis_name]
             raw_bar, final_bar = self._axis_bars[axis_name]
-            raw_label.setText(f"R {signed(raw_value)}")
-            final_label.setText(f"F {signed(final_value)}")
-            raw_bar.setValue(_bar_value(raw_value))
-            final_bar.setValue(_bar_value(final_value))
+            set_label_text_if_changed(raw_label, f"R {signed(raw_value)}")
+            set_label_text_if_changed(final_label, f"F {signed(final_value)}")
+            set_bar_value_if_changed(raw_bar, _bar_value(raw_value))
+            set_bar_value_if_changed(final_bar, _bar_value(final_value))
+        self.value_update_count += 1
+        self._record_timing("values_update", started_at)
 
+    def _update_button_hat_values_if_due(self, sample, *, force: bool = False) -> None:
+        if not self._scheduler.run("buttons_hats", force=force):
+            return
         for button_name, chip in self._hotas_buttons.items():
             _set_chip_state(chip, button_name, sample.buttons.get(button_name, False))
         for output_name, chip in self._output_buttons.items():
             _set_chip_state(chip, output_name.replace("Out", "Out "), sample.output_buttons.get(output_name, False))
+        set_label_text_if_changed(self.hotas_hat_chip, f"HOTAS Hat: {sample.hat_state}")
+        set_label_text_if_changed(self.output_hat_chip, f"Output Hat: {sample.output_hat_state}")
+        self.button_hat_update_count += 1
 
-        self.hotas_hat_chip.setText(f"HOTAS Hat: {sample.hat_state}")
-        self.output_hat_chip.setText(f"Output Hat: {sample.output_hat_state}")
+    def _update_diagnostics_if_due(self, sample, telemetry, bridge_result: BridgeTelemetryReadResult, *, force: bool = False) -> None:
+        if not self._scheduler.run("diagnostics", force=force):
+            return
+        started_at = time.perf_counter()
+        self._update_from_sample(sample, telemetry, bridge_result)
+        self.diagnostics_update_count += 1
+        self._record_timing("diagnostics_update", started_at)
 
+    def _update_from_sample(self, sample, telemetry, bridge_result: BridgeTelemetryReadResult) -> None:
         self._update_source_status(bridge_result)
         rule_summary = telemetry.rule_summary
         if isinstance(rule_summary, dict):
@@ -939,7 +1087,8 @@ class LiveMonitorPage(QWidget):
         runtime_frame = getattr(telemetry, "runtime_frame", None)
         physical_fidelity = getattr(telemetry, "physical_input_fidelity", None)
         backend_choice = getattr(telemetry, "physical_input_backend_choice", None)
-        self.live_state_label.setText(
+        set_label_text_if_changed(
+            self.live_state_label,
             "Precision Off | Combat Off | Trigger Off | Zoom Off | Extra Off\n"
             f"Stack mode: {self._workspace.modes.precision_combat_stack_mode.value}. "
             f"Active rules: {active_count}; blocked: {blocked_count}; "
@@ -991,26 +1140,29 @@ class LiveMonitorPage(QWidget):
             "Output path remains unverified. vJoy writes are not active unless the Phase 15C output loop is explicitly enabled with a verified backend. "
             f"Full Live Runtime Ready {_runtime_frame_full_ready(runtime_frame)}."
         )
-        self.compact_runtime_truth.setText(runtime_truth)
-        self.compact_output_truth.setText(
-            f"Output verified: {str(output_verified).lower()} | Full Live Runtime Ready: {_runtime_frame_full_ready(runtime_frame)}"
+        set_label_text_if_changed(self.compact_runtime_truth, runtime_truth)
+        set_label_text_if_changed(
+            self.compact_output_truth,
+            f"Output verified: {str(output_verified).lower()} | Full Live Runtime Ready: {_runtime_frame_full_ready(runtime_frame)}",
         )
-        self.compact_source_truth.setText(f"{self.telemetry_source_label} ({bridge_result.status.value})")
-        self.bridge_health_label.setText(
+        set_label_text_if_changed(self.compact_source_truth, f"{self.telemetry_source_label} ({bridge_result.status.value})")
+        set_label_text_if_changed(
+            self.bridge_health_label,
             self._bridge_health_text(
                 bridge_result,
                 telemetry=telemetry,
                 runtime_truth=runtime_truth,
                 output_verified=output_verified,
                 process_hint=self._process_presence_provider.get_presence(),
-            )
+            ),
         )
         self._update_command_status_from_telemetry(telemetry, bridge_result)
-        self.buttons_hats_label.setText(
+        set_label_text_if_changed(
+            self.buttons_hats_label,
             "HOTAS buttons and hats show read-only physical input samples when available, otherwise simulation fallback. "
-            "Mapped outputs reflect the current workspace pipeline only; no vJoy button writes are verified in this phase."
+            "Mapped outputs reflect the current workspace pipeline only; no vJoy button writes are verified in this phase.",
         )
-        self.runtime_chip.setText(self._state.runtime.header_truth_label)
+        set_chip_text_and_tone_if_changed(self.runtime_chip, self._state.runtime.header_truth_label, self._state.runtime.tone)
 
     def _physical_input_now(self) -> datetime | None:
         if self._physical_input_clock is not None:
@@ -1236,10 +1388,7 @@ class LiveMonitorPage(QWidget):
             }.get(bridge_result.status, "Bridge Missing")
             chip_text = reason
             tone = "warning" if bridge_result.status is not BridgeTelemetryStatus.ERROR else "danger"
-        self.source_chip.setText(chip_text)
-        self.source_chip.setProperty("chipTone", tone)
-        self.source_chip.style().unpolish(self.source_chip)
-        self.source_chip.style().polish(self.source_chip)
+        set_chip_text_and_tone_if_changed(self.source_chip, chip_text, tone)
 
     def _bridge_health_text(self, bridge_result: BridgeTelemetryReadResult, *, telemetry, runtime_truth: str, output_verified: bool, process_hint) -> str:
         age_text = "n/a"
@@ -1306,11 +1455,10 @@ class LiveMonitorPage(QWidget):
                 label.setWordWrap(True)
                 self._diagnostic_row_labels[row.label] = label
                 self.diagnostic_grid.addWidget(label, index // 2, index % 2)
-            label.setText(f"{row.label}\n{row.value}")
+            set_label_text_if_changed(label, f"{row.label}\n{row.value}")
             label.setToolTip(row.detail)
-            label.setProperty("diagnosticSeverity", row.severity)
-            label.style().unpolish(label)
-            label.style().polish(label)
+            changed = set_widget_property_if_changed(label, "diagnosticSeverity", row.severity)
+            repolish_if_changed(label, changed)
             existing_labels.discard(row.label)
 
         for stale_label in existing_labels:
@@ -1373,7 +1521,11 @@ class LiveMonitorPage(QWidget):
             text = f"{command} status from Bridge for {request_id}: {status}. {message}".strip()
         self.command_status_label.setText(text)
 
-    def _update_graphs(self) -> None:
+    def _update_graphs(self, *, force: bool = False) -> None:
+        if not self._graph_data_dirty and not force:
+            return
+        if not self._scheduler.run("graphs", force=force):
+            return
         started_at = time.perf_counter()
         raw_points = self.history.raw_points(self.selected_axis)
         final_points = self.history.final_points(self.selected_axis)
@@ -1397,6 +1549,9 @@ class LiveMonitorPage(QWidget):
             final_marker = (0.0, latest.final_axes.get(self.selected_axis, 0.0))
         self.overlay_graph.plot_series_with_marker(tuple(overlay_series), marker=final_marker)
         self.overlay_graph.plot.setXRange(-LIVE_TRACE_HISTORY_SECONDS, 0.0, padding=0)
+        self._graph_data_dirty = False
+        self.graph_update_count += 1
+        self._record_timing("graph_update", started_at)
         self._record_timing("graph", started_at)
 
 
@@ -1613,10 +1768,7 @@ def _runtime_frame_mapping(runtime_frame: RuntimeFrameTelemetryPayload | None) -
 
 
 def _set_chip_state(chip: QLabel, text: str, active: bool) -> None:
-    chip.setText(text)
-    chip.setProperty("chipTone", "success" if active else "neutral")
-    chip.style().unpolish(chip)
-    chip.style().polish(chip)
+    set_chip_text_and_tone_if_changed(chip, text, "success" if active else "neutral")
 
 
 def _key(axis_name: str) -> str:

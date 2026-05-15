@@ -21,6 +21,7 @@ from v3_app.liquid.flow_components import RouteFlowRow, SignalPipelineStage
 from v3_app.liquid.glass import action_button, glass_panel, mark_action_feedback, refresh_style
 from v3_app.liquid.instruments import AxisBarPair, CapabilityRail, ResponseCurveGraph
 from v3_app.liquid.layout import horizontal_layout, vertical_layout
+from v3_app.liquid.motion import FocusRole, HoverRole, MicrointeractionRole, apply_motion_property
 from v3_app.liquid.models.tuning_command_model import (
     TuningCommandModel,
     TuningEditResult,
@@ -328,6 +329,9 @@ class TuningProfilesLibraryPage(LiquidPage):
         self.render_count = 0
         self._render_signature: tuple[object, ...] | None = None
         self._selected_preset_id = "current_workspace"
+        self._preset_render_queued = False
+        self._preset_render_timer_id = 0
+        self.deferred_preset_render_count = 0
         super().__init__(
             title="Profiles Library",
             subtitle="Workspace tuning profile review and safe profile utilities.",
@@ -337,6 +341,9 @@ class TuningProfilesLibraryPage(LiquidPage):
         self.setProperty("modeId", "tuning")
         self.setProperty("profilesLibraryPage", True)
         self.setProperty("profilesLibraryRenderCount", self.render_count)
+        self.setProperty("profilesLibraryRenderQueued", False)
+        self.setProperty("deferredPresetRenderCount", self.deferred_preset_render_count)
+        self.setProperty("selectedPresetId", self._selected_preset_id)
         self._render()
 
     def select_profile_preset(self, preset_id: str) -> None:
@@ -346,7 +353,7 @@ class TuningProfilesLibraryPage(LiquidPage):
             return
         self._selected_preset_id = preset_id
         self.setProperty("selectedPresetId", preset_id)
-        self._render()
+        self._queue_preset_render()
 
     def update_tuning_workspace(
         self,
@@ -359,6 +366,29 @@ class TuningProfilesLibraryPage(LiquidPage):
         self.state = state
         self.workspace = workspace
         self.base_workspace = base_workspace
+        self._render()
+
+    def _queue_preset_render(self) -> None:
+        if self._preset_render_queued:
+            return
+        self._preset_render_queued = True
+        self.setProperty("profilesLibraryRenderQueued", True)
+        self._preset_render_timer_id = self.startTimer(0)
+
+    def timerEvent(self, event) -> None:  # noqa: N802 - Qt override
+        if self._preset_render_timer_id and event.timerId() == self._preset_render_timer_id:
+            self.killTimer(self._preset_render_timer_id)
+            self._preset_render_timer_id = 0
+            self._run_queued_preset_render()
+            event.accept()
+            return
+        super().timerEvent(event)
+
+    def _run_queued_preset_render(self) -> None:
+        self._preset_render_queued = False
+        self.deferred_preset_render_count += 1
+        self.setProperty("profilesLibraryRenderQueued", False)
+        self.setProperty("deferredPresetRenderCount", self.deferred_preset_render_count)
         self._render()
 
     def _render(self) -> None:
@@ -379,6 +409,8 @@ class TuningProfilesLibraryPage(LiquidPage):
         )
         self.set_status_rail(_profiles_status_rail(active_profile, self.workspace))
         selected_preset = _preset_by_id(self._selected_preset_id, self.workspace)
+        self.setProperty("selectedPresetId", selected_preset.preset_id)
+        self.setProperty("selectedPresetName", selected_preset.name)
         self.set_hero(_profiles_hero(active_profile, self.workspace, selected_preset))
         self.set_inspector(_profiles_preset_browser(self, self.workspace, selected_preset))
         self.set_detail(_profiles_actions_panel(self.workspace, self._on_route_requested, selected_preset))
@@ -870,6 +902,15 @@ def _parameter_row(page: TuningCommandPage, parameter: TuningParameterModel) -> 
     row.setProperty("liquidComponent", True)
     row.setProperty("parameterId", parameter.parameter_id)
     row.setProperty("changed", parameter.changed)
+    apply_motion_property(
+        row,
+        MicrointeractionRole.SELECTABLE_CARD if parameter.changed else MicrointeractionRole.INTERACTIVE_CARD,
+        hover_role=HoverRole.CARD,
+        focus_role=FocusRole.RING,
+        pulse_role="draft" if parameter.changed else "none",
+        interactive=False,
+    )
+    row.setProperty("draftEmphasis", parameter.changed)
     layout = horizontal_layout(row, margins=(12, 9, 12, 9), spacing=10)
     label = ParameterLabelWithInfo(
         parameter.label,

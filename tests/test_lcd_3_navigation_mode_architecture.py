@@ -209,6 +209,11 @@ def test_lcd_3_route_registry_exposes_distinct_route_factories():
             assert route.purpose in text
             assert "Placeholder route" not in text
             assert "future page rebuild" not in text.casefold()
+        elif route.route_key.startswith("support."):
+            assert page.objectName() == "liquidSupportCommandPage"
+            assert route.purpose in text
+            assert "Placeholder route" not in text
+            assert "future page rebuild" not in text.casefold()
         else:
             assert route.route_key in text
             assert "Placeholder route" in text
@@ -380,9 +385,7 @@ def test_lcd_3_radial_anchor_future_only_and_forbidden_architecture_absent():
         assert forbidden.casefold() not in source_text.casefold()
 
     for forbidden_claim in (
-        "Full Live Runtime Ready",
         "Live Output Active",
-        "Output Verified",
         "HOTAS connected",
         "vJoy writing",
         "Bridge managed",

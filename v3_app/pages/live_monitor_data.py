@@ -131,8 +131,8 @@ def extract_bridge_frame_identity(telemetry) -> BridgeFrameIdentity:
         key = f"bridge_tick:{tick_count}"
         warning = "frame timestamp unavailable; using bridge tick count."
     else:
-        key = "unavailable"
-        warning = "Bridge frame identity unavailable."
+        key = f"payload:{_telemetry_payload_signature(telemetry)}"
+        warning = "Bridge frame identity unavailable; using stable telemetry payload signature."
 
     return BridgeFrameIdentity(
         source_type="bridge",
@@ -152,6 +152,11 @@ class BoundedTelemetryHistory:
         self.sample_rate_hz = max(1, int(sample_rate_hz))
         self.right_anchor = bool(right_anchor)
         self._samples: deque[TelemetrySample] = deque(maxlen=self.capacity)
+        self._version = 0
+        self._right_anchored_cache_version = -1
+        self._right_anchored_cache: tuple[tuple[float, TelemetrySample], ...] = ()
+        self._raw_points_cache: dict[tuple[str, int], tuple[tuple[float, float], ...]] = {}
+        self._final_points_cache: dict[tuple[str, int], tuple[tuple[float, float], ...]] = {}
 
     @classmethod
     def for_seconds(cls, *, history_seconds: float, sample_rate_hz: int) -> "BoundedTelemetryHistory":
@@ -177,22 +182,44 @@ class BoundedTelemetryHistory:
                 output_hat_state=str(sample.output_hat_state or HAT_CENTERED),
             )
         )
+        self._version += 1
+        self._right_anchored_cache_version = -1
+        self._raw_points_cache.clear()
+        self._final_points_cache.clear()
 
     def raw_points(self, axis_name: str) -> tuple[tuple[float, float], ...]:
-        return tuple((x, sample.raw_axes.get(axis_name, 0.0)) for x, sample in self._right_anchored_samples())
+        key = (axis_name, self._version)
+        cached = self._raw_points_cache.get(key)
+        if cached is not None:
+            return cached
+        points = tuple((x, sample.raw_axes.get(axis_name, 0.0)) for x, sample in self._right_anchored_samples())
+        self._raw_points_cache[key] = points
+        return points
 
     def final_points(self, axis_name: str) -> tuple[tuple[float, float], ...]:
-        return tuple((x, sample.final_axes.get(axis_name, 0.0)) for x, sample in self._right_anchored_samples())
+        key = (axis_name, self._version)
+        cached = self._final_points_cache.get(key)
+        if cached is not None:
+            return cached
+        points = tuple((x, sample.final_axes.get(axis_name, 0.0)) for x, sample in self._right_anchored_samples())
+        self._final_points_cache[key] = points
+        return points
 
     def _right_anchored_samples(self) -> tuple[tuple[float, TelemetrySample], ...]:
+        if self._right_anchored_cache_version == self._version:
+            return self._right_anchored_cache
         samples = tuple(self._samples)
         if not self.right_anchor:
-            return tuple((float(sample.index), sample) for sample in samples)
+            self._right_anchored_cache = tuple((float(sample.index), sample) for sample in samples)
+            self._right_anchored_cache_version = self._version
+            return self._right_anchored_cache
         count = len(samples)
-        return tuple(
+        self._right_anchored_cache = tuple(
             (((index - (count - 1)) / float(self.sample_rate_hz)), sample)
             for index, sample in enumerate(samples)
         )
+        self._right_anchored_cache_version = self._version
+        return self._right_anchored_cache
 
 
 def clamp_axis_value(value: float) -> float:
@@ -208,6 +235,30 @@ def _aware(value: datetime) -> datetime:
 def _optional_int(value: object) -> int | None:
     if value in (None, ""):
         return None
+
+
+def _telemetry_payload_signature(telemetry) -> str:
+    raw_axes = getattr(telemetry, "raw_axes", {}) or {}
+    final_axes = getattr(telemetry, "final_axes", {}) or {}
+    buttons = getattr(telemetry, "buttons", {}) or {}
+    hats = getattr(telemetry, "hats", {}) or {}
+    return repr(
+        (
+            tuple(sorted((str(key), round(float(value), 6)) for key, value in _as_mapping(raw_axes).items())),
+            tuple(sorted((str(key), round(float(value), 6)) for key, value in _as_mapping(final_axes).items())),
+            tuple(sorted((str(key), bool(value)) for key, value in _as_mapping(buttons).items())),
+            tuple(sorted((str(key), str(value)) for key, value in _as_mapping(hats).items())),
+        )
+    )
+
+
+def _as_mapping(value: object) -> Mapping[str, object]:
+    values = getattr(value, "values", None)
+    if isinstance(values, Mapping):
+        return values
+    if isinstance(value, Mapping):
+        return value
+    return {}
     try:
         return int(value)
     except (TypeError, ValueError):

@@ -20,6 +20,26 @@ class OverlayTraceSet:
     series: tuple[OverlayTraceSeries, ...]
 
 
+class OverlayTraceBuilderCache:
+    def __init__(self) -> None:
+        self._signature: tuple[object, ...] | None = None
+        self._trace_set: OverlayTraceSet | None = None
+        self.build_count = 0
+
+    def build(self, config: LiveOverlayConfig, samples: tuple[OverlayTelemetrySample, ...]) -> OverlayTraceSet:
+        signature = _trace_signature(config, samples)
+        if self._trace_set is not None and signature == self._signature:
+            return self._trace_set
+        self._trace_set = build_overlay_traces(config, samples)
+        self._signature = signature
+        self.build_count += 1
+        return self._trace_set
+
+    def invalidate(self) -> None:
+        self._signature = None
+        self._trace_set = None
+
+
 def build_overlay_traces(config: LiveOverlayConfig, samples: tuple[OverlayTelemetrySample, ...]) -> OverlayTraceSet:
     if not samples:
         return OverlayTraceSet(source=config.source, history_seconds=config.history_seconds, series=())
@@ -43,3 +63,14 @@ def _clamp(value: object) -> float:
     except (TypeError, ValueError):
         number = 0.0
     return max(-1.0, min(1.0, number))
+
+
+def _trace_signature(config: LiveOverlayConfig, samples: tuple[OverlayTelemetrySample, ...]) -> tuple[object, ...]:
+    latest = samples[-1] if samples else None
+    return (
+        config.to_json(),
+        len(samples),
+        latest.timestamp if latest is not None else None,
+        tuple(sorted((axis, round(float(value), 6)) for axis, value in latest.axes.items())) if latest is not None else (),
+        latest.source if latest is not None else "",
+    )

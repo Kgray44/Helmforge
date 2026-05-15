@@ -49,6 +49,11 @@ from v3_app.liquid.pages.recorder_command_pages import (
     create_clip_library_page,
     create_flight_recorder_page,
 )
+from v3_app.liquid.pages.support_command_pages import (
+    create_help_docs_page,
+    create_perf_diagnostics_page,
+    create_setup_runtime_check_page,
+)
 from v3_app.liquid.status_components import MetricTile, ReadinessGate, StatusChip, TelemetryFreshnessRail, TruthBadge
 
 
@@ -490,6 +495,9 @@ LIQUID_ROUTE_PAGE_FACTORIES["analysis.live_monitor"] = create_live_monitor_page
 LIQUID_ROUTE_PAGE_FACTORIES["recorder.flight_recorder"] = create_flight_recorder_page
 LIQUID_ROUTE_PAGE_FACTORIES["recorder.clip_library"] = create_clip_library_page
 LIQUID_ROUTE_PAGE_FACTORIES["recorder.capture_backend_truth"] = create_capture_backend_truth_page
+LIQUID_ROUTE_PAGE_FACTORIES["support.help_docs"] = create_help_docs_page
+LIQUID_ROUTE_PAGE_FACTORIES["support.perf_diagnostics"] = create_perf_diagnostics_page
+LIQUID_ROUTE_PAGE_FACTORIES["support.setup_runtime_check"] = create_setup_runtime_check_page
 
 
 def placeholder_definition_by_mode_id(mode_id: str) -> LiquidPlaceholderPageDefinition:

@@ -4,7 +4,8 @@ import os
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFrame, QLabel, QScrollArea, QSizePolicy, QStackedWidget, QWidget
+from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtWidgets import QComboBox, QFrame, QLabel, QScrollArea, QSizePolicy, QStackedWidget, QWidget
 
 from shared_core.models.workspace import CONFIG_FILENAME, WorkspaceConfig, create_default_workspace
 from shared_core.persistence.workspace_store import WorkspaceJsonError, load_workspace
@@ -16,6 +17,7 @@ from shared_core.models.runtime import (
     RuntimeTruth,
 )
 from shared_core.runtime.telemetry import BridgeTelemetrySnapshot
+from v3_app.liquid.atmosphere import apply_atmosphere
 from v3_app.liquid.glass import action_button, glass_panel, refresh_style, status_chip
 from v3_app.liquid.layout import grid_layout, horizontal_layout, vertical_layout
 from v3_app.liquid.models.nav_model import (
@@ -43,8 +45,20 @@ from v3_app.liquid.pages.placeholder_pages import (
     LIQUID_ROUTE_PAGE_FACTORIES,
 )
 from v3_app.liquid.pages.helm_command_deck import HelmAssistantDeck
+from v3_app.liquid.motion import MotionIntensity, MotionSettings, apply_status_motion, current_motion_settings, ease_out_cubic, page_motion_spec, refresh_motion_style
+from v3_app.liquid.quick_switch_wheel import QUICK_WHEEL_MODE_IDS, LiquidQuickSwitchWheel
 from v3_app.liquid.theme_tokens import LiquidLayout, liquid_qss
+from v3_app.liquid.visible_motion import (
+    LiquidAtmosphereLayer,
+    LiquidMotionCoordinator,
+    LiquidPageTransitionOverlay,
+    LiquidRouteSweepController,
+    LiquidStatusBreathController,
+    MotionProofPanel,
+    visible_motion_profile,
+)
 from v3_app.services.app_state import AppState, build_initial_app_state
+from v3_app.services.live_ui_scheduler import MultiCadenceScheduler
 
 
 _PAGE_ID_TO_ROUTE_KEY = {
@@ -62,12 +76,22 @@ _PAGE_ID_TO_ROUTE_KEY = {
     "perf_diagnostics": "support.perf_diagnostics",
     "flight_recorder": "recorder.flight_recorder",
     "help_docs": "support.help_docs",
+    "setup_runtime_check": "support.setup_runtime_check",
 }
 
 
 def _lcd4f_trace(message: str) -> None:
     if os.environ.get("HELMFORGE_LCD4F_TRACE") == "1":
         print(f"LCD4F_TRACE: {message}", flush=True)
+
+
+def _quick_wheel_enabled_from_environment() -> bool:
+    value = os.environ.get("HELMFORGE_LIQUID_QUICK_WHEEL", "")
+    return value.strip().casefold() in {"1", "true", "yes", "on"}
+
+
+def _visible_motion_timers_allowed() -> bool:
+    return os.environ.get("QT_QPA_PLATFORM", "").strip().casefold() != "offscreen"
 
 
 def _route_error_fallback(route_key: str, exc: Exception) -> QFrame:
@@ -88,6 +112,162 @@ def _route_error_fallback(route_key: str, exc: Exception) -> QFrame:
     return panel
 
 
+def _status_breath_targets(root: QWidget) -> list[QWidget]:
+    targets: list[QWidget] = []
+    for widget in root.findChildren(QWidget):
+        if widget.property("rawDiagnosticSurface") is True:
+            continue
+        component_role = str(widget.property("componentRole") or "")
+        ui_role = str(widget.property("uiRole") or "")
+        if (
+            component_role in {"StatusChip", "StatusLight", "TruthBadge", "ReadinessGate", "TelemetryFreshnessRail", "DraftStateIndicator"}
+            or ui_role == "liquidStatusChip"
+            or widget.objectName() == "liquidStatusLight"
+        ):
+            targets.append(widget)
+    return targets
+
+
+def _route_sweep_targets(root: QWidget) -> list[QWidget]:
+    return [widget for widget in root.findChildren(QWidget) if widget.property("signalPathMotionAvailable") is True]
+
+
+def _interaction_motion_targets(root: QWidget) -> list[QWidget]:
+    targets: list[QWidget] = []
+    for widget in root.findChildren(QWidget):
+        if widget.property("rawDiagnosticSurface") is True:
+            continue
+        ui_role = str(widget.property("uiRole") or "")
+        component_role = str(widget.property("componentRole") or "")
+        if (
+            ui_role
+            in {
+                "liquidActionButton",
+                "liquidModeDockButton",
+                "liquidSubpageSelectorButton",
+                "liquidAxisPill",
+                "liquidMappingMarker",
+                "liquidQuickWheelButton",
+                "liquidStatusChip",
+            }
+            or widget.property("motionProofDemo") is not None
+            or widget.property("microinteractionRole") in {"interactive_card", "selectable_card", "status_card"}
+            or component_role
+            in {
+                "ReadinessGate",
+                "TruthBadge",
+                "MetricTile",
+                "DraftStateIndicator",
+                "TelemetryFreshnessRail",
+                "RouteFlowRow",
+                "SignalPipelineStage",
+                "ParameterRow",
+                "CapabilityRail",
+                "MotionProofPanel",
+            }
+        ):
+            targets.append(widget)
+    return targets
+
+
+class _LiquidRouteHost(QStackedWidget):
+    def __init__(self, motion_settings: MotionSettings) -> None:
+        super().__init__()
+        self._motion_settings = motion_settings
+        self._motion_timer_id = 0
+        self._motion_ticks_remaining = 0
+        self._motion_count = 0
+        self._motion_frame_count = 0
+        self._motion_elapsed_seconds = 0.0
+        self._motion_duration_seconds = 0.22
+        self._external_clock_driven = False
+        self.set_motion_settings(motion_settings)
+        self.setProperty("pageMotionUsesDynamicReparenting", False)
+        self.setProperty("pageMotionAnimatesGeometry", False)
+        self.setProperty("pageMotionUsesOpacityEffect", False)
+        self.setProperty("pageMotionUsesBlurEffect", False)
+
+    def set_motion_settings(self, motion_settings: MotionSettings) -> None:
+        self._motion_settings = motion_settings
+        spec = page_motion_spec(motion_settings)
+        self.setProperty("motionIntensity", motion_settings.intensity.value)
+        self.setProperty("pageMotionMode", spec.mode)
+        self.setProperty("pageMotionEnabled", spec.enabled)
+        self.setProperty("pageMotionDurationMs", spec.duration_ms)
+        self.setProperty("pageMotionExitMs", spec.exit_ms)
+        self.setProperty("pageMotionEnterMs", spec.enter_ms)
+        self.setProperty("pageMotionPanelStaggerMs", spec.panel_stagger_ms)
+        self.setProperty("pageMotionSlideOffsetPx", spec.slide_offset_px)
+        if not spec.enabled:
+            self._clear_route_motion()
+
+    def set_external_clock_driven(self, enabled: bool) -> None:
+        self._external_clock_driven = bool(enabled)
+        if self._external_clock_driven and self._motion_timer_id:
+            self.killTimer(self._motion_timer_id)
+            self._motion_timer_id = 0
+
+    def begin_route_motion(self, *, from_route: str, to_route: str) -> None:
+        spec = page_motion_spec(self._motion_settings)
+        if not spec.enabled or from_route == to_route:
+            self._clear_route_motion()
+            return
+        if self._motion_timer_id:
+            self.killTimer(self._motion_timer_id)
+            self._motion_timer_id = 0
+        self._motion_count += 1
+        self._motion_frame_count = 0
+        self._motion_elapsed_seconds = 0.0
+        self._motion_duration_seconds = max(0.001, float(spec.duration_ms or 220) / 1000.0)
+        self._motion_ticks_remaining = max(1, spec.duration_ms // 33)
+        self.setProperty("pageMotionCount", self._motion_count)
+        self.setProperty("pageMotionFrom", from_route)
+        self.setProperty("pageMotionTo", to_route)
+        self.setProperty("pageMotionActive", True)
+        self.setProperty("pageMotionPhase", "enter")
+        self.setProperty("pageMotionProgress", 0.0)
+        if not self._external_clock_driven:
+            self._motion_timer_id = self.startTimer(33)
+        refresh_motion_style(self)
+
+    def advance_motion_frame(self, *, delta_seconds: float = 1.0 / 60.0) -> None:
+        if self.property("pageMotionActive") is True:
+            self._advance_route_motion(delta_seconds)
+
+    def timerEvent(self, event) -> None:  # noqa: N802 - Qt override
+        if event.timerId() != self._motion_timer_id:
+            super().timerEvent(event)
+            return
+        self._advance_route_motion(1.0 / 33.0)
+        event.accept()
+
+    def _advance_route_motion(self, delta_seconds: float) -> None:
+        if self._motion_ticks_remaining <= 0:
+            self._clear_route_motion()
+            return
+        self._motion_frame_count += 1
+        self._motion_elapsed_seconds += max(0.0, delta_seconds)
+        raw_progress = min(1.0, self._motion_elapsed_seconds / self._motion_duration_seconds)
+        progress = ease_out_cubic(raw_progress)
+        self.setProperty("pageMotionFrameCount", self._motion_frame_count)
+        self.setProperty("pageMotionProgress", round(progress, 3))
+        self.setProperty("pageMotionPhase", "settle" if progress >= 0.5 else "enter")
+        self._motion_ticks_remaining -= 1
+        refresh_motion_style(self)
+        if raw_progress >= 1.0:
+            self._clear_route_motion()
+
+    def _clear_route_motion(self) -> None:
+        if self._motion_timer_id:
+            self.killTimer(self._motion_timer_id)
+            self._motion_timer_id = 0
+        self._motion_ticks_remaining = 0
+        self.setProperty("pageMotionActive", False)
+        self.setProperty("pageMotionPhase", "settled")
+        self.setProperty("pageMotionProgress", 1.0)
+        refresh_motion_style(self)
+
+
 class LiquidCommandShell(QWidget):
     def __init__(
         self,
@@ -95,6 +275,8 @@ class LiquidCommandShell(QWidget):
         *,
         workspace: WorkspaceConfig | None = None,
         workspace_path: str | Path | None = None,
+        motion_settings: MotionSettings | None = None,
+        quick_wheel_enabled: bool | None = None,
     ) -> None:
         super().__init__()
         _lcd4f_trace("constructing liquid shell")
@@ -102,6 +284,19 @@ class LiquidCommandShell(QWidget):
         self.setStyleSheet(liquid_qss())
         state_was_supplied = state is not None
         self.state = state or build_initial_app_state()
+        self.motion_settings = motion_settings or current_motion_settings()
+        self.setProperty("motionIntensity", self.motion_settings.intensity.value)
+        self.setProperty("pageMotionEnabled", self.motion_settings.page_motion_enabled())
+        self.quick_wheel_enabled = _quick_wheel_enabled_from_environment() if quick_wheel_enabled is None else bool(quick_wheel_enabled)
+        self._quick_wheel_shortcut: QShortcut | None = None
+        self.setProperty("quickWheelEnabled", self.quick_wheel_enabled)
+        self.setProperty("quickWheelRequiredForNavigation", False)
+        self.setProperty("quickWheelRuntimeMutation", False)
+        self.setProperty("quickWheelModeIds", QUICK_WHEEL_MODE_IDS)
+        self._atmosphere_signature: tuple[str, str, str] | None = None
+        self.atmosphere_update_count = 0
+        self.setProperty("atmosphereUpdateCount", self.atmosphere_update_count)
+        apply_atmosphere(self, mode_id="preflight", motion_settings=self.motion_settings)
         self.workspace_path = Path(workspace_path or CONFIG_FILENAME)
         self.workspace = workspace or self._load_initial_workspace(load_from_disk=not state_was_supplied)
         self._mapping_base_workspace = self.workspace
@@ -138,6 +333,16 @@ class LiquidCommandShell(QWidget):
         self.current_route_key = self.navigation_state.current_route.route_key
         self.page_widgets: dict[str, QWidget] = {}
         self._latest_bridge_telemetry: BridgeTelemetrySnapshot | None = None
+        self._shell_scheduler = MultiCadenceScheduler()
+        self._last_shell_chrome_signature: tuple[object, ...] | None = None
+        self.shell_chrome_update_count = 0
+        self.shell_chrome_skip_count = 0
+        self.route_switch_count = 0
+        self.recursive_sync_guard_count = 0
+        self._route_sync_in_progress = False
+        self._analysis_sync_in_progress = False
+        self.setProperty("routeSwitchCount", self.route_switch_count)
+        self.setProperty("recursiveRouteSyncGuardCount", self.recursive_sync_guard_count)
 
         root = vertical_layout(
             self,
@@ -150,7 +355,12 @@ class LiquidCommandShell(QWidget):
             spacing=LiquidLayout.shell_spacing,
         )
 
-        self.top_bar = _LiquidTopCommandBar(self.state, on_helm_toggled=self.toggle_helm_deck)
+        self.top_bar = _LiquidTopCommandBar(
+            self.state,
+            on_helm_toggled=self.toggle_helm_deck,
+            motion_settings=self.motion_settings,
+            on_motion_changed=self.set_motion_intensity,
+        )
         self.workspace_frame = glass_panel("liquidCommandWorkspace", role="liquid_command_workspace")
         workspace_layout = vertical_layout(
             self.workspace_frame,
@@ -161,6 +371,15 @@ class LiquidCommandShell(QWidget):
         surface_layout = grid_layout(self.command_surface, margins=(0, 0, 0, 0), spacing=0)
         self.surface_glass_field = glass_panel("liquid_surface_glass_field", role="liquid_surface_glass_field")
         self.surface_glass_field.setProperty("footerScrim", "none")
+        self.atmosphere_layer = LiquidAtmosphereLayer(motion_settings=self.motion_settings)
+        self.page_transition_overlay = LiquidPageTransitionOverlay(motion_settings=self.motion_settings)
+        self.status_breath_controller = LiquidStatusBreathController(motion_settings=self.motion_settings, parent=self)
+        self.route_sweep_controller = LiquidRouteSweepController(motion_settings=self.motion_settings, parent=self)
+        self.motion_proof_panel = MotionProofPanel(motion_settings=self.motion_settings)
+        self.motion_coordinator = LiquidMotionCoordinator(motion_settings=self.motion_settings, parent=self)
+        self.motion_proof_panel.setProperty("floatingMotionProofPanel", True)
+        self.motion_proof_panel.setMaximumWidth(330)
+        self.motion_proof_panel.setVisible(False)
         field_layout = vertical_layout(self.surface_glass_field, margins=(110, 16, 28, 0), spacing=9)
         self.mode_dock = LiquidModeDock(
             active_mode_id=self.active_mode_id,
@@ -173,7 +392,7 @@ class LiquidCommandShell(QWidget):
             active_subpage_id=self.active_subpage_id,
             on_subpage_selected=self.switch_subpage,
         )
-        self.page_host = QStackedWidget()
+        self.page_host = _LiquidRouteHost(self.motion_settings)
         self.page_host.setObjectName("liquid_page_host")
         self.page_host.setProperty("liquidRole", "liquid_page_host")
         _lcd4f_trace("initializing page host")
@@ -195,17 +414,136 @@ class LiquidCommandShell(QWidget):
             on_revert=self.revert_helm_changes,
         )
         self.helm_deck.setVisible(False)
+        self.quick_wheel = LiquidQuickSwitchWheel(
+            model=self.navigation_model,
+            active_mode_id=self.active_mode_id,
+            on_mode_selected=self._select_quick_wheel_mode,
+            motion_settings=self.motion_settings,
+            enabled=self.quick_wheel_enabled,
+        )
+        if self.quick_wheel_enabled:
+            self._quick_wheel_shortcut = QShortcut(QKeySequence("Ctrl+Space"), self)
+            self._quick_wheel_shortcut.activated.connect(self.toggle_quick_wheel)
         surface_layout.addWidget(self.surface_glass_field, 0, 0)
+        surface_layout.addWidget(self.atmosphere_layer, 0, 0)
         surface_layout.addWidget(self.mode_dock, 0, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         surface_layout.addWidget(self.footer, 0, 0, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom)
         surface_layout.addWidget(self.helm_deck, 0, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
+        surface_layout.addWidget(self.motion_proof_panel, 0, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom)
+        surface_layout.addWidget(self.page_transition_overlay, 0, 0)
+        surface_layout.addWidget(self.quick_wheel, 0, 0, Qt.AlignmentFlag.AlignCenter)
+        self.page_host.set_external_clock_driven(True)
+        for name, driver in (
+            ("atmosphere", self.atmosphere_layer),
+            ("status_breath", self.status_breath_controller),
+            ("route_sweep", self.route_sweep_controller),
+            ("page_transition", self.page_transition_overlay),
+            ("page_host", self.page_host),
+            ("motion_proof", self.motion_proof_panel),
+            ("quick_wheel", self.quick_wheel),
+        ):
+            self.motion_coordinator.register_passive_driver(name, driver)
         workspace_layout.addWidget(self.command_surface)
 
         root.addWidget(self.top_bar)
         root.addWidget(self.workspace_frame, 1)
         _lcd4f_trace("selecting initial route")
         self.switch_route(self.current_route_key)
+        self._refresh_visible_motion_state()
         _lcd4f_trace("completed liquid shell init")
+
+    def set_motion_intensity(self, intensity: MotionIntensity | str) -> None:
+        if isinstance(intensity, MotionIntensity):
+            active = intensity
+        else:
+            active = MotionIntensity(str(intensity).strip().casefold())
+        self.motion_settings = MotionSettings(active)
+        self.setProperty("motionIntensity", self.motion_settings.intensity.value)
+        self.setProperty("pageMotionEnabled", self.motion_settings.page_motion_enabled())
+        self._atmosphere_signature = None
+        if hasattr(self, "top_bar"):
+            self.top_bar.set_motion_settings(self.motion_settings)
+        if hasattr(self, "page_host"):
+            self.page_host.set_motion_settings(self.motion_settings)
+        if hasattr(self, "quick_wheel"):
+            self.quick_wheel.set_motion_settings(self.motion_settings)
+        if hasattr(self, "atmosphere_layer"):
+            self.atmosphere_layer.set_motion_settings(self.motion_settings)
+        if hasattr(self, "page_transition_overlay"):
+            self.page_transition_overlay.set_motion_settings(self.motion_settings)
+        if hasattr(self, "status_breath_controller"):
+            self.status_breath_controller.set_motion_settings(self.motion_settings)
+        if hasattr(self, "route_sweep_controller"):
+            self.route_sweep_controller.set_motion_settings(self.motion_settings)
+        if hasattr(self, "motion_proof_panel"):
+            self.motion_proof_panel.set_motion_settings(self.motion_settings)
+        if hasattr(self, "motion_coordinator"):
+            self.motion_coordinator.set_motion_settings(self.motion_settings)
+        for current_page in self._current_route_pages():
+            if hasattr(current_page, "set_motion_settings"):
+                current_page.set_motion_settings(self.motion_settings)
+        self._apply_route_atmosphere(self.active_mode_id, self.current_route_key)
+        self._refresh_visible_motion_state()
+
+    def advance_visible_motion_for_test(self, *, frames: int = 1) -> None:
+        frame_count = max(0, int(frames))
+        if hasattr(self, "motion_coordinator"):
+            self.motion_coordinator.advance_for_test(frames=frame_count)
+        elif hasattr(self, "atmosphere_layer"):
+            self.atmosphere_layer.advance_for_test(frame_count)
+        self._refresh_visible_motion_state()
+
+    def _current_route_pages(self) -> tuple[QWidget, ...]:
+        scroll = self.page_widgets.get(self.current_route_key)
+        page = scroll.widget() if scroll is not None and hasattr(scroll, "widget") else None
+        return (page,) if isinstance(page, QWidget) else ()
+
+    def _refresh_visible_motion_state(self) -> None:
+        profile = visible_motion_profile(self.motion_settings)
+        status_targets = []
+        if hasattr(self, "top_bar"):
+            status_targets.extend(self.top_bar.status_breath_targets())
+        current_pages = self._current_route_pages()
+        for page in current_pages:
+            status_targets.extend(_status_breath_targets(page))
+        route_targets = []
+        for page in current_pages:
+            route_targets.extend(_route_sweep_targets(page))
+        interaction_targets = _interaction_motion_targets(self)
+        if hasattr(self, "status_breath_controller"):
+            self.status_breath_controller.register_targets(status_targets[:64])
+        if hasattr(self, "route_sweep_controller"):
+            self.route_sweep_controller.register_targets(route_targets[:32])
+        if hasattr(self, "motion_proof_panel"):
+            self.motion_proof_panel.setVisible(self.current_route_key.startswith("support."))
+            self.motion_proof_panel.set_motion_settings(self.motion_settings)
+            interaction_targets.extend(self.motion_proof_panel.demo_widgets())
+        if hasattr(self, "motion_coordinator"):
+            self.motion_coordinator.register_interaction_targets(interaction_targets[:260])
+            self.motion_coordinator.set_motion_settings(self.motion_settings)
+        self.setProperty("visibleMotionControllerCount", profile.visible_motion_type_count)
+        self.setProperty("atmosphereControllerRunning", profile.atmosphere_drift)
+        self.setProperty("statusBreathControllerRunning", profile.status_breathing)
+        self.setProperty("routeSweepControllerRunning", profile.route_sweep)
+        self.setProperty("pageTransitionControllerEnabled", profile.page_transition_overlay)
+        self.setProperty("liveEasingControllerEnabled", profile.live_easing_preview)
+        self.setProperty("radialAnimationEnabled", profile.quick_wheel_animation and self.quick_wheel_enabled)
+        self.setProperty("motionProofPreviewRunning", profile.live_easing_preview)
+        self.setProperty("activeMotionControllerRunning", profile.active_interactions)
+        refresh_motion_style(self)
+
+    def _trigger_workspace_state_motion(self, role: str) -> None:
+        coordinator = getattr(self, "motion_coordinator", None)
+        if coordinator is None:
+            return
+        targets = [
+            getattr(self.top_bar, "_saved_chip", None),
+            getattr(self.footer, "_save_button", None),
+            self.footer,
+        ]
+        for target in targets:
+            if isinstance(target, QWidget):
+                coordinator.trigger_status_transition(target, role=role)
 
     def _build_placeholder_pages(self) -> None:
         _lcd4f_trace("creating route registry pages")
@@ -228,6 +566,8 @@ class LiquidCommandShell(QWidget):
                     page = self._create_analysis_route_page(route.route_key)
                 elif route.route_key.startswith("recorder."):
                     page = self._create_recorder_route_page(route.route_key)
+                elif route.route_key.startswith("support."):
+                    page = self._create_support_route_page(route.route_key)
                 else:
                     page = LIQUID_ROUTE_PAGE_FACTORIES[route.route_key]()
             except Exception as exc:  # pragma: no cover - defensive route-host fallback
@@ -245,6 +585,23 @@ class LiquidCommandShell(QWidget):
             if route.subpage_id == mode.default_subpage_id:
                 self.page_widgets[route.mode_id] = scroll
 
+    def showEvent(self, event) -> None:  # noqa: N802 - Qt override
+        super().showEvent(event)
+        self._set_visible_motion_runtime_active(True)
+
+    def hideEvent(self, event) -> None:  # noqa: N802 - Qt override
+        self._set_visible_motion_runtime_active(False)
+        super().hideEvent(event)
+
+    def _set_visible_motion_runtime_active(self, active: bool) -> None:
+        active = bool(active and _visible_motion_timers_allowed())
+        if hasattr(self, "motion_coordinator"):
+            self.motion_coordinator.set_runtime_active(active)
+        for controller_name in ("atmosphere_layer", "status_breath_controller", "route_sweep_controller"):
+            controller = getattr(self, controller_name, None)
+            if hasattr(controller, "set_runtime_active"):
+                controller.set_runtime_active(active)
+
     def switch_mode(self, mode_id: str) -> None:
         if mode_id not in LIQUID_MODE_IDS:
             raise KeyError(mode_id)
@@ -260,14 +617,44 @@ class LiquidCommandShell(QWidget):
         self._show_route(route.route_key)
 
     def _show_route(self, route_key: str) -> None:
+        if self._route_sync_in_progress:
+            self.recursive_sync_guard_count += 1
+            self.setProperty("recursiveRouteSyncGuardCount", self.recursive_sync_guard_count)
+            return
+        self._route_sync_in_progress = True
+        try:
+            self._show_route_now(route_key)
+        finally:
+            self._route_sync_in_progress = False
+
+    def _show_route_now(self, route_key: str) -> None:
         route = self.navigation_model.route_by_key(route_key)
         target_widget = self.page_widgets[route.route_key]
         already_current = self.current_route_key == route.route_key and self.page_host.currentWidget() is target_widget
+        previous_route_key = self.current_route_key
         self.active_mode_id = route.mode_id
         self.active_subpage_id = route.subpage_id
         self.current_route_key = route.route_key
         if not already_current:
+            previous_snapshot = self.page_host.grab() if self.page_host.size().width() > 1 and self.page_host.size().height() > 1 else None
             self.page_host.setCurrentWidget(target_widget)
+            current_snapshot = self.page_host.grab() if self.page_host.size().width() > 1 and self.page_host.size().height() > 1 else None
+            if hasattr(self.page_host, "begin_route_motion"):
+                self.page_host.begin_route_motion(from_route=previous_route_key, to_route=route.route_key)
+            if hasattr(self, "page_transition_overlay"):
+                self.page_transition_overlay.begin(
+                    from_route=previous_route_key,
+                    to_route=route.route_key,
+                    previous_snapshot=previous_snapshot,
+                    current_snapshot=current_snapshot,
+                )
+            if hasattr(self, "motion_coordinator"):
+                page = target_widget.widget() if hasattr(target_widget, "widget") else target_widget
+                self.motion_coordinator.trigger_page_transition(page if isinstance(page, QWidget) else None)
+            self.route_switch_count += 1
+            self.setProperty("routeSwitchCount", self.route_switch_count)
+            self.setProperty("lastPageMotionFrom", previous_route_key)
+            self.setProperty("lastPageMotionTo", route.route_key)
             _lcd4f_trace(f"route host set page: {route.route_key}")
         else:
             _lcd4f_trace(f"route host already current: {route.route_key}")
@@ -288,6 +675,10 @@ class LiquidCommandShell(QWidget):
             self._sync_analysis_page_state(self.state)
         elif route.route_key.startswith("recorder."):
             self._sync_recorder_page_state(self.state)
+        self._apply_route_atmosphere(route.mode_id, route.route_key)
+        if hasattr(self, "quick_wheel"):
+            self.quick_wheel.update_active(route.mode_id)
+        self._refresh_visible_motion_state()
 
     def apply_bridge_telemetry(self, telemetry: BridgeTelemetrySnapshot) -> None:
         self._latest_bridge_telemetry = telemetry
@@ -297,8 +688,15 @@ class LiquidCommandShell(QWidget):
             driver_detected=self.state.runtime.driver_detected,
         ).runtime
         self.state.active_profile = telemetry.active_profile
-        self.top_bar.update_state(self.state)
-        self.footer.update_state(self.state)
+        signature = _liquid_shell_chrome_signature(self.state, runtime_status, self.current_route_key)
+        chrome_changed = signature != self._last_shell_chrome_signature
+        if chrome_changed or self._shell_scheduler.run("shell_chrome"):
+            self.top_bar.update_state(self.state)
+            self.footer.update_state(self.state)
+            self._last_shell_chrome_signature = signature
+            self.shell_chrome_update_count += 1
+        else:
+            self.shell_chrome_skip_count += 1
         if self.current_route_key == "preflight.command_readiness":
             self._sync_preflight_page(runtime_status, telemetry=telemetry, state=self.state)
         elif self.current_route_key.startswith("mapping."):
@@ -319,6 +717,7 @@ class LiquidCommandShell(QWidget):
             return
         self._selected_mapping_route_id = route_id
         self._sync_mapping_page_state(self.state)
+        self._refresh_visible_motion_state()
 
     def select_mapping_control(self, control_id: str) -> None:
         self.select_mapping_route(route_id_for_control_id(control_id))
@@ -336,6 +735,7 @@ class LiquidCommandShell(QWidget):
             self.state.status_message = result.message
         self.top_bar.update_state(self.state)
         self.footer.update_state(self.state)
+        self._trigger_workspace_state_motion("unsaved" if not self.state.saved else "saved")
         self._sync_mapping_pages_after_edit()
         return result
 
@@ -347,6 +747,7 @@ class LiquidCommandShell(QWidget):
         self._mapping_last_edit_result = None
         self.top_bar.update_state(self.state)
         self.footer.update_state(self.state)
+        self._trigger_workspace_state_motion("saved" if self.state.saved else "unsaved")
         self._sync_mapping_pages_after_edit()
 
     def select_tuning_axis(self, route_key: str, axis_name: str) -> None:
@@ -354,12 +755,14 @@ class LiquidCommandShell(QWidget):
             return
         self._selected_tuning_axis_by_route[route_key] = axis_name
         self._sync_tuning_page_state(self.state)
+        self._refresh_visible_motion_state()
 
     def select_analysis_axis(self, route_key: str, axis_name: str) -> None:
         if self._selected_analysis_axis_by_route.get(route_key) == axis_name:
             return
         self._selected_analysis_axis_by_route[route_key] = axis_name
         self._sync_analysis_page_state(self.state)
+        self._refresh_visible_motion_state()
 
     def stage_tuning_parameter_edit(
         self,
@@ -380,6 +783,7 @@ class LiquidCommandShell(QWidget):
             self.state.status_message = result.message
         self.top_bar.update_state(self.state)
         self.footer.update_state(self.state)
+        self._trigger_workspace_state_motion("unsaved" if not self.state.saved else "saved")
         self._sync_tuning_pages_after_edit()
         return result
 
@@ -391,6 +795,7 @@ class LiquidCommandShell(QWidget):
         self._tuning_last_edit_result = None
         self.top_bar.update_state(self.state)
         self.footer.update_state(self.state)
+        self._trigger_workspace_state_motion("saved" if self.state.saved else "unsaved")
         self._sync_tuning_pages_after_edit()
 
     def toggle_helm_deck(self) -> None:
@@ -400,7 +805,35 @@ class LiquidCommandShell(QWidget):
             if not self.isVisible():
                 self.show()
         self.helm_deck.setVisible(self._helm_deck_open)
+        if hasattr(self, "motion_coordinator"):
+            self.motion_coordinator.trigger_status_transition(self.helm_deck, role="open" if self._helm_deck_open else "closed")
         self.helm_deck.raise_()
+
+    def open_quick_wheel(self) -> bool:
+        if not self.quick_wheel_enabled:
+            return False
+        if not self.isVisible():
+            self.show()
+        self.quick_wheel.update_active(self.active_mode_id)
+        return self.quick_wheel.open_wheel()
+
+    def close_quick_wheel(self) -> bool:
+        return self.quick_wheel.close_wheel()
+
+    def toggle_quick_wheel(self) -> bool:
+        if not self.quick_wheel_enabled:
+            return False
+        if not self.isVisible():
+            self.show()
+        self.quick_wheel.update_active(self.active_mode_id)
+        return self.quick_wheel.toggle_wheel()
+
+    def is_quick_wheel_open(self) -> bool:
+        return bool(self.quick_wheel.isVisible())
+
+    def _select_quick_wheel_mode(self, mode_id: str) -> None:
+        self.switch_mode(mode_id)
+        self.close_quick_wheel()
 
     def apply_selected_helm_changes(self, selected_change_ids: tuple[str, ...]) -> HelmApplyResult:
         if self._helm_last_apply_result is None or not self._helm_last_apply_result.applied_diffs:
@@ -424,6 +857,7 @@ class LiquidCommandShell(QWidget):
             self.state.status_message = result.message
         self.top_bar.update_state(self.state)
         self.footer.update_state(self.state)
+        self._trigger_workspace_state_motion("unsaved" if not self.state.saved else "saved")
         self._sync_helm_deck_state()
         return result
 
@@ -448,6 +882,7 @@ class LiquidCommandShell(QWidget):
             self._helm_last_apply_result = result
         self.top_bar.update_state(self.state)
         self.footer.update_state(self.state)
+        self._trigger_workspace_state_motion("saved" if self.state.saved else "unsaved")
         self._sync_helm_deck_state()
         return result
 
@@ -563,6 +998,17 @@ class LiquidCommandShell(QWidget):
                     self.setProperty("lastTuningSyncError", str(exc))
 
     def _sync_analysis_page_state(self, state: AppState) -> None:
+        if self._analysis_sync_in_progress:
+            self.recursive_sync_guard_count += 1
+            self.setProperty("recursiveRouteSyncGuardCount", self.recursive_sync_guard_count)
+            return
+        self._analysis_sync_in_progress = True
+        try:
+            self._sync_analysis_page_state_now(state)
+        finally:
+            self._analysis_sync_in_progress = False
+
+    def _sync_analysis_page_state_now(self, state: AppState) -> None:
         analysis_scroll = self.page_widgets.get(self.current_route_key)
         analysis_page = analysis_scroll.widget() if analysis_scroll is not None else None
         if hasattr(analysis_page, "update_analysis_snapshot"):
@@ -602,6 +1048,38 @@ class LiquidCommandShell(QWidget):
             selected_axis=self.state.selected_axis or "Yaw",
             last_apply_result=self._helm_last_apply_result,
         )
+
+    def _apply_route_atmosphere(self, mode_id: str, route_key: str) -> None:
+        signature = (mode_id, route_key, self.motion_settings.intensity.value)
+        if signature == self._atmosphere_signature:
+            return
+        self._atmosphere_signature = signature
+        self.atmosphere_update_count += 1
+        self.setProperty("atmosphereUpdateCount", self.atmosphere_update_count)
+        for target in (
+            self,
+            self.workspace_frame,
+            self.command_surface,
+            self.surface_glass_field,
+            self.page_host,
+        ):
+            apply_atmosphere(target, mode_id=mode_id, motion_settings=self.motion_settings)
+        current_scroll = self.page_widgets.get(route_key)
+        if current_scroll is None:
+            return
+        apply_atmosphere(current_scroll, mode_id=mode_id, motion_settings=self.motion_settings)
+        current_page = current_scroll.widget()
+        if current_page is not None:
+            apply_atmosphere(current_page, mode_id=mode_id, motion_settings=self.motion_settings)
+            for raw_panel in current_page.findChildren(QWidget):
+                if raw_panel.property("rawDiagnosticSurface"):
+                    apply_atmosphere(
+                        raw_panel,
+                        mode_id=mode_id,
+                        motion_settings=self.motion_settings,
+                        optional_enabled=False,
+                        diagnostic_surface=True,
+                    )
 
     def _create_mapping_route_page(self, route_key: str):
         kwargs = {
@@ -653,12 +1131,23 @@ class LiquidCommandShell(QWidget):
             selected_axis=self._selected_analysis_axis_by_route.get(route_key, "Roll"),
             on_axis_selected=self.select_analysis_axis,
             on_route_requested=self.switch_route,
+            motion_settings=self.motion_settings,
         )
 
     def _create_recorder_route_page(self, route_key: str):
         return LIQUID_ROUTE_PAGE_FACTORIES[route_key](
             state=self.state,
             on_route_requested=self.switch_route,
+        )
+
+    def _create_support_route_page(self, route_key: str):
+        return LIQUID_ROUTE_PAGE_FACTORIES[route_key](
+            state=self.state,
+            workspace=self.workspace,
+            runtime_status=_runtime_status_from_state(self.state),
+            workspace_path=self.workspace_path,
+            on_route_requested=self.switch_route,
+            motion_settings=self.motion_settings,
         )
 
     def _load_initial_workspace(self, *, load_from_disk: bool) -> WorkspaceConfig:
@@ -672,16 +1161,26 @@ class LiquidCommandShell(QWidget):
 
 
 class _LiquidTopCommandBar(QFrame):
-    def __init__(self, state: AppState, *, on_helm_toggled=None) -> None:
+    def __init__(
+        self,
+        state: AppState,
+        *,
+        on_helm_toggled=None,
+        motion_settings: MotionSettings | None = None,
+        on_motion_changed=None,
+    ) -> None:
         super().__init__()
         self.setObjectName("liquidTopCommandBar")
         self.setFixedHeight(LiquidLayout.top_bar_height)
         self._state = state
+        self._motion_settings = motion_settings or current_motion_settings()
+        self._on_motion_changed = on_motion_changed
         self._workspace_chip: QLabel | None = None
         self._saved_chip: QLabel | None = None
         self._runtime_chip: QLabel | None = None
         self._source_chip: QLabel | None = None
         self._source_detail_label: QLabel | None = None
+        self.motion_combo: QComboBox | None = None
 
         layout = horizontal_layout(self, margins=(14, 12, 14, 12), spacing=14)
 
@@ -709,17 +1208,23 @@ class _LiquidTopCommandBar(QFrame):
         status_cluster.setMaximumWidth(760)
         status_cluster.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         status_layout = horizontal_layout(status_cluster, margins=(12, 9, 12, 9), spacing=8)
-        self._workspace_chip = status_chip(_workspace_label(state), tone="info", object_name="liquidWorkspaceChip")
+        self._workspace_chip = status_chip(_workspace_label(state), tone="info", object_name="liquidWorkspaceChip", state_role="info")
         self._workspace_chip.setMaximumWidth(178)
-        self._saved_chip = status_chip(_saved_label(state), tone=_saved_tone(state), object_name="liquidSavedChip")
+        self._saved_chip = status_chip(
+            _saved_label(state),
+            tone=_saved_tone(state),
+            object_name="liquidSavedChip",
+            state_role=_saved_state_role(state),
+        )
         self._saved_chip.setMaximumWidth(96)
         self._runtime_chip = status_chip(
             state.runtime.header_truth_label,
             tone=state.runtime.tone,
             object_name="liquidRuntimeTruthChip",
+            state_role=_runtime_chip_role(state),
         )
         self._runtime_chip.setMaximumWidth(164)
-        self._source_chip = status_chip(_source_label(state), tone="neutral", object_name="liquidSourceChip")
+        self._source_chip = status_chip(_source_label(state), tone="neutral", object_name="liquidSourceChip", state_role="info")
         _configure_source_chip(self._source_chip, state)
         self._source_detail_label = QLabel(_source_full_label(state), status_cluster)
         self._source_detail_label.setObjectName("liquidSourceDetailText")
@@ -749,27 +1254,89 @@ class _LiquidTopCommandBar(QFrame):
         command_layout.addWidget(status_rail)
         command_layout.addWidget(self.helm_button)
 
+        motion_cluster = glass_panel("liquidMotionModeCluster", role="liquid_motion_mode_cluster")
+        motion_cluster.setProperty("componentRole", "MotionModeCluster")
+        motion_cluster.setMaximumWidth(170)
+        motion_layout = horizontal_layout(motion_cluster, margins=(8, 8, 8, 8), spacing=6)
+        motion_label = QLabel("Motion")
+        motion_label.setObjectName("liquidMotionModeLabel")
+        self.motion_combo = QComboBox()
+        self.motion_combo.setObjectName("liquidMotionModeControl")
+        self.motion_combo.setProperty("componentRole", "MotionModeControl")
+        self.motion_combo.setProperty("motionRuntimeMutation", False)
+        self.motion_combo.setAccessibleName("Motion intensity")
+        self.motion_combo.setAccessibleDescription("Select Liquid motion intensity. This only changes UI presentation.")
+        for option in MotionIntensity:
+            self.motion_combo.addItem(option.value.title(), option.value)
+        self.set_motion_settings(self._motion_settings)
+        self.motion_combo.currentIndexChanged.connect(self._handle_motion_combo_changed)
+        motion_layout.addWidget(motion_label)
+        motion_layout.addWidget(self.motion_combo, 1)
+
         layout.addWidget(orb)
         layout.addLayout(title_area, 1)
         layout.addWidget(status_cluster)
         layout.addWidget(command_cluster)
+        layout.addWidget(motion_cluster)
+
+    def set_motion_settings(self, motion_settings: MotionSettings) -> None:
+        self._motion_settings = motion_settings
+        self.setProperty("motionIntensity", motion_settings.intensity.value)
+        if self.motion_combo is not None:
+            index = self.motion_combo.findData(motion_settings.intensity.value)
+            if index >= 0 and self.motion_combo.currentIndex() != index:
+                blocked = self.motion_combo.blockSignals(True)
+                self.motion_combo.setCurrentIndex(index)
+                self.motion_combo.blockSignals(blocked)
+            self.motion_combo.setProperty("motionIntensity", motion_settings.intensity.value)
+            refresh_style(self.motion_combo)
+
+    def status_breath_targets(self) -> list[QWidget]:
+        return [
+            widget
+            for widget in (self._workspace_chip, self._saved_chip, self._runtime_chip, self._source_chip)
+            if widget is not None
+        ]
+
+    def _handle_motion_combo_changed(self, index: int) -> None:
+        if self.motion_combo is None or self._on_motion_changed is None:
+            return
+        value = self.motion_combo.itemData(index)
+        self._on_motion_changed(MotionIntensity(str(value)))
 
     def update_state(self, state: AppState) -> None:
         self._state = state
         if self._workspace_chip is not None:
             self._workspace_chip.setText(_workspace_label(state))
+            apply_status_motion(self._workspace_chip, state_role="info", component_role="status_chip", hover_role="chip")
             refresh_style(self._workspace_chip)
         if self._saved_chip is not None:
             self._saved_chip.setText(_saved_label(state))
             self._saved_chip.setProperty("chipTone", _saved_tone(state))
+            self._saved_chip.setProperty("statusRole", _saved_state_role(state))
+            self._saved_chip.setProperty("draftEmphasis", not state.saved)
+            apply_status_motion(
+                self._saved_chip,
+                state_role=_saved_state_role(state),
+                component_role="status_chip",
+                hover_role="chip",
+            )
             refresh_style(self._saved_chip)
         if self._runtime_chip is not None:
             self._runtime_chip.setText(state.runtime.header_truth_label)
             self._runtime_chip.setProperty("chipTone", state.runtime.tone)
+            self._runtime_chip.setProperty("statusRole", _runtime_chip_role(state))
+            apply_status_motion(
+                self._runtime_chip,
+                state_role=_runtime_chip_role(state),
+                component_role="status_chip",
+                hover_role="chip",
+            )
             refresh_style(self._runtime_chip)
         if self._source_chip is not None:
             self._source_chip.setText(_source_label(state))
             _configure_source_chip(self._source_chip, state)
+            apply_status_motion(self._source_chip, state_role="info", component_role="status_chip", hover_role="chip")
             refresh_style(self._source_chip)
         if self._source_detail_label is not None:
             self._source_detail_label.setText(_source_full_label(state))
@@ -787,42 +1354,51 @@ class _LiquidFooterActionStrip(QFrame):
         self._message = QLabel()
         self._message.setObjectName("liquidFooterStatusMessage")
         self._message.setWordWrap(True)
+        self._save_button = None
+        self._apply_button = None
+        self._revert_button = None
 
         layout = horizontal_layout(self, margins=(18, 10, 18, 10), spacing=12)
         layout.addWidget(self._message, 1)
         footer_reason = "Disabled: global Liquid footer workspace commands are preserved for a later safe wiring pass."
-        layout.addWidget(
-            action_button(
-                "Apply",
-                object_name="liquidFooterApplyButton",
-                enabled=False,
-                action_kind="disabled_deferred",
-                disabled_reason=footer_reason,
-            )
+        self._apply_button = action_button(
+            "Apply",
+            object_name="liquidFooterApplyButton",
+            enabled=False,
+            action_kind="disabled_deferred",
+            disabled_reason=footer_reason,
         )
-        layout.addWidget(
-            action_button(
-                "Save",
-                object_name="liquidFooterSaveButton",
-                enabled=False,
-                action_kind="disabled_deferred",
-                disabled_reason=footer_reason,
-            )
+        layout.addWidget(self._apply_button)
+        self._save_button = action_button(
+            "Save",
+            object_name="liquidFooterSaveButton",
+            enabled=False,
+            action_kind="disabled_deferred",
+            disabled_reason=footer_reason,
         )
-        layout.addWidget(
-            action_button(
-                "Revert",
-                object_name="liquidFooterRevertButton",
-                enabled=False,
-                action_kind="disabled_deferred",
-                disabled_reason=footer_reason,
-            )
+        layout.addWidget(self._save_button)
+        self._revert_button = action_button(
+            "Revert",
+            object_name="liquidFooterRevertButton",
+            enabled=False,
+            action_kind="disabled_deferred",
+            disabled_reason=footer_reason,
         )
+        layout.addWidget(self._revert_button)
         self.update_state(state)
 
     def update_state(self, state: AppState) -> None:
         self._message.setText(state.status_message or "Liquid shell loaded; workspace actions are placeholders.")
         self._message.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+        draft = not state.saved
+        self.setProperty("draftEmphasis", draft)
+        self.setProperty("statusRole", "unsaved" if draft else "saved")
+        for button in (self._apply_button, self._save_button, self._revert_button):
+            if button is not None:
+                button.setProperty("draftEmphasis", draft and button is self._save_button)
+                button.setProperty("activeInteraction", False)
+                refresh_style(button)
+        refresh_style(self)
 
 
 def _navigation_state_from_state(state: AppState, model: LiquidNavigationModel) -> LiquidNavigationState:
@@ -844,6 +1420,20 @@ def _saved_label(state: AppState) -> str:
 
 def _saved_tone(state: AppState) -> str:
     return "success" if state.saved else "warning"
+
+
+def _saved_state_role(state: AppState) -> str:
+    return "saved" if state.saved else "unsaved"
+
+
+def _runtime_chip_role(state: AppState) -> str:
+    if state.runtime.tone == "success":
+        return "verified"
+    if state.runtime.tone in {"warning", "caution"}:
+        return "blocked"
+    if state.runtime.tone == "danger":
+        return "error"
+    return "info"
 
 
 def _source_label(state: AppState) -> str:
@@ -903,6 +1493,19 @@ def _runtime_status_from_bridge_telemetry(telemetry: BridgeTelemetrySnapshot) ->
         ),
         warnings=telemetry.warnings,
         errors=telemetry.errors,
+    )
+
+
+def _liquid_shell_chrome_signature(state: AppState, runtime_status: RuntimePreflightStatus, route_key: str) -> tuple[object, ...]:
+    return (
+        runtime_status.truth.value,
+        runtime_status.input.status.value,
+        runtime_status.output.status.value,
+        bool(runtime_status.live_output_writes_verified),
+        state.active_profile,
+        bool(state.saved),
+        state.status_message,
+        route_key,
     )
 
 

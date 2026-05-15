@@ -20,7 +20,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--status", action="store_true", help="Print current Bridge state/truth and exit.")
     parser.add_argument("--telemetry-stream", dest="telemetry_stream", action="store_true", help="Enable the local-only telemetry WebSocket stream.")
     parser.add_argument("--no-telemetry-stream", dest="telemetry_stream", action="store_false", help="Disable the local telemetry stream.")
-    parser.set_defaults(telemetry_stream=False)
+    parser.set_defaults(telemetry_stream=True)
     parser.add_argument("--telemetry-host", default="127.0.0.1", help="Telemetry stream bind host. HF-LRDC-3B supports 127.0.0.1 only.")
     parser.add_argument("--telemetry-port", type=int, default=8765, help="Telemetry stream bind port; use 0 for an ephemeral local port.")
     parser.add_argument("--telemetry-rate-hz", type=float, default=60.0, help="Maximum telemetry stream publish rate.")

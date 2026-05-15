@@ -17,6 +17,7 @@ from v3_app.liquid.flow_components import ChecklistPanel
 from v3_app.liquid.glass import action_button, glass_panel, mark_action_feedback
 from v3_app.liquid.instruments import CapabilityRail
 from v3_app.liquid.layout import grid_layout, horizontal_layout, vertical_layout
+from v3_app.liquid.motion import apply_interactive_card_motion
 from v3_app.liquid.models.recorder_command_model import (
     RecorderActionItem,
     RecorderArtifactItem,
@@ -65,6 +66,10 @@ class RecorderCommandPage(LiquidPage):
         self.setProperty("modeId", "recorder")
         self.setProperty("lcdPhase", "LCD-8")
         self.setProperty("recorderTruthSurface", True)
+        self.setProperty("recorderTimelineSweepEnabled", False)
+        self.setProperty("recorderTimelineStatus", "deferred_metadata_only")
+        self.setProperty("recorderMotionClaimsCapture", False)
+        self.setProperty("recorderMotionChangesEncoding", False)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._render(force=True)
 
@@ -273,6 +278,7 @@ def _action_panel(model: RecorderCommandModel, on_route_requested: RouteCallback
 def _action_row(action: RecorderActionItem, on_route_requested: RouteCallback | None) -> QFrame:
     row = glass_panel(f"liquidRecorderAction_{action.action_id}", role="liquid_recorder_action_row")
     row.setProperty("recorderAction", True)
+    apply_interactive_card_motion(row)
     layout = horizontal_layout(row, margins=(12, 9, 12, 9), spacing=8)
     route_target = "recorder.clip_library" if action.action_id == "review_artifacts" else ""
     is_navigation = bool(route_target and action.enabled and on_route_requested is not None)
@@ -392,6 +398,7 @@ def _clip_library_panel(model: RecorderCommandModel) -> LiquidInspectorPanel:
 def _artifact_card(artifact: RecorderArtifactItem) -> QFrame:
     card = glass_panel(f"liquidRecorderArtifact_{_safe(artifact.artifact_id)}", role="liquid_recorder_artifact_card")
     card.setProperty("recorderArtifactCard", True)
+    apply_interactive_card_motion(card)
     layout = vertical_layout(card, margins=(12, 10, 12, 10), spacing=7)
     title = QLabel(artifact.title)
     title.setObjectName("liquidRecorderArtifactTitle")

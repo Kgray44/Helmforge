@@ -6,6 +6,7 @@ from shared_core.models.runtime import RuntimeTruth
 from v3_app.pages.placeholders import PageDefinition
 from v3_app.ui.cockpit.pages import build_cockpit_page
 from v3_app.ui.shell import HelmForgeShell
+from v3_app.services.ui_dirty import repolish_if_changed, set_label_text_if_changed
 
 
 class CockpitShell(HelmForgeShell):
@@ -64,10 +65,10 @@ class CockpitShell(HelmForgeShell):
         for object_name in ("runtimeTruthChip", "runtimeState"):
             widget = self.findChild(QLabel, object_name)
             if widget is not None:
-                widget.setText(label)
-                widget.style().unpolish(widget)
-                widget.style().polish(widget)
-                widget.update()
+                changed = set_label_text_if_changed(widget, label)
+                repolish_if_changed(widget, changed)
+                if changed:
+                    widget.update()
 
     @staticmethod
     def _mark_scroll(scroll: QScrollArea) -> None:

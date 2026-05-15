@@ -82,6 +82,7 @@ def build_analysis_command_model(
     state: AppState | None = None,
     telemetry: BridgeTelemetrySnapshot | None = None,
     selected_axis: str = "Roll",
+    pipeline: WorkspaceSignalPipeline | None = None,
 ) -> AnalysisCommandModel:
     route_key = _validate_route(route_key)
     workspace = workspace or create_default_workspace()
@@ -89,7 +90,7 @@ def build_analysis_command_model(
     telemetry_state = _telemetry_state(state=state, telemetry=telemetry)
     raw_axes = _axis_values(telemetry, "raw_axes")
     final_axes = _axis_values(telemetry, "final_axes")
-    pipeline_result = _pipeline_result(workspace, raw_axes)
+    pipeline_result = _pipeline_result(workspace, raw_axes, pipeline=pipeline)
     axis_monitors = _axis_monitors(raw_axes, final_axes, pipeline_result, telemetry_state.role)
     stages = _pipeline_stages(
         selected_axis=selected_axis,
@@ -153,7 +154,6 @@ def build_analysis_command_model(
             route_key,
             selected_axis,
             telemetry_state.label,
-            telemetry_state.freshness_label,
             runtime_truth_label,
             output_proof_label,
             tuple((axis.axis_name, axis.raw_text, axis.final_text) for axis in axis_monitors),
@@ -252,13 +252,15 @@ def _axis_values(telemetry: BridgeTelemetrySnapshot | None, field_name: str) -> 
 def _pipeline_result(
     workspace: WorkspaceConfig,
     raw_axes: Mapping[str, float] | None,
+    *,
+    pipeline: WorkspaceSignalPipeline | None = None,
 ) -> WorkspaceSignalPipelineResult | None:
     if raw_axes is None:
         return None
     if any(axis not in raw_axes for axis in AXIS_NAMES):
         return None
-    pipeline = WorkspaceSignalPipeline(workspace)
-    return pipeline.process(raw_axes, mode_state=ModeState(), state=pipeline.initial_state())
+    active_pipeline = pipeline or WorkspaceSignalPipeline(workspace)
+    return active_pipeline.process(raw_axes, mode_state=ModeState(), state=active_pipeline.initial_state())
 
 
 def _axis_monitors(

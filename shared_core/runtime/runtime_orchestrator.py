@@ -17,6 +17,7 @@ from shared_core.models.runtime import (
     simulation_fallback_status,
 )
 from shared_core.models.workspace import WorkspaceConfig, create_default_workspace
+from shared_core.rules.evaluator import status_counts
 from shared_core.runtime.hotas_input import PhysicalInputSamplingStatus, PhysicalInputSnapshot
 from shared_core.runtime.simulated_runtime import SimulatedRuntime
 from shared_core.runtime.vjoy_output import (
@@ -101,19 +102,32 @@ class RuntimePipelineResult:
     active_modes: tuple[str, ...]
     active_rules: tuple[str, ...]
     active_rules_count: int
+    rule_status_counts: Mapping[str, int]
     raw_axis_values: Mapping[str, float]
     final_output_values: Mapping[str, float]
     stage_names_by_axis: Mapping[str, tuple[str, ...]]
+    axis_stage_values: Mapping[str, tuple[Mapping[str, object], ...]]
     warnings: tuple[str, ...] = ()
     errors: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "raw_axis_values", MappingProxyType(dict(self.raw_axis_values)))
         object.__setattr__(self, "final_output_values", MappingProxyType(dict(self.final_output_values)))
+        object.__setattr__(self, "rule_status_counts", MappingProxyType(dict(self.rule_status_counts)))
         object.__setattr__(
             self,
             "stage_names_by_axis",
             MappingProxyType({name: tuple(stages) for name, stages in self.stage_names_by_axis.items()}),
+        )
+        object.__setattr__(
+            self,
+            "axis_stage_values",
+            MappingProxyType(
+                {
+                    name: tuple(dict(stage) for stage in stages)
+                    for name, stages in self.axis_stage_values.items()
+                }
+            ),
         )
 
 
@@ -199,6 +213,7 @@ class RuntimeFrame:
             "input_sample_age_seconds": self.input.sample_age_seconds,
             "active_modes": self.pipeline.active_modes,
             "active_rules_count": self.pipeline.active_rules_count,
+            "rule_status_counts": dict(self.pipeline.rule_status_counts),
             "output_intent_ready": bool(self.output_intent.axes),
             "output_intent_source": self.output_intent.source,
             "final_output_axes": tuple(axis.axis_name for axis in self.output_intent.axes),
@@ -272,7 +287,12 @@ class RuntimeFrame:
             "active_modes": list(self.pipeline.active_modes),
             "active_rule_count": self.pipeline.active_rules_count,
             "active_rule_names": list(self.pipeline.active_rules[:8]),
+            "rule_status_counts": dict(self.pipeline.rule_status_counts),
             "final_output_axes": {axis.axis_name: axis.value for axis in self.output_intent.axes},
+            "axis_stage_values": {
+                axis_name: [dict(stage) for stage in stages]
+                for axis_name, stages in self.pipeline.axis_stage_values.items()
+            },
             "output_intent_ready": bool(self.output_intent.axes),
             "output_backend": self.output.virtual_output_backend,
             "output_verification_status": self.output.output_verification_status,
@@ -660,16 +680,22 @@ class RuntimeOrchestrator:
 
 def _pipeline_summary(workspace: WorkspaceConfig, result: WorkspaceSignalPipelineResult) -> RuntimePipelineResult:
     active_rules = tuple(rule.title for rule in workspace.rules.rules if rule.enabled)
+    rule_counts = status_counts(result.rule_evaluations)
     return RuntimePipelineResult(
         selected_workspace=workspace.product_name,
         active_profile=workspace.active_profile,
         active_modes=(),
         active_rules=active_rules,
         active_rules_count=len(active_rules),
+        rule_status_counts=rule_counts,
         raw_axis_values=result.raw_axis_values,
         final_output_values=result.final_output_values,
         stage_names_by_axis={
             axis_name: tuple(stage.stage_name for stage in axis_result.stages)
+            for axis_name, axis_result in result.axis_results.items()
+        },
+        axis_stage_values={
+            axis_name: tuple(_stage_value_payload(stage) for stage in axis_result.stages)
             for axis_name, axis_result in result.axis_results.items()
         },
     )
@@ -683,11 +709,50 @@ def _pipeline_error_summary(workspace: WorkspaceConfig, raw_axes: Mapping[str, f
         active_modes=(),
         active_rules=active_rules,
         active_rules_count=len(active_rules),
+        rule_status_counts={"active": 0, "blocked": 0, "disabled": 0},
         raw_axis_values={name: float(raw_axes.get(name, 0.0)) for name in AXIS_NAMES},
         final_output_values={name: 0.0 for name in AXIS_NAMES},
         stage_names_by_axis={name: ("pipeline_error",) for name in AXIS_NAMES},
+        axis_stage_values={
+            name: (
+                {
+                    "stage_name": "pipeline_error",
+                    "input_value": float(raw_axes.get(name, 0.0)),
+                    "output_value": 0.0,
+                    "delta": -float(raw_axes.get(name, 0.0)),
+                    "active": True,
+                    "metadata": {"error": str(exc)},
+                    "injected_rules": [],
+                },
+            )
+            for name in AXIS_NAMES
+        },
         errors=(f"blocked_pipeline_error: {exc}",),
     )
+
+
+def _stage_value_payload(stage) -> dict[str, object]:
+    return {
+        "stage_name": stage.stage_name,
+        "input_value": float(stage.input_value),
+        "output_value": float(stage.output_value),
+        "delta": float(stage.delta),
+        "active": bool(stage.active),
+        "metadata": _jsonable(stage.metadata),
+        "injected_rules": [str(item) for item in stage.injected_rules],
+    }
+
+
+def _jsonable(value: object) -> object:
+    if isinstance(value, Mapping):
+        return {str(key): _jsonable(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_jsonable(item) for item in value]
+    if isinstance(value, list):
+        return [_jsonable(item) for item in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
 
 
 def _output_truth(

@@ -87,7 +87,7 @@ class LiveOverlayConfig:
             always_on_top=True,
             click_through=False,
             click_through_supported="unknown",
-            fps_cap=60,
+            fps_cap=30,
             toggle_hotkey="Ctrl+Shift+F9",
             hotkey_registered=False,
             axes={axis: OverlayAxisConfig(include=True, color=color_for_axis(axis)) for axis in AXIS_NAMES},
